@@ -1,36 +1,40 @@
+Aquí tienes la estructura de carpetas y el README actualizados a la perfección. He aplicado la "cirugía" necesaria para eliminar cualquier rastro de pasarelas reales (Culqi), he borrado el sistema de registro/contraseñas para ingenieros, y he integrado la tabla de Sedes y el "Mago de Oz".
 
+Esta es la versión definitiva que tu equipo debe usar para armar el cascarón del proyecto hoy mismo.
 
-### 1. Estructura del Frontend (React)
+---
 
-Para un MVP ágil de 5 días, la mejor arquitectura es agrupar por **características (features)** o por **tipo de archivo**. Usaremos la estructura clásica por tipo de archivo, que es la más fácil de entender para todo el equipo. Les recomiendo usar **Vite** para crear el proyecto React, ya que es muchísimo más rápido que Create React App.
+### 1. Estructura del Frontend (React + Vite)
+
+Hemos limpiado las vistas. Ahora hay una clara separación entre la ruta pública del DNI y la ruta secreta del Administrador. Además, reemplazamos la pasarela por nuestro modal simulado.
 
 ```text
 front-cip/
-├── public/                 # Favicon y assets estáticos públicos
+├── public/                 # Favicon y assets estáticos
 ├── src/
-│   ├── assets/             # Imágenes estáticas (ej. logo_upao.png, logo_cip.png)
+│   ├── assets/             # Imágenes estáticas (ej. logo_upao.png)
 │   ├── components/         # Componentes reutilizables
-│   │   ├── Carnet/         # Componente visual del carnet y marca de agua
-│   │   ├── Layout/         # Navbar, Sidebar, Footer
-│   │   └── UI/             # Botones, Inputs, Modales genéricos
-│   ├── context/            # Estado global (RBAC)
-│   │   └── AuthContext.jsx # Manejo del usuario logueado y su token
+│   │   ├── Carnet/         # Componente visual del carnet (HTML/CSS) y franja roja
+│   │   ├── MagoDeOz/       # Componente del Modal de Pago Simulado (Fricción de 2s)
+│   │   ├── Layout/         # Navbar, Footer
+│   │   └── UI/             # Botones, Inputs genéricos
+│   ├── context/            # Estado global
+│   │   └── AuthContext.jsx # Manejo exclusivo del token del Administrador
 │   ├── pages/              # Las vistas completas del sistema
-│   │   ├── Login.jsx       # Interfaz unificada (DNI/CIP)
-│   │   ├── Registro.jsx    # Formulario para postulantes nuevos
-│   │   ├── Tramite.jsx     # Formulario de carga de documentos
-│   │   ├── DashboardAdmin.jsx # Bandeja de solicitudes
-│   │   ├── MiCarnet.jsx    # Vista del colegiado
-│   │   └── Pagos.jsx       # Integración con Culqi
-│   ├── services/           # Lógica de comunicación con el Backend
-│   │   ├── api.js          # Configuración de Axios e interceptores
-│   │   ├── authService.js  # Peticiones de login/registro
-│   │   └── tramiteService.js # Peticiones para subir PDFs y fotos
-│   ├── utils/              # Funciones de ayuda
-│   │   └── formatters.js   # Formatear moneda (S/ 20.00), fechas, etc.
+│   │   ├── HomeDNI.jsx     # (Acceso) Input único de 8 dígitos para postulantes/colegiados
+│   │   ├── LoginAdmin.jsx  # (Oculto) Login clásico solo para el staff del CIP
+│   │   ├── Inscripcion.jsx # Formulario (Sedes, Carrera, Carga de PDF/Fotos)
+│   │   ├── PanelAdmin.jsx  # Bandeja de solicitudes pendientes y auditoría
+│   │   └── PortalCIP.jsx   # Vista del colegiado (Muestra el Carnet y la Deuda)
+│   ├── services/           # Lógica de comunicación con el Backend (Axios)
+│   │   ├── api.js          # Configuración base
+│   │   ├── publicService.js# Rutas basadas en DNI (Buscar trámite, buscar deuda)
+│   │   ├── adminService.js # Rutas protegidas por Token (Aprobar/Rechazar)
+│   │   └── pagoService.js  # Petición silenciosa de liquidación de deuda
+│   ├── utils/              # Funciones de ayuda (formateo de moneda a S/, fechas)
 │   ├── App.jsx             # Enrutador principal (React Router)
-│   └── main.jsx            # Punto de entrada de React
-├── .env                    # Variables de entorno (URLs del backend, Keys de Culqi)
+│   └── main.jsx            # Punto de entrada
+├── .env                    # Variables de entorno (URL del backend local/nube)
 ├── package.json
 └── vite.config.js
 
@@ -38,66 +42,60 @@ front-cip/
 
 ### 2. Estructura del Backend (Django REST Framework)
 
-En Django, la regla de oro es dividir el sistema en "Aplicaciones" (`apps`) que hagan una sola cosa bien. Basado en tus Módulos, esta es la división perfecta para que tus programadores backend se dividan el trabajo hoy mismo:
+Al usar el administrador nativo de Django, **eliminamos la carpeta (app) de `usuarios**`. Todo el sistema se reduce a dos grandes cerebros: `tramites` y `finanzas`.
 
 ```text
 back-cip/
 ├── manage.py
 ├── core/                   # Configuración principal del proyecto
-│   ├── settings.py         # Configuración de BD, JWT, AWS S3
+│   ├── settings.py         # Configuración de Postgres, JWT y AWS S3
 │   ├── urls.py             # Enrutador principal
 │   └── wsgi.py
 ├── apps/                   # Carpeta contenedora de las aplicaciones
-│   ├── usuarios/           # Módulo 1: Autenticación y Accesos
-│   │   ├── models.py       # Tabla 'usuarios'
-│   │   ├── views.py        # Login (DNI/CIP), Registro
-│   │   ├── serializers.py  # Transformación de datos
+│   ├── tramites/           # Módulo de Inscripción y Padrón
+│   │   ├── models.py       # Tablas: Sede, TramiteInscripcion, Colegiado
+│   │   ├── views.py        # Mock apis.net.pe, Subida S3, Dictamen de Admin
+│   │   ├── serializers.py  # Transformación de datos JSON
 │   │   └── urls.py
-│   ├── tramites/           # Módulo 2 y 3: Inscripción y Administración
-│   │   ├── models.py       # Tabla 'inscripciones' y 'colegiados'
-│   │   ├── views.py        # Validación Mock RENIEC, Subida S3, Aprobar/Rechazar
-│   │   ├── serializers.py
-│   │   └── urls.py
-│   └── finanzas/           # Módulo 4 y 5: Motor de Pagos
-│       ├── models.py       # Tabla 'cuotas'
-│       ├── views.py        # Generador de deuda mensual, Webhook Culqi
+│   └── finanzas/           # Módulo del Motor de Pagos
+│       ├── models.py       # Tabla: Cuota
+│       ├── views.py        # Generador de deuda (S/ 20.00) y Endpoint Simulador de Pago
 │       ├── serializers.py
 │       └── urls.py
 ├── utils/                  # Utilidades compartidas
-│   ├── mock_reniec.py      # Tu Mock API simulada (Diccionario de DNIs)
-│   └── s3_storage.py       # Lógica para subir PDFs y fotos a AWS
-├── requirements.txt        # Dependencias de Python
-└── .env                    # Credenciales de BD y AWS (¡No subir a GitHub!)
+│   ├── validator.py        # Conexión simulada para validar DNI
+│   └── s3_storage.py       # Lógica para inyectar PDFs y fotos al Bucket AWS
+├── requirements.txt        # Dependencias de Python (Django, psycopg2, boto3, etc.)
+└── .env                    # Credenciales de Postgres y AWS (¡No subir a GitHub!)
 
 ```
 
----
+### 3. Redacción para el README.md (Stack Tecnológico)
 
-### 3. Stack Tecnológico (Para copiar a tu `README.md`)
-
-Esta redacción le dará un peso profesional enorme a su repositorio en GitHub:
+Copia este bloque en tu repositorio de GitHub o en tu informe para el profesor. La redacción refleja el nivel técnico del MVP:
 
 ```markdown
-## 🛠️ Stack Tecnológico
+## 🛠️ Stack Tecnológico y Arquitectura
 
-Este Producto Mínimo Viable (MVP) ha sido desarrollado utilizando una arquitectura cliente-servidor, priorizando la escalabilidad, el rendimiento y la seguridad en la nube.
+Este Producto Mínimo Viable (MVP) ha sido desarrollado bajo una arquitectura cliente-servidor orientada a servicios, priorizando la latencia, la integridad de los datos financieros y la seguridad de la infraestructura.
 
 ### Frontend (Cliente)
 * **Librería Core:** React.js (v18)
-* **Build Tool:** Vite (Optimización de tiempos de compilación)
-* **Estilos:** TailwindCSS (Para un diseño responsivo ágil y renderizado dinámico del Carnet)
-* **Enrutamiento:** React Router Dom v6 (Manejo de rutas protegidas por roles)
-* **Peticiones HTTP:** Axios (Con interceptores para inyección de tokens)
-* **Pasarela de Pagos:** Culqi Checkout (Tokenización en el cliente)
+* **Build Tool:** Vite (Optimización extrema de tiempos de compilación)
+* **Estilos:** TailwindCSS (Diseño responsivo ágil y renderizado condicional de credenciales)
+* **Enrutamiento:** React Router Dom v6 (Manejo de rutas dinámicas por DNI y rutas ocultas protegidas)
+* **Peticiones HTTP:** Axios (Con interceptores para inyección de tokens administrativos)
+* **Emulación Transaccional:** Implementación del patrón UI "Mago de Oz" para simulación de pasarela de pagos de alta fidelidad sin exposición de datos sensibles.
 
 ### Backend (Servidor)
 * **Framework Core:** Python 3 + Django (v5)
 * **API Framework:** Django REST Framework (DRF)
-* **Autenticación:** JSON Web Tokens (SimpleJWT) para Control de Acceso Basado en Roles (RBAC)
-* **Base de Datos:** PostgreSQL (Bases de datos relacionales con cumplimiento ACID)
-* **Almacenamiento de Objetos:** AWS S3 (Gestión segura de expedientes PDF e imágenes)
+* **Autenticación:** JSON Web Tokens (SimpleJWT) aplicado bajo un modelo RBAC exclusivamente para el personal administrativo.
+* **Base de Datos:** PostgreSQL (Cumplimiento estricto de propiedades ACID para transacciones financieras y validación de llaves compuestas).
+* **Almacenamiento de Objetos:** AWS S3 (Gestión centralizada y segura de expedientes PDF e imágenes, sin exposición de URLs públicas directas).
 
 ### Integraciones y Servicios Externos
-* **Validación de Identidad:** Servicio Simulado (Mock API) basado en latencias reales para garantizar la continuidad de pruebas.
-* **Pasarela de Pagos:** Culqi API (Procesamiento transaccional simulado).
+* **Validación de Identidad:** Servicio Simulado (Mock API) basado en latencias reales (apis.net.pe) para asegurar la continuidad del entorno de desarrollo.
+* **Procesamiento de Pagos:** Rutas internas de liquidación directa automatizada (Mock Endpoint), garantizando la limpieza de deuda en tiempo real sin dependencias de terceros.
 
+```
