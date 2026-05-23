@@ -125,3 +125,53 @@ Pasan dos meses. El motor automático ya le generó dos deudas de S/ 20.00. El i
 
 **Acto 5: El Pago Simulado y la Liberación**
 El ingeniero va a la sección de pagos. Ve que debe S/ 40.00 y el sistema no le permite pagar de forma parcial. Hace clic en pagar y se abre nuestro modal simulado ("Mago de Oz"). Ingresa los datos de su tarjeta y presiona confirmar. El frontend muestra una fricción visual de carga por 2 segundos (sin enviar los datos bancarios a la red) y envía la orden de liquidación al backend. El backend borra la deuda, la franja de "INHABILITADO" desaparece en tiempo real y el ingeniero ya puede visualizar su carnet completamente limpio.
+
+--
+Como tus amigos van a interactuar con el sistema, lo más importante es que sepan **qué pueden hacer** y **a dónde deben apuntar**. No les des el manual de instalación técnica, dales el **"Manual de Usuario de la API"**.
+
+Aquí tienes el resumen que puedes copiar y pegar en tu `README.md` (o enviarles por chat) para que entiendan cómo usar tu backend:
+
+---
+
+## 🚀 **Guía de Uso para el Equipo (Frontend/Consumo)**
+
+¡Hola equipo! El backend ya está arriba y listo para consumir. Aquí tienen los puntos clave para conectar sus vistas:
+
+### 🌐 **Base URL**
+
+Todas las peticiones deben apuntar a:
+`http://localhost:8001/api/`
+
+### 🔑 **Autenticación (JWT)**
+
+Para acceder a los datos protegidos, primero deben obtener su token.
+
+* **Endpoint:** `POST /api/token/`
+* **Cuerpo (JSON):** `{"username": "admin", "password": "tu_password"}`
+* **Respuesta:** Recibirán un `access` token. Deben enviarlo en el **Header** de todas sus peticiones:
+`Authorization: Bearer <tu_token_aqui>`
+
+### 🛠️ **Endpoints Principales**
+
+| Módulo | Acción | Endpoint |
+| --- | --- | --- |
+| **Catálogos** | Listar Sedes | `GET /finanzas/sedes/` |
+| **Catálogos** | Listar Carreras | `GET /finanzas/carreras/` |
+| **Finanzas** | Ver deudas de colegiado | `GET /finanzas/colegiados/{id}/deuda/` |
+| **Trámites** | Listar pendientes | `GET /tramites/pendientes/listar/` |
+| **Trámites** | Enviar trámite | `POST /tramites/` |
+
+### 💡 **Tips importantes para el equipo**
+
+1. **Filtros:** Casi todos los endpoints `GET` soportan filtros. Pueden probar añadiendo `?format=json` o usando los filtros del Django REST Framework directamente en el navegador.
+2. **Validaciones:** Si envían un formulario (POST), recuerden que el backend valida:
+* **DNI:** 8 dígitos exactos.
+* **CIP:** 5 dígitos exactos.
+* **Archivos:** Solo acepta JPG, PNG o PDF (máx 10MB).
+
+
+3. **Ambiente:** Si el servidor local (`8001`) no responde, asegúrense de tener el contenedor levantado con `docker compose up`.
+
+---
+
+¿Quieres que añada alguna sección extra, como por ejemplo cómo manejar los errores si el token expira? ¡Con esto ya tienen el mapa completo para trabajar sin preguntarte cada cinco minutos!
