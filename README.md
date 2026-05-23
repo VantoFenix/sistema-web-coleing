@@ -71,3 +71,17 @@ sistema-web-coleing/
 ├── docker-compose.yml     # Orquestador de contenedores
 └── README.md              # Este documento
 ```
+
+---
+
+## 🏛️ Arquitectura del Backend (Service Layer Pattern)
+
+El backend en Django sigue estrictamente el patrón de **Capa de Servicios** y **Selectores** para lograr un *Vertical Slicing* limpio. Esta arquitectura evita el anti-patrón de "Vistas Gordas" (*Fat Views*). 
+
+Si exploras dentro de una App (ej. `apps/finanzas/`), encontrarás estos 5 archivos clave:
+
+1. **`models.py`**: Define la estructura de las tablas en la base de datos (PostgreSQL/Supabase). No debe contener lógica de negocio compleja, solo definición de datos.
+2. **`services.py`**: **Capa de Escritura.** Contiene la lógica de negocio que *modifica, crea o elimina* datos (Mutaciones). Ejemplo: `marcar_cuota_como_pagada()`. Si necesitas hacer un INSERT o UPDATE complejo, el código va aquí.
+3. **`selectors.py`**: **Capa de Lectura.** Contiene las consultas (*queries*) complejas a la base de datos. Ejemplo: `calcular_deuda_total()`. Cualquier `Sum`, `Count` o `filter` complejo debe vivir aquí para poder reutilizarlo.
+4. **`serializers.py`**: Define cómo transformar los objetos de la base de datos a formato JSON (para enviarlo a React) y viceversa.
+5. **`views.py`**: **Capa de Entrega HTTP.** Su única responsabilidad es recibir la petición de internet, llamar a la función correspondiente de `services.py` o `selectors.py`, y devolver la respuesta JSON al cliente. **No debe tener lógica de negocio directa.**

@@ -8,6 +8,8 @@ from .serializers import (
     SedeSerializer, CarreraSerializer, ColegiadorSerializer,
     CuotaSerializer, CuotaListSerializer, CuotaDetailSerializer
 )
+from .services import marcar_cuota_como_pagada, CuotaNoPendienteException
+from .selectors import calcular_deuda_colegiado, obtener_resumen_financiero
 
 
 # ==============================================================================
@@ -97,17 +99,8 @@ class ColegiadorViewSet(viewsets.ModelViewSet):
         Endpoint: GET /colegiados/{id}/deuda/
         """
         colegiado = self.get_object()
-        cuotas_pendientes = colegiado.cuotas.filter(pagado=False)
-        deuda_total = cuotas_pendientes.aggregate(Sum('monto'))['monto__sum'] or 0
-        cantidad_cuotas = cuotas_pendientes.count()
-
-        return Response({
-            'colegiado_id': colegiado.id,
-            'colegiado_nombre': colegiado.nombre_completo,
-            'deuda_total': deuda_total,
-            'cantidad_cuotas_pendientes': cantidad_cuotas,
-            'habilitado': colegiado.habilitado
-        })
+        datos_deuda = calcular_deuda_colegiado(colegiado)
+        return Response(datos_deuda)
 
     @action(detail=False, methods=['get'])
     def habilitados(self, request):
@@ -213,25 +206,15 @@ class CuotaViewSet(viewsets.ModelViewSet):
             "transaccion_id": "TRX123456"  (opcional)
         }
         """
-        from django.utils import timezone
         cuota = self.get_object()
+        transaccion_id = request.data.get('transaccion_id')
         
-        if cuota.pagado:
-            return Response(
-                {'detail': 'Esta cuota ya ha sido pagada.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        cuota.pagado = True
-        cuota.fecha_pago = timezone.now()
-        cuota.transaccion_id = request.data.get('transaccion_id')
-        cuota.save()
-
-        serializer = self.get_serializer(cuota)
-        return Response(
-            serializer.data,
-            status=status.HTTP_200_OK
-        )
+        try:
+            cuota_pagada = marcar_cuota_como_pagada(cuota, transaccion_id)
+            serializer = self.get_serializer(cuota_pagada)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except CuotaNoPendienteException as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['get'])
     def resumen(self, request):
@@ -239,24 +222,5 @@ class CuotaViewSet(viewsets.ModelViewSet):
         Retorna un resumen del estado financiero.
         Endpoint: GET /cuotas/reportes/resumen/
         """
-        total_cuotas = Cuota.objects.count()
-        total_pagado = Cuota.objects.filter(pagado=True).aggregate(
-            total=Sum('monto')
-        )['total'] or 0
-        total_pendiente = Cuota.objects.filter(pagado=False).aggregate(
-            total=Sum('monto')
-        )['total'] or 0
-        cuotas_pagadas = Cuota.objects.filter(pagado=True).count()
-        cuotas_pendientes = Cuota.objects.filter(pagado=False).count()
-
-        return Response({
-            'total_cuotas': total_cuotas,
-            'cuotas_pagadas': cuotas_pagadas,
-            'cuotas_pendientes': cuotas_pendientes,
-            'monto_total_pagado': total_pagado,
-            'monto_total_pendiente': total_pendiente,
-            'monto_total': total_pagado + total_pendiente,
-            'porcentaje_pagado': (
-                round((cuotas_pagadas / total_cuotas * 100), 2) if total_cuotas > 0 else 0
-            )
-        })
+        datos_resumen = obtener_resumen_financiero()
+        return Response(datos_resumen)
