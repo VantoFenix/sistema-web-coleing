@@ -19,7 +19,7 @@ front-cip/
 │   ├── assets/             # Imágenes estáticas (ej. logo_upao.png)
 │   ├── components/         # Componentes reutilizables
 │   │   ├── Carnet/         # Componente visual del carnet (HTML/CSS) y franja roja
-│   │   ├── MagoDeOz/       # Componente del Modal de Pago Simulado (Fricción de 2s)
+│   │   ├── pagos/       # Componente del Modal de Pago Simulado (Fricción de 2s)
 │   │   ├── Layout/         # Navbar, Footer
 │   │   └── UI/             # Botones, Inputs genéricos
 │   ├── context/            # Estado global
@@ -76,7 +76,11 @@ back-cip/
 └── .env                    # Credenciales de Postgres y AWS (¡No subir a GitHub!)
 
 ```
+Nota técnica para cuando empiecen a programar: Como guardamos nuestras aplicaciones dentro de la carpeta apps/, cuando vayan al archivo core/settings.py a registrar las aplicaciones, simplemente tendrán que escribirlas así:
 
+'apps.tramites',
+
+'apps.finanzas',
 ### 3. Stack Tecnológico y Arquitectura
 
 Este Producto Mínimo Viable (MVP) ha sido desarrollado bajo una arquitectura cliente-servidor orientada a servicios, priorizando la latencia, la integridad de los datos financieros y la seguridad de la infraestructura.
