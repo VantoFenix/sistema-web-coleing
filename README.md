@@ -1,177 +1,73 @@
-¡Veo que te encontraste con un clásico conflicto de Git (los famosos `<<<<<<< HEAD`) al intentar unir las versiones! No te preocupes, es el pan de cada día en el desarrollo de software.
+# Sistema Web - Colegio de Ingenieros (CIP)
 
-Además del conflicto de versión, el texto que tenías al final (el de los "Actos") seguía mencionando a Culqi y el acceso directo solo con DNI, lo cual ya habíamos descartado en favor de la **Activación por Correo y la Contraseña**.
+Plataforma integral para la gestión de colegiados, trámites de inscripción y motor financiero, desarrollada con arquitectura cliente-servidor.
 
-He limpiado los conflictos, fusionado lo mejor de ambas ramas y reescrito "La Película del Proyecto" para que calce exactamente con nuestra última arquitectura blindada.
-
-Copia y pega este bloque limpio directamente en tu `README.md` (o en tu informe):
+## 🚀 Tecnologías Principales
+- **Frontend:** React.js (Vite) + CSS.
+- **Backend:** Python + Django REST Framework (DRF).
+- **Base de Datos:** PostgreSQL en la nube (vía Supabase).
+- **Despliegue Local:** Docker Compose.
 
 ---
 
-### 1. Estructura del Frontend (React + Vite)
+## 🛠️ Cómo desplegar el Backend y el Frontend localmente
 
-Hemos organizado las vistas para separar claramente la ruta pública, la ruta secreta del Administrador y el nuevo flujo de activación por correo electrónico.
+Dado que el proyecto utiliza contenedores y una base de datos en Supabase, levantar todo el entorno es sumamente sencillo.
 
-```text
-front-cip/
-├── public/                 # Favicon y assets estáticos
-├── src/
-│   ├── assets/             # Imágenes estáticas (ej. logo_upao.png)
-│   ├── components/         # Componentes reutilizables
-│   │   ├── Carnet/         # Componente visual del carnet (HTML/CSS) y franja roja
-│   │   ├── pagos/       # Componente del Modal de Pago Simulado (Fricción de 2s)
-│   │   ├── Layout/         # Navbar, Footer
-│   │   └── UI/             # Botones, Inputs genéricos
-│   ├── context/            # Estado global
-│   │   └── AuthContext.jsx # Manejo de sesión (Colegiados y Administradores)
-│   ├── pages/              # Las vistas completas del sistema
-│   │   ├── Landing.jsx     # Pantalla inicial (Botones: Iniciar Sesión / Postular)
-│   │   ├── Login.jsx       # Login para colegiados (DNI/Correo + Contraseña)
-│   │   ├── LoginAdmin.jsx  # (Oculto) Login clásico solo para el staff del CIP
-│   │   ├── Inscripcion.jsx # Formulario (Sedes, Carreras, Carga de PDF/Fotos)
-│   │   ├── Activacion.jsx  # Vista de un solo uso (desde el correo) para crear contraseña
-│   │   ├── PanelAdmin.jsx  # Bandeja de solicitudes pendientes y auditoría
-│   │   └── PortalCIP.jsx   # Vista del colegiado (Muestra el Carnet y la Deuda)
-│   ├── services/           # Lógica de comunicación con el Backend (Axios)
-│   │   ├── api.js          # Configuración base e interceptores JWT
-│   │   ├── publicService.js# Rutas públicas (Formulario de inscripción)
-│   │   ├── authService.js  # Rutas de login y activación de cuenta
-│   │   ├── adminService.js # Rutas protegidas (Aprobar/Rechazar trámites)
-│   │   └── pagoService.js  # Petición silenciosa de liquidación de deuda simulada
-│   ├── utils/              # Funciones de ayuda (formateo de moneda a S/, fechas)
-│   ├── App.jsx             # Enrutador principal (React Router Dom)
-│   └── main.jsx            # Punto de entrada
-├── .env                    # Variables de entorno (URL del backend local/nube)
-├── package.json
-└── vite.config.js
+### Prerrequisitos
+1. **Docker Desktop** instalado y encendido.
+2. Contar con el archivo `back-cip/.env` configurado con las credenciales del Pooler de Supabase.
 
+### Pasos para iniciar el proyecto
+
+Abre tu terminal en la carpeta principal del proyecto (donde está este archivo `README.md`) y ejecuta:
+
+```bash
+docker-compose up -d
 ```
 
-### 2. Estructura del Backend (Django REST Framework)
+Este único comando levantará dos servicios:
+- **Backend (Django):** Estará disponible en `http://localhost:8001`
+- **Frontend (React):** Estará disponible en `http://localhost:5173`
 
-Al usar el administrador nativo de Django, todo el sistema central se reduce a dos grandes cerebros: `tramites` y `finanzas`.
+*(Nota: Ya no dependemos de un contenedor local de base de datos porque el backend se conecta automáticamente a Supabase en la nube usando tu archivo `.env`).*
+
+### Operaciones Comunes (Comandos útiles)
+
+**Ver los logs del backend o frontend en vivo:**
+```bash
+docker-compose logs -f backend
+docker-compose logs -f frontend
+```
+
+**Crear un superusuario de Django (Admin):**
+```bash
+docker-compose exec backend python manage.py createsuperuser
+```
+
+**Correr migraciones de Base de Datos:**
+*(Normalmente se corren automáticamente al iniciar, pero si creas modelos nuevos, usa estos comandos)*
+```bash
+docker-compose exec backend python manage.py makemigrations
+docker-compose exec backend python manage.py migrate
+```
+
+**Apagar el sistema:**
+```bash
+docker-compose down
+```
+
+---
+
+## 🏗️ Estructura del Proyecto
 
 ```text
-back-cip/
-├── manage.py
-├── core/                   # Configuración principal del proyecto
-│   ├── settings.py         # Configuración de Postgres, JWT y AWS S3/Cloudinary
-│   ├── urls.py             # Enrutador principal
-│   └── wsgi.py
-├── apps/                   # Carpeta contenedora de las aplicaciones
-│   ├── tramites/           # Módulo de Inscripción y Padrón
-│   │   ├── models.py       # Tablas: Carreras, Sedes, Tramites, Colegiados
-│   │   ├── views.py        # Mock apis.net.pe, Subida de archivos, Dictamen
-│   │   ├── serializers.py  # Transformación de datos JSON
-│   │   └── urls.py
-│   └── finanzas/           # Módulo del Motor de Pagos
-│       ├── models.py       # Tabla: Cuotas
-│       ├── views.py        # Generador de deuda (S/ 20.00) y Endpoint de Pago Simulado
-│       ├── serializers.py
-│       └── urls.py
-├── utils/                  # Utilidades compartidas
-│   ├── validator.py        # Conexión simulada para validar DNI
-│   └── storage.py          # Lógica para inyectar PDFs y fotos al Bucket
-├── requirements.txt        # Dependencias de Python (Django, psycopg2, boto3, etc.)
-└── .env                    # Credenciales de Postgres y AWS (¡No subir a GitHub!)
-
+sistema-web-coleing/
+├── front-cip/             # Código fuente de React (Vite)
+├── back-cip/              # Código fuente de Django (API)
+│   ├── apps/tramites/     # Módulo de Inscripciones
+│   ├── apps/finanzas/     # Módulo de Cuotas y Pagos
+│   └── core/              # Configuración principal
+├── docker-compose.yml     # Orquestador de contenedores
+└── README.md              # Este documento
 ```
-Nota técnica para cuando empiecen a programar: Como guardamos nuestras aplicaciones dentro de la carpeta apps/, cuando vayan al archivo core/settings.py a registrar las aplicaciones, simplemente tendrán que escribirlas así:
-
-'apps.tramites',
-
-'apps.finanzas',
-### 3. Stack Tecnológico y Arquitectura
-
-Este Producto Mínimo Viable (MVP) ha sido desarrollado bajo una arquitectura cliente-servidor orientada a servicios, priorizando la latencia, la integridad de los datos financieros y la seguridad de la infraestructura.
-
-#### Frontend (Cliente)
-
-* **Librería Core:** React.js (v18)
-* **Build Tool:** Vite (Optimización extrema de tiempos de compilación)
-* **Estilos:** TailwindCSS (Diseño responsivo ágil y renderizado condicional de credenciales)
-* **Enrutamiento:** React Router Dom v6 (Manejo de rutas públicas, privadas y administrativas)
-* **Peticiones HTTP:** Axios (Con interceptores para inyección de tokens de seguridad)
-* **Emulación Transaccional:** Implementación del patrón UI "Mago de Oz" para la simulación de una pasarela de pagos de alta fidelidad, sin exposición ni transmisión de datos bancarios sensibles al servidor.
-
-#### Backend (Servidor)
-
-* **Framework Core:** Python 3 + Django (v5)
-* **API Framework:** Django REST Framework (DRF)
-* **Autenticación:** JSON Web Tokens (SimpleJWT) y encriptación de contraseñas (Bcrypt/PBKDF2) aplicados bajo un modelo RBAC.
-* **Base de Datos:** PostgreSQL (Cumplimiento estricto de propiedades ACID para transacciones financieras y validación de llaves compuestas `cip` + `sede_id`).
-* **Almacenamiento de Objetos:** AWS S3 / Cloudinary (Gestión centralizada y segura de expedientes PDF e imágenes).
-
-#### Integraciones y Servicios Externos
-
-* **Validación de Identidad:** Servicio Simulado (Mock API) basado en latencias reales (`apis.net.pe`) para asegurar la continuidad del entorno de desarrollo.
-* **Procesamiento de Pagos:** Rutas internas de liquidación directa automatizada (Mock Endpoint), garantizando la limpieza de deuda en tiempo real sin dependencias de terceros.
-
----
-
-### 4. Descripción Completa del MVP y su Flujo
-
-**Acto 1: La Llegada y el Trámite**
-Un ingeniero recién graduado entra a la plataforma y selecciona "Postular a Colegiatura". En el formulario web, selecciona su Carrera, su Consejo Departamental, ingresa su correo electrónico, sube su foto, el PDF de su título y la foto del voucher de S/ 1500. Al enviar, el sistema valida su identidad en menos de 2 segundos. Queda en estado "Pendiente".
-
-**Acto 2: La Aprobación y el Correo de Activación**
-El administrador del colegio entra a su ruta privada (`/admin`). Revisa los archivos y hace clic en "Aprobar". En ese instante, el sistema le genera el siguiente código disponible (ej. **CIP 00045**), activa el motor financiero (marcando el primer mes a S/ 0.00) y despacha un correo electrónico al ingeniero con un enlace seguro.
-
-**Acto 3: El Enlace Mágico**
-El ingeniero abre su correo, ve su nuevo código CIP y hace clic en el enlace. Es redirigido a una vista protegida donde crea y confirma su contraseña personal. Su cuenta queda oficialmente activa.
-
-**Acto 4: El Cobro y la Sanción Visual**
-Pasan dos meses. El motor automático ya le generó dos deudas de S/ 20.00. El ingeniero necesita su carnet para un trabajo. Inicia sesión en la plataforma ingresando su DNI y la contraseña que creó. El sistema tarda menos de 500 milisegundos en notar que debe dinero. En la pantalla se dibuja su carnet digital, pero está manchado con una enorme franja roja de **"INHABILITADO"**.
-
-**Acto 5: El Pago Simulado y la Liberación**
-El ingeniero va a la sección de pagos. Ve que debe S/ 40.00 y el sistema no le permite pagar de forma parcial. Hace clic en pagar y se abre nuestro modal simulado ("Mago de Oz"). Ingresa los datos de su tarjeta y presiona confirmar. El frontend muestra una fricción visual de carga por 2 segundos (sin enviar los datos bancarios a la red) y envía la orden de liquidación al backend. El backend borra la deuda, la franja de "INHABILITADO" desaparece en tiempo real y el ingeniero ya puede visualizar su carnet completamente limpio.
-
---
-Como tus amigos van a interactuar con el sistema, lo más importante es que sepan **qué pueden hacer** y **a dónde deben apuntar**. No les des el manual de instalación técnica, dales el **"Manual de Usuario de la API"**.
-
-Aquí tienes el resumen que puedes copiar y pegar en tu `README.md` (o enviarles por chat) para que entiendan cómo usar tu backend:
-
----
-
-## 🚀 **Guía de Uso para el Equipo (Frontend/Consumo)**
-
-¡Hola equipo! El backend ya está arriba y listo para consumir. Aquí tienen los puntos clave para conectar sus vistas:
-
-### 🌐 **Base URL**
-
-Todas las peticiones deben apuntar a:
-`http://localhost:8001/api/`
-
-### 🔑 **Autenticación (JWT)**
-
-Para acceder a los datos protegidos, primero deben obtener su token.
-
-* **Endpoint:** `POST /api/token/`
-* **Cuerpo (JSON):** `{"username": "admin", "password": "tu_password"}`
-* **Respuesta:** Recibirán un `access` token. Deben enviarlo en el **Header** de todas sus peticiones:
-`Authorization: Bearer <tu_token_aqui>`
-
-### 🛠️ **Endpoints Principales**
-
-| Módulo | Acción | Endpoint |
-| --- | --- | --- |
-| **Catálogos** | Listar Sedes | `GET /finanzas/sedes/` |
-| **Catálogos** | Listar Carreras | `GET /finanzas/carreras/` |
-| **Finanzas** | Ver deudas de colegiado | `GET /finanzas/colegiados/{id}/deuda/` |
-| **Trámites** | Listar pendientes | `GET /tramites/pendientes/listar/` |
-| **Trámites** | Enviar trámite | `POST /tramites/` |
-
-### 💡 **Tips importantes para el equipo**
-
-1. **Filtros:** Casi todos los endpoints `GET` soportan filtros. Pueden probar añadiendo `?format=json` o usando los filtros del Django REST Framework directamente en el navegador.
-2. **Validaciones:** Si envían un formulario (POST), recuerden que el backend valida:
-* **DNI:** 8 dígitos exactos.
-* **CIP:** 5 dígitos exactos.
-* **Archivos:** Solo acepta JPG, PNG o PDF (máx 10MB).
-
-
-3. **Ambiente:** Si el servidor local (`8001`) no responde, asegúrense de tener el contenedor levantado con `docker compose up`.
-
----
-
-¿Quieres que añada alguna sección extra, como por ejemplo cómo manejar los errores si el token expira? ¡Con esto ya tienen el mapa completo para trabajar sin preguntarte cada cinco minutos!
