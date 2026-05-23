@@ -22,22 +22,22 @@ class CarreraAdmin(admin.ModelAdmin):
 class ColegiadorAdmin(admin.ModelAdmin):
     """Administrador para Colegiados"""
     list_display = [
-        'cip', 'nombre_completo', 'dni', 'carrera', 'sede',
+        'cip', 'nombre_completo', 'tipo_documento', 'numero_documento', 'tipo_colegiado', 'carrera', 'sede',
         'habilitado', 'cuenta_activa', 'fecha_colegiatura'
     ]
     list_filter = [
         'habilitado', 'cuenta_activa', 'carrera', 'sede',
         'fecha_colegiatura'
     ]
-    search_fields = ['nombre_completo', 'dni', 'cip', 'correo']
+    search_fields = ['nombre_completo', 'numero_documento', 'cip', 'correo']
     readonly_fields = ['fecha_colegiatura']
     
     fieldsets = (
         ('Información Personal', {
-            'fields': ('dni', 'nombre_completo', 'correo', 'celular')
+            'fields': ('tipo_documento', 'numero_documento', 'nombre_completo', 'correo', 'celular')
         }),
         ('Información Profesional', {
-            'fields': ('cip', 'carrera', 'sede', 'fecha_colegiatura')
+            'fields': ('cip', 'tipo_colegiado', 'carrera', 'sede', 'fecha_colegiatura')
         }),
         ('Seguridad y Activación', {
             'fields': (
@@ -61,7 +61,7 @@ class CuotaAdmin(admin.ModelAdmin):
     ]
     search_fields = [
         'colegiado__nombre_completo', 'colegiado__cip',
-        'colegiado__dni', 'transaccion_id'
+        'colegiado__numero_documento', 'transaccion_id'
     ]
     readonly_fields = ['id']
     

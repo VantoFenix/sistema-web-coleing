@@ -53,17 +53,43 @@ class Colegiado(models.Model):
         message='El celular debe tener exactamente 9 dígitos.'
     )
 
+    # Opciones
+    TIPO_DOCUMENTO_CHOICES = [
+        ('DNI', 'DNI'),
+        ('CIP', 'Reg. CIP'),
+        ('RUC', 'RUC'),
+        ('PASS', 'Pasaporte'),
+        ('CE', 'Carné de Extranjería'),
+    ]
+
+    TIPO_COLEGIADO_CHOICES = [
+        ('Ordinario', 'Ordinario'),
+        ('Vitalicio', 'Vitalicio'),
+        ('Temporal', 'Temporal'),
+    ]
+
     # Información personal
-    dni = models.CharField(
-        max_length=8,
+    tipo_documento = models.CharField(
+        max_length=10,
+        choices=TIPO_DOCUMENTO_CHOICES,
+        default='DNI'
+    )
+    numero_documento = models.CharField(
+        max_length=20,
         unique=True,
-        validators=[dni_validator]
     )
     nombre_completo = models.CharField(max_length=150)
     correo = models.EmailField(max_length=100)
     celular = models.CharField(
         max_length=9,
         validators=[celular_validator]
+    )
+
+    # Tipo de colegiatura
+    tipo_colegiado = models.CharField(
+        max_length=20,
+        choices=TIPO_COLEGIADO_CHOICES,
+        default='Ordinario'
     )
 
     # Relaciones con catálogos

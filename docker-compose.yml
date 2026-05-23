@@ -1,17 +1,4 @@
 services:
-  db:
-    image: postgres:15
-    container_name: cip_db
-    environment:
-      POSTGRES_DB: cip_db
-      POSTGRES_USER: cip_user
-      POSTGRES_PASSWORD: cip_password
-    ports:
-      - "5433:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init-db:/docker-entrypoint-initdb.d
-
   backend:
     build:
       context: ./back-cip
@@ -23,10 +10,6 @@ services:
       - ./back-cip:/app
     ports:
       - "8001:8000"
-    depends_on:
-      - db
-    environment:
-      - DATABASE_URL=postgres://cip_user:cip_password@db:5432/cip_db
 
   frontend:
     build:
@@ -40,6 +23,3 @@ services:
       - "5173:5173"
     environment:
       - CHOKIDAR_USEPOLLING=true
-
-volumes:
-  postgres_data:

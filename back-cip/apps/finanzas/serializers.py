@@ -36,17 +36,17 @@ class ColegiadorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Colegiado
         fields = [
-            'id', 'dni', 'nombre_completo', 'correo', 'celular',
+            'id', 'tipo_documento', 'numero_documento', 'tipo_colegiado', 'nombre_completo', 'correo', 'celular',
             'carrera', 'carrera_nombre', 'sede', 'sede_nombre',
             'cip', 'cuenta_activa', 'habilitado', 'fecha_colegiatura'
         ]
         read_only_fields = ['id', 'fecha_colegiatura']
 
-    def validate_dni(self, value):
-        """Valida que el DNI tenga exactamente 8 dígitos"""
-        if not value.isdigit() or len(value) != 8:
+    def validate_numero_documento(self, value):
+        """Valida longitud base del documento"""
+        if len(value) < 4:
             raise serializers.ValidationError(
-                "El DNI debe contener exactamente 8 dígitos numéricos."
+                "El documento debe contener al menos 4 caracteres."
             )
         return value
 
@@ -81,14 +81,14 @@ class CuotaSerializer(serializers.ModelSerializer):
     """Serializador para cuotas con información del colegiado"""
     
     # Campos de solo lectura con información del colegiado
-    colegiado_dni = serializers.CharField(source='colegiado.dni', read_only=True)
+    colegiado_documento = serializers.CharField(source='colegiado.numero_documento', read_only=True)
     colegiado_nombre = serializers.CharField(source='colegiado.nombre_completo', read_only=True)
     colegiado_cip = serializers.CharField(source='colegiado.cip', read_only=True)
 
     class Meta:
         model = Cuota
         fields = [
-            'id', 'colegiado', 'colegiado_dni', 'colegiado_nombre', 'colegiado_cip',
+            'id', 'colegiado', 'colegiado_documento', 'colegiado_nombre', 'colegiado_cip',
             'mes_cobro', 'anio_cobro', 'monto', 'pagado', 'fecha_pago', 'transaccion_id'
         ]
         read_only_fields = ['id']

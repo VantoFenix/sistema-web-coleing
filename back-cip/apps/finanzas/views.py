@@ -86,7 +86,7 @@ class ColegiadorViewSet(viewsets.ModelViewSet):
     serializer_class = ColegiadorSerializer
     pagination_class = StandardPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['nombre_completo', 'dni', 'cip', 'correo']
+    search_fields = ['nombre_completo', 'numero_documento', 'cip', 'correo']
     ordering_fields = ['fecha_colegiatura', 'nombre_completo', 'habilitado']
     ordering = ['-fecha_colegiatura']
 
@@ -163,7 +163,7 @@ class CuotaViewSet(viewsets.ModelViewSet):
     serializer_class = CuotaSerializer
     pagination_class = StandardPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['colegiado__nombre_completo', 'colegiado__cip', 'colegiado__dni']
+    search_fields = ['colegiado__nombre_completo', 'colegiado__cip', 'colegiado__numero_documento']
     ordering_fields = ['anio_cobro', 'mes_cobro', 'monto', 'pagado']
 
     def get_serializer_class(self):
