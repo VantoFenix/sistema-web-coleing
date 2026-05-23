@@ -7,9 +7,10 @@ services:
       POSTGRES_USER: cip_user
       POSTGRES_PASSWORD: cip_password
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
 
   backend:
     build:
