@@ -58,16 +58,13 @@ export default function PublicHome() {
   return (
     <div className="app-container">
       <nav className="navbar" style={{ padding: '1rem 3rem' }}>
-        {/* Lado Izquierdo Vacío para equilibrar el centro */}
-        <div></div>
-
-        {/* CENTRO: Solo Logo CIP */}
-        <div className="logo-container" style={{ display: 'flex', justifyContent: 'center' }}>
+        {/* Lado Izquierdo: Logo CIP */}
+        <div className="logo-container" style={{ display: 'flex', justifyContent: 'flex-start' }}>
           <div className="logo-placeholder" style={{ background: 'var(--cip-red)', color: 'white', padding: '0.5rem 1rem', borderRadius: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>CIP</div>
         </div>
-        
-        {/* DERECHA: Enlaces de navegación */}
-        <div className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: '2rem', justifySelf: 'end' }}>
+
+        {/* CENTRO: Enlaces de navegación */}
+        <div className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: '2rem', justifySelf: 'center' }}>
           <NavLink 
             to="/postular" 
             className="nav-link" 
@@ -90,6 +87,9 @@ export default function PublicHome() {
             Ingresar
           </NavLink>
         </div>
+        
+        {/* Lado Derecho Vacío para equilibrar el CSS Grid */}
+        <div></div>
       </nav>
 
       <section className="hero-section">
