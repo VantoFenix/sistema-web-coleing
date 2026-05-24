@@ -34,6 +34,16 @@ Este único comando levantará dos servicios:
 
 ### Operaciones Comunes (Comandos útiles)
 
+1. **Frontend en Modo Desarrollo (React + Vite)**
+   - Abre una nueva terminal en tu editor de código.
+   - Accede a la carpeta de React: `cd front-cip`
+   - Instala librerías (si no lo hiciste): `npm install`
+   - Levanta el servidor: `npm run dev`
+   - El sistema estará disponible en tu navegador en `http://localhost:5173`.
+
+2. **Backend en Modo Producción (Docker)**
+   - `docker-compose up -d --build`
+
 **Ver los logs del backend o frontend en vivo:**
 ```bash
 docker-compose logs -f backend
