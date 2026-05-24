@@ -131,6 +131,14 @@ class PublicPostulacionView(APIView):
         if not all([dni, nombres, correo, carrera_nombre, sede_nombre, foto, titulo, recibo]):
             return Response({'error': 'Faltan campos o documentos requeridos'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Validacion de formatos de archivo
+        if not foto.content_type.startswith('image/'):
+            return Response({'error': 'La foto debe ser un archivo de imagen válido (JPG, PNG).'}, status=status.HTTP_400_BAD_REQUEST)
+        if titulo.content_type != 'application/pdf':
+            return Response({'error': 'El Título Profesional debe ser un archivo PDF.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not (recibo.content_type.startswith('image/') or recibo.content_type == 'application/pdf'):
+            return Response({'error': 'El Recibo de Caja debe ser un PDF o una imagen.'}, status=status.HTTP_400_BAD_REQUEST)
+
         # Buscar carrera y sede
         carrera = Carrera.objects.filter(nombre=carrera_nombre).first()
         sede = Sede.objects.filter(nombre=sede_nombre).first()

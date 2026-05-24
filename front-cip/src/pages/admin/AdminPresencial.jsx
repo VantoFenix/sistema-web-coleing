@@ -81,6 +81,20 @@ export default function AdminPresencial() {
       setErrorMsg("El DNI debe tener 8 dígitos.");
       return;
     }
+
+    // Validación de formatos de archivo
+    if (!foto.type.startsWith('image/')) {
+      setErrorMsg("La foto debe ser un archivo de imagen válido (JPG, PNG).");
+      return;
+    }
+    if (titulo.type !== 'application/pdf') {
+      setErrorMsg("El Título Profesional debe ser un archivo PDF.");
+      return;
+    }
+    if (!recibo.type.startsWith('image/') && recibo.type !== 'application/pdf') {
+      setErrorMsg("El Recibo de Caja debe ser un PDF o una imagen.");
+      return;
+    }
     setErrorMsg('');
     setEnviando(true);
 

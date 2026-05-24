@@ -111,6 +111,20 @@ export default function Postular() {
       setSubmitError("Debe adjuntar todos los documentos requeridos (Foto, Título y Recibo).");
       return;
     }
+    
+    // Validación de formatos de archivo
+    if (!foto.type.startsWith('image/')) {
+      setSubmitError("La foto debe ser un archivo de imagen válido (JPG, PNG).");
+      return;
+    }
+    if (titulo.type !== 'application/pdf') {
+      setSubmitError("El Título Profesional debe ser un archivo PDF.");
+      return;
+    }
+    if (!recibo.type.startsWith('image/') && recibo.type !== 'application/pdf') {
+      setSubmitError("El Recibo de Caja debe ser un PDF o una imagen.");
+      return;
+    }
 
     setEnviando(true);
 
