@@ -69,10 +69,20 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-# Database (Conectado a PostgreSQL mediante .env o DATABASE_URL en Render)
+# Database
+# Por defecto dj_database_url buscará la variable 'DATABASE_URL' en el entorno.
+# Si no existe, armamos una a partir de las otras variables, previniendo 'None' si no existen.
+db_user = os.getenv('DB_USER', '')
+db_pass = os.getenv('DB_PASSWORD', '')
+db_host = os.getenv('DB_HOST', 'localhost')
+db_port = os.getenv('DB_PORT', '5432')
+db_name = os.getenv('DB_NAME', 'postgres')
+
+default_db_url = f"postgres://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}" if db_user else f"sqlite:///{BASE_DIR}/db.sqlite3"
+
 DATABASES = {
     'default': dj_database_url.config(
-        default=f"postgres://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}",
+        default=default_db_url,
         conn_max_age=600
     )
 }
