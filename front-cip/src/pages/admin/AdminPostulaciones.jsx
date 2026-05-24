@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Clock, CheckCircle, XCircle, Search, Eye, ArrowLeft, MinusSquare, XSquare, Image as ImageIcon, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Search, Eye, ArrowLeft, MinusSquare, XSquare, Image as ImageIcon, FileText, FileSpreadsheet, Loader2, X, Download, ExternalLink } from 'lucide-react';
 
 export default function AdminPostulaciones() {
   const [postulaciones, setPostulaciones] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const [errorFetch, setErrorFetch] = useState('');
 
   // View State
   const [vista, setVista] = useState('tabla'); // 'tabla' | 'detalle'
@@ -13,6 +14,10 @@ export default function AdminPostulaciones() {
   // Panel State
   const [showRechazoPanel, setShowRechazoPanel] = useState(false);
   const [panelMinimized, setPanelMinimized] = useState(false);
+
+  // Visor de archivos
+  const [visorArchivo, setVisorArchivo] = useState(null); // { url, tipo: 'imagen'|'pdf', titulo }
+  const [imgError, setImgError] = useState(false);
 
   // Observaciones State
   const [obsFoto, setObsFoto] = useState({ checked: false, text: '' });
@@ -25,14 +30,20 @@ export default function AdminPostulaciones() {
   }, []);
 
   const fetchPostulaciones = async () => {
+    setCargando(true);
+    setErrorFetch('');
     try {
       const res = await fetch('/api/admin/postulaciones/');
       if (res.ok) {
         const data = await res.json();
         setPostulaciones(data);
+      } else {
+        let txt = '';
+        try { txt = await res.text(); } catch (_) {}
+        setErrorFetch(`Error ${res.status}: ${txt.slice(0, 200)}`);
       }
     } catch (e) {
-      console.error(e);
+      setErrorFetch(`Sin conexión con el servidor: ${e.message}`);
     } finally {
       setCargando(false);
     }
@@ -104,6 +115,124 @@ export default function AdminPostulaciones() {
     }
   };
 
+  const abrirArchivo = (url, titulo) => {
+    if (!url) return;
+    const ext = url.split('.').pop().toLowerCase();
+    const tipo = ext === 'pdf' ? 'pdf' : 'imagen';
+    setImgError(false);
+    setVisorArchivo({ url, tipo, titulo });
+  };
+
+  // ── MODAL VISOR DE ARCHIVOS ──────────────────────────────────────────────────
+  const VisorModal = () => {
+    if (!visorArchivo) return null;
+    return (
+      <div
+        style={{
+          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.85)',
+          zIndex: 2000, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', padding: '1rem',
+        }}
+        onClick={() => setVisorArchivo(null)}
+      >
+        {/* Barra superior */}
+        <div
+          style={{
+            width: '100%', maxWidth: '900px',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '0.75rem 1rem', background: 'var(--cip-blue)',
+            borderRadius: '12px 12px 0 0', color: 'white',
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <span style={{ fontWeight: '600', fontSize: '0.95rem' }}>{visorArchivo.titulo}</span>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <a
+              href={visorArchivo.url} target="_blank" rel="noopener noreferrer"
+              style={{
+                background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white',
+                borderRadius: '6px', padding: '0.4rem 0.75rem', fontSize: '0.8rem',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem',
+                textDecoration: 'none',
+              }}
+              title="Abrir en nueva pestaña"
+            >
+              <ExternalLink size={14} /> Nueva pestaña
+            </a>
+            <a
+              href={visorArchivo.url} download
+              style={{
+                background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white',
+                borderRadius: '6px', padding: '0.4rem 0.75rem', fontSize: '0.8rem',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem',
+                textDecoration: 'none',
+              }}
+              title="Descargar"
+            >
+              <Download size={14} /> Descargar
+            </a>
+            <button
+              onClick={() => setVisorArchivo(null)}
+              style={{
+                background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white',
+                borderRadius: '6px', padding: '0.4rem 0.75rem', cursor: 'pointer',
+                display: 'flex', alignItems: 'center',
+              }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* Contenido */}
+        <div
+          style={{
+            width: '100%', maxWidth: '900px', background: '#1E293B',
+            borderRadius: '0 0 12px 12px', overflow: 'hidden',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            minHeight: '500px',
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          {visorArchivo.tipo === 'imagen' ? (
+            imgError ? (
+              <div style={{ textAlign: 'center', color: '#94A3B8', padding: '3rem' }}>
+                <ImageIcon size={48} style={{ marginBottom: '1rem', opacity: 0.4 }} />
+                <p style={{ fontWeight: '600', marginBottom: '0.5rem' }}>No se pudo cargar la imagen</p>
+                <p style={{ fontSize: '0.8rem', opacity: 0.7, wordBreak: 'break-all' }}>{visorArchivo.url}</p>
+                <a href={visorArchivo.url} target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'inline-block', marginTop: '1rem', color: '#60A5FA', fontSize: '0.85rem' }}>
+                  Intentar abrir directamente →
+                </a>
+              </div>
+            ) : (
+              <img
+                src={visorArchivo.url}
+                alt={visorArchivo.titulo}
+                onError={() => setImgError(true)}
+                style={{
+                  maxWidth: '100%', maxHeight: '80vh',
+                  objectFit: 'contain', display: 'block',
+                }}
+              />
+            )
+          ) : (
+            <iframe
+              src={visorArchivo.url}
+              title={visorArchivo.titulo}
+              style={{ width: '100%', height: '80vh', border: 'none', background: 'white' }}
+            />
+          )}
+        </div>
+
+        {/* Instrucción */}
+        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem', marginTop: '0.75rem' }}>
+          Clic fuera del visor para cerrar
+        </p>
+      </div>
+    );
+  };
+
   // VISTA TABLA
   if (vista === 'tabla') {
     return (
@@ -111,15 +240,36 @@ export default function AdminPostulaciones() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <div>
             <h1 style={{ fontSize: '1.875rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.5rem' }}>Cola de Postulaciones</h1>
-            <p className="text-muted">Procese los expedientes en orden de llegada.</p>
+            <p style={{ color: 'var(--text-muted)' }}>Procese los expedientes en orden de llegada.</p>
           </div>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             <div style={{ position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
               <input type="text" className="form-input" placeholder="Buscar por DNI o ID..." style={{ paddingLeft: '2.5rem' }} />
             </div>
+            <button
+              onClick={fetchPostulaciones}
+              disabled={cargando}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: 'white', border: '1px solid var(--border-color)', borderRadius: '8px', cursor: cargando ? 'not-allowed' : 'pointer', color: 'var(--text-muted)', fontSize: '0.875rem', whiteSpace: 'nowrap' }}
+            >
+              <Clock size={15} className={cargando ? 'spin' : ''} /> Actualizar
+            </button>
           </div>
         </div>
+
+        {/* Error de carga */}
+        {errorFetch && (
+          <div style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem', color: '#B91C1C' }}>
+            <XCircle size={20} style={{ flexShrink: 0, marginTop: '1px' }} />
+            <div>
+              <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>No se pudo cargar la lista de postulaciones</p>
+              <p style={{ fontSize: '0.8rem' }}>{errorFetch}</p>
+              <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', opacity: 0.8 }}>
+                Asegúrate de que el servidor backend esté corriendo (<code>python manage.py runserver</code>) y recarga la página.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -168,6 +318,7 @@ export default function AdminPostulaciones() {
             Mostrando {postulaciones.length} expedientes en cola. (El expediente resaltado es el más antiguo).
           </div>
         </div>
+        <VisorModal />
       </div>
     );
   }
@@ -183,58 +334,85 @@ export default function AdminPostulaciones() {
         </button>
         <div>
           <h1 style={{ fontSize: '1.875rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.25rem' }}>Revisión de Expediente: {expediente.id}</h1>
-          <p className="text-muted">Fecha de Ingreso: {expediente.fecha}</p>
+          <p className="text-muted">Fecha de Ingreso: {expediente.creado_en ? new Date(expediente.creado_en).toLocaleString('es-PE') : '—'}</p>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem' }}>
-        
+
         {/* Lado Izquierdo: Datos */}
         <div className="card" style={{ alignSelf: 'start' }}>
           <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--border-color)', paddingBottom: '0.5rem' }}>Datos del Postulante</h3>
-          
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Apellidos y Nombres</p><p style={{ fontWeight: '600' }}>{expediente.nombres}</p></div>
-            <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>DNI</p><p style={{ fontWeight: '600' }}>{expediente.dni}</p></div>
-            <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Celular</p><p style={{ fontWeight: '600' }}>{expediente.celular}</p></div>
-            <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Correo Electrónico</p><p style={{ fontWeight: '600' }}>{expediente.correo}</p></div>
-            <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Especialidad / Carrera</p><p style={{ fontWeight: '600' }}>{expediente.carrera?.nombre}</p></div>
+            <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Apellidos y Nombres</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.nombres}</p></div>
+            <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>DNI</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.dni}</p></div>
+            <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Celular</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.celular}</p></div>
+            <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Correo Electrónico</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.correo}</p></div>
+            <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Especialidad / Carrera</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.carrera?.nombre}</p></div>
+            <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Sede</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.sede?.nombre || '—'}</p></div>
           </div>
         </div>
 
-        {/* Lado Derecho: Documentos */}
-        <div className="card" style={{ alignSelf: 'start' }}>
-          <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--border-color)', paddingBottom: '0.5rem' }}>Documentación Adjunta</h3>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem' }}>
-            {/* Box Foto */}
-            <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem', textAlign: 'center', background: '#F8FAFC' }}>
-              <ImageIcon size={32} color="var(--cip-blue)" style={{ margin: '0 auto 0.5rem auto' }} />
-              <p style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '1rem' }}>1. Fotografía</p>
-              <button className="btn btn-outline" style={{ width: '100%', fontSize: '0.75rem', padding: '0.5rem' }}>Visualizar ({expediente.fotoUrl})</button>
-            </div>
+        {/* Lado Derecho: Documentos + Acciones */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
-            {/* Box Título */}
-            <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem', textAlign: 'center', background: '#F8FAFC' }}>
-              <FileText size={32} color="var(--cip-blue)" style={{ margin: '0 auto 0.5rem auto' }} />
-              <p style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '1rem' }}>2. Título Profesional</p>
-              <button className="btn btn-outline" style={{ width: '100%', fontSize: '0.75rem', padding: '0.5rem' }}>Ver PDF ({expediente.tituloUrl})</button>
-            </div>
+          {/* Documentos */}
+          <div className="card" style={{ alignSelf: 'start' }}>
+            <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--border-color)', paddingBottom: '0.5rem' }}>Documentación Adjunta</h3>
 
-            {/* Box Recibo */}
-            <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem', textAlign: 'center', background: '#F8FAFC' }}>
-              <FileSpreadsheet size={32} color="var(--cip-blue)" style={{ margin: '0 auto 0.5rem auto' }} />
-              <p style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '1rem' }}>3. Recibo S/1500</p>
-              <button className="btn btn-outline" style={{ width: '100%', fontSize: '0.75rem', padding: '0.5rem' }}>Ver PDF ({expediente.reciboUrl})</button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem' }}>
+              {/* Box Foto */}
+              <DocBox
+                icono={<ImageIcon size={32} color="var(--cip-blue)" />}
+                titulo="1. Fotografía"
+                url={expediente.foto_url}
+                btnLabel="Ver Imagen"
+                btnIcono={<ImageIcon size={14} />}
+                onVer={() => abrirArchivo(expediente.foto_url, 'Fotografía — ' + expediente.nombres)}
+              />
+
+              {/* Box Título */}
+              <DocBox
+                icono={<FileText size={32} color="var(--cip-blue)" />}
+                titulo="2. Título Profesional"
+                url={expediente.titulo_pdf_url}
+                btnLabel="Ver PDF"
+                btnIcono={<FileText size={14} />}
+                onVer={() => abrirArchivo(expediente.titulo_pdf_url, 'Título Profesional — ' + expediente.nombres)}
+              />
+
+              {/* Box Recibo */}
+              <DocBox
+                icono={<FileSpreadsheet size={32} color="var(--cip-blue)" />}
+                titulo="3. Recibo S/1500"
+                url={expediente.recibo_pago_url}
+                btnLabel="Ver Recibo"
+                btnIcono={<FileSpreadsheet size={14} />}
+                onVer={() => abrirArchivo(expediente.recibo_pago_url, 'Recibo de Pago — ' + expediente.nombres)}
+              />
             </div>
           </div>
 
-            <button className="btn btn-outline" style={{ borderColor: '#EF4444', color: '#B91C1C', padding: '1rem 2rem' }} onClick={() => { setShowRechazoPanel(true); setPanelMinimized(false); }} disabled={procesando}>
-              <XCircle size={18} style={{ marginRight: '0.5rem' }} /> Expediente Incorrecto (Observar)
+          {/* Botones de Acción */}
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <button
+              className="btn btn-outline"
+              style={{ flex: 1, borderColor: '#EF4444', color: '#B91C1C', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+              onClick={() => { setShowRechazoPanel(true); setPanelMinimized(false); }}
+              disabled={procesando}
+            >
+              <XCircle size={20} /> Expediente Incorrecto (Observar)
             </button>
-            <button className="btn btn-primary" style={{ background: '#10B981', borderColor: '#10B981', padding: '1rem 2rem' }} onClick={handleAprobar} disabled={procesando}>
-              {procesando ? <Loader2 className="spin" size={18} /> : <CheckCircle size={18} style={{ marginRight: '0.5rem' }} />} Todo Conforme (Aprobar)
+            <button
+              className="btn btn-primary"
+              style={{ flex: 1, background: '#10B981', borderColor: '#10B981', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+              onClick={handleAprobar}
+              disabled={procesando}
+            >
+              {procesando ? <Loader2 className="spin" size={20} /> : <><CheckCircle size={20} /> Todo Conforme (Aprobar)</>}
             </button>
+          </div>
+
         </div>
       </div>
 
@@ -350,6 +528,42 @@ export default function AdminPostulaciones() {
         </div>
       )}
 
+      {/* Modal visor de archivos */}
+      <VisorModal />
+    </div>
+  );
+}
+
+// ── Componente auxiliar: tarjeta de documento ────────────────────────────────
+function DocBox({ icono, titulo, url, btnLabel, btnIcono, onVer }) {
+  return (
+    <div style={{
+      border: '1px solid var(--border-color)', borderRadius: '8px',
+      padding: '1rem', textAlign: 'center', background: '#F8FAFC',
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+    }}>
+      <div style={{ margin: '0 auto 0.5rem auto', display: 'block' }}>{icono}</div>
+      <p style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '1rem', color: 'var(--text-main)' }}>
+        {titulo}
+      </p>
+      {url ? (
+        <button
+          onClick={onVer}
+          style={{
+            width: '100%', fontSize: '0.8rem', padding: '0.5rem',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+            background: 'white', border: '1px solid var(--border-color)',
+            borderRadius: '6px', color: 'var(--cip-blue)', cursor: 'pointer',
+            fontWeight: '600', transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = '#EFF6FF'; e.currentTarget.style.borderColor = 'var(--cip-blue)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = 'var(--border-color)'; }}
+        >
+          {btnIcono} {btnLabel}
+        </button>
+      ) : (
+        <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Sin archivo</span>
+      )}
     </div>
   );
 }

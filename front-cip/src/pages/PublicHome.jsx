@@ -24,6 +24,10 @@ export default function PublicHome() {
     if (searchMethod === 'documento') {
       if (!documentoVal.trim()) {
         newErrors.documento = 'El número de documento es obligatorio';
+      } else if (tipoDocumento === 'DNI' && documentoVal.length !== 8) {
+        newErrors.documento = 'El DNI debe tener exactamente 8 dígitos';
+      } else if (tipoDocumento === 'Reg. CIP' && documentoVal.length !== 5) {
+        newErrors.documento = 'El número CIP debe tener exactamente 5 dígitos';
       }
     } else {
       if (!nombresVal.trim()) {
@@ -196,12 +200,17 @@ export default function PublicHome() {
 
                 <div className="form-group">
                   <label className="form-label">Número de Documento</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     className={`form-input ${errors.documento ? 'error' : ''}`}
-                    placeholder="Ingrese el número..."
+                    placeholder={tipoDocumento === 'DNI' ? '8 dígitos' : '5 dígitos'}
                     value={documentoVal}
-                    onChange={(e) => setDocumentoVal(e.target.value)}
+                    maxLength={tipoDocumento === 'DNI' ? 8 : 5}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      setDocumentoVal(val);
+                      setErrors({});
+                    }}
                   />
                   {errors.documento && <span className="error-text">{errors.documento}</span>}
                 </div>
@@ -209,12 +218,18 @@ export default function PublicHome() {
             ) : (
               <div className="form-group">
                 <label className="form-label">Apellidos y Nombres</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   className={`form-input ${errors.nombres ? 'error' : ''}`}
-                  placeholder="Ej. Pérez García, Juan Carlos"
+                  placeholder="Ej. PÉREZ GARCÍA, JUAN CARLOS"
                   value={nombresVal}
-                  onChange={(e) => setNombresVal(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value
+                      .toUpperCase()
+                      .replace(/[^A-ZÁÉÍÓÚÜÑ\s,]/g, '');
+                    setNombresVal(val);
+                    setErrors({});
+                  }}
                 />
                 {errors.nombres && <span className="error-text" style={{ color: 'var(--cip-red)', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>{errors.nombres}</span>}
               </div>

@@ -4,7 +4,7 @@ from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.hashers import make_password, check_password
 from django.db import connection
@@ -30,6 +30,7 @@ def generate_jwt(user_id, role):
     return jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
 
 class AuthLoginView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -66,19 +67,25 @@ class AuthLoginView(APIView):
 
 
 class ReniecConsultaView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
+        import urllib.request, urllib.error, json as _json, sys
+
         dni = request.query_params.get('dni')
         if not dni or len(dni) != 8 or not dni.isdigit():
             return Response({'error': 'DNI inválido'}, status=status.HTTP_400_BAD_REQUEST)
 
         token = os.getenv('RENIEC_TOKEN')
         if not token:
-            return Response({'error': 'Token RENIEC no configurado'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            print('[RENIEC] ERROR: Variable RENIEC_TOKEN no configurada en el entorno', file=sys.stderr)
+            return Response(
+                {'error': 'CONFIG_ERROR', 'detalle': 'La variable RENIEC_TOKEN no está configurada en el servidor.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
         try:
-            import urllib.request
             req = urllib.request.Request(
                 f'https://api.decolecta.com/v1/reniec/dni?numero={dni}',
                 headers={
@@ -86,20 +93,40 @@ class ReniecConsultaView(APIView):
                     'Content-Type': 'application/json'
                 }
             )
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                import json
-                data = json.loads(resp.read().decode())
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = _json.loads(resp.read().decode())
                 nombre_completo = data.get('full_name', '').strip()
+                if not nombre_completo:
+                    return Response({'error': 'DNI no encontrado en RENIEC'}, status=status.HTTP_404_NOT_FOUND)
                 return Response({'nombre_completo': nombre_completo})
+
         except urllib.error.HTTPError as e:
+            body = ''
+            try: body = e.read().decode()[:200]
+            except: pass
+            print(f'[RENIEC] HTTPError {e.code}: {body}', file=sys.stderr)
             if e.code == 429:
-                return Response({'error': 'Límite de consultas RENIEC alcanzado'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+                return Response({'error': 'RATE_LIMIT', 'detalle': 'Límite de consultas alcanzado'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+            if e.code in (401, 403):
+                return Response(
+                    {'error': 'TOKEN_INVALIDO', 'detalle': f'Token rechazado por decolecta.com (HTTP {e.code}). Puede ser restricción de IP del servidor de producción.'},
+                    status=status.HTTP_502_BAD_GATEWAY
+                )
             return Response({'error': 'DNI no encontrado en RENIEC'}, status=status.HTTP_404_NOT_FOUND)
-        except Exception:
-            return Response({'error': 'Error conectando con RENIEC'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        except urllib.error.URLError as e:
+            print(f'[RENIEC] URLError: {e.reason}', file=sys.stderr)
+            return Response(
+                {'error': 'RED_ERROR', 'detalle': f'No se pudo conectar con decolecta.com: {e.reason}'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except Exception as e:
+            print(f'[RENIEC] Error inesperado: {e}', file=sys.stderr)
+            return Response({'error': 'ERROR_INTERNO', 'detalle': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 class PublicPadronView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -132,6 +159,7 @@ class PublicPadronView(APIView):
         return Response(resultados)
 
 class PublicConsultaSolicitudView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -150,6 +178,7 @@ class PublicConsultaSolicitudView(APIView):
         })
 
 class PublicPostulacionView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -217,15 +246,82 @@ class PublicPostulacionView(APIView):
 
         return Response({'success': True, 'solicitud_id': solicitud.id})
 
+class AdminDashboardView(APIView):
+    authentication_classes = []   # omitir JWT para que tokens expirados no bloqueen
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        hoy = date.today()
+
+        # Postulaciones pendientes (EN_REVISION)
+        postulaciones_nuevas = Solicitud.objects.filter(estado='EN_REVISION').count()
+
+        # Colegiados activos
+        colegiados_activos = Colegiado.objects.filter(activo=True).count()
+
+        # Pagos procesados en el mes actual
+        pagos_mes = Pago.objects.filter(
+            fecha_pago__year=hoy.year,
+            fecha_pago__month=hoy.month
+        ).count()
+
+        # Trámites atrasados: EN_REVISION por más de 3 días
+        import datetime as dt
+        ahora = dt.datetime.now(dt.timezone.utc)
+        hace_3_dias = ahora - timedelta(days=3)
+        tramites_atrasados = Solicitud.objects.filter(
+            estado='EN_REVISION',
+            creado_en__lt=hace_3_dias
+        ).count()
+
+        # Actividad reciente: últimas 5 solicitudes resueltas (usa resuelto_en o creado_en)
+        recientes = Solicitud.objects.filter(
+            estado__in=['APROBADA', 'RECHAZADA']
+        ).order_by('-creado_en')[:5]
+
+        actividad = []
+        for s in recientes:
+            referencia = s.resuelto_en or s.creado_en
+            if referencia:
+                if referencia.tzinfo is None:
+                    referencia = referencia.replace(tzinfo=dt.timezone.utc)
+                diff = ahora - referencia
+                mins = int(diff.total_seconds() / 60)
+                if mins < 60:
+                    tiempo = f"Hace {mins} min"
+                elif mins < 1440:
+                    tiempo = f"Hace {mins // 60} h"
+                else:
+                    tiempo = f"Hace {mins // 1440} días"
+            else:
+                tiempo = "Recientemente"
+
+            actividad.append({
+                'nombres': s.nombres,
+                'estado': s.estado,
+                'tiempo': tiempo,
+            })
+
+        return Response({
+            'postulaciones_nuevas': postulaciones_nuevas,
+            'colegiados_activos': colegiados_activos,
+            'pagos_mes': pagos_mes,
+            'tramites_atrasados': tramites_atrasados,
+            'actividad_reciente': actividad,
+        })
+
+
 class AdminPostulacionesView(APIView):
     # En producción idealmente IsAuthenticated, lo dejamos AllowAny para MVP rápido
-    permission_classes = [AllowAny] 
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
     def get(self, request):
         solicitudes = Solicitud.objects.filter(estado='EN_REVISION').order_by('creado_en')
         return Response(SolicitudSerializer(solicitudes, many=True).data)
 
 class AdminResolverSolicitudView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request, pk):
@@ -344,7 +440,8 @@ class PortalPagosView(APIView):
         return Response(pagos_data)
 
 class AdminCargaRecaudacionView(APIView):
-    permission_classes = [AllowAny] # MVP: En prod debería ser IsAuthenticated(Admin)
+    authentication_classes = []
+    permission_classes = [AllowAny]  # MVP: En prod debería ser IsAuthenticated(Admin)
 
     def post(self, request):
         archivo = request.FILES.get('archivo')
@@ -441,6 +538,7 @@ class AdminCargaRecaudacionView(APIView):
         })
 
 @api_view(['GET'])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def get_catalogos(request):
     carreras = Carrera.objects.filter(activo=True)

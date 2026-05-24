@@ -1,37 +1,36 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, KeyRound, User } from 'lucide-react';
+import { ArrowLeft, User } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
   const [identificador, setIdentificador] = useState('');
-  const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (identificador && password) {
-      try {
-        const response = await fetch('/api/auth/login/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: identificador, password: password, role: 'COLEGIADO' })
-        });
-        const data = await response.json();
-        
-        if (response.ok) {
-          localStorage.setItem('colToken', data.token);
-          localStorage.setItem('colUser', JSON.stringify(data.user));
-          setErrorMsg('');
-          navigate('/portal/yo');
-        } else {
-          setErrorMsg(data.error || 'Credenciales inválidas');
-        }
-      } catch (err) {
-        setErrorMsg('Error al conectar con el servidor.');
+    if (!identificador || identificador.length !== 8) {
+      setErrorMsg('Por favor, ingrese su DNI de 8 dígitos.');
+      return;
+    }
+    try {
+      const response = await fetch('/api/auth/login/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: identificador, password: identificador, role: 'COLEGIADO' })
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem('colToken', data.token);
+        localStorage.setItem('colUser', JSON.stringify(data.user));
+        setErrorMsg('');
+        navigate('/portal/yo');
+      } else {
+        setErrorMsg(data.error || 'DNI no encontrado. Verifique su número.');
       }
-    } else {
-      setErrorMsg('Por favor, ingrese su DNI y contraseña.');
+    } catch (err) {
+      setErrorMsg('Error al conectar con el servidor.');
     }
   };
 
@@ -102,39 +101,25 @@ export default function Login() {
           )}
 
           <form onSubmit={handleLogin}>
-            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+            <div className="form-group" style={{ marginBottom: '2rem' }}>
               <label className="form-label" style={{ fontWeight: '600' }}>Número de DNI</label>
               <div style={{ position: 'relative' }}>
                 <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
                   <User size={18} />
                 </div>
-                <input 
-                  type="text" 
-                  className="form-input" 
+                <input
+                  type="text"
+                  className="form-input"
                   style={{ width: '100%', padding: '0.875rem 1rem 0.875rem 2.75rem', background: 'var(--bg-main)', border: '1px solid var(--border-color)' }}
                   placeholder="Ej. 70123456"
                   maxLength={8}
                   value={identificador}
-                  onChange={(e) => setIdentificador(e.target.value.replace(/\D/g, ''))}
+                  onChange={(e) => { setIdentificador(e.target.value.replace(/\D/g, '')); setErrorMsg(''); }}
                 />
               </div>
-            </div>
-
-            <div className="form-group" style={{ marginBottom: '2rem' }}>
-              <label className="form-label" style={{ fontWeight: '600' }}>Contraseña</label>
-              <div style={{ position: 'relative' }}>
-                <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
-                  <KeyRound size={18} />
-                </div>
-                <input 
-                  type="password" 
-                  className="form-input" 
-                  style={{ width: '100%', padding: '0.875rem 1rem 0.875rem 2.75rem', background: 'var(--bg-main)', border: '1px solid var(--border-color)' }}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                Ingrese su número de DNI para acceder al portal.
+              </p>
             </div>
 
             <button type="submit" className="btn btn-primary btn-block" style={{ padding: '1rem', fontSize: '1.125rem', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)' }}>

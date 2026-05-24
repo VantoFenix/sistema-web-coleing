@@ -80,10 +80,13 @@ db_name = os.getenv('DB_NAME', 'postgres')
 
 default_db_url = f"postgres://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}" if db_user else f"sqlite:///{BASE_DIR}/db.sqlite3"
 
+# conn_max_age=0 → libera la conexión después de cada request.
+# Necesario para el session pooler de Supabase (pool_size=15).
+# Con conn_max_age=600 Django mantiene conexiones abiertas y agota el pool rápidamente.
 DATABASES = {
     'default': dj_database_url.config(
         default=default_db_url,
-        conn_max_age=600
+        conn_max_age=0
     )
 }
 

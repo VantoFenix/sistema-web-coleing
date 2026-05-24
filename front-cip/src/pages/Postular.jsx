@@ -59,21 +59,34 @@ export default function Postular() {
 
     try {
       const response = await fetch(`/api/public/reniec/?dni=${dni}`);
+      let data = {};
+      try { data = await response.json(); } catch (_) {}
 
       if (response.ok) {
-        const data = await response.json();
         setNombres(data.nombre_completo);
         setDniValidado(true);
       } else if (response.status === 429) {
-        setDniError("El servicio de RENIEC ha superado su límite de consultas. Por favor ingrese su nombre manualmente.");
+        setDniError("Límite de consultas RENIEC alcanzado. Por favor ingrese su nombre manualmente.");
         setDniValidado(false);
+      } else if (response.status === 500 && data.error === 'CONFIG_ERROR') {
+        setDniError(`⚙️ Error de configuración del servidor: ${data.detalle} — Ingrese su nombre manualmente.`);
+        setDniValidado(false);
+        setNombres('');
+      } else if (response.status === 502 && data.error === 'TOKEN_INVALIDO') {
+        setDniError(`🔒 ${data.detalle} — Ingrese su nombre manualmente.`);
+        setDniValidado(false);
+        setNombres('');
+      } else if (response.status === 503) {
+        setDniError(`📡 Error de red: ${data.detalle || 'No se pudo contactar RENIEC'} — Ingrese su nombre manualmente.`);
+        setDniValidado(false);
+        setNombres('');
       } else {
         setDniError("DNI no encontrado en RENIEC. Puede ingresar su nombre manualmente.");
         setDniValidado(false);
         setNombres('');
       }
     } catch (error) {
-      setDniError("Error conectando con RENIEC. Puede ingresar sus nombres manualmente.");
+      setDniError("Error conectando con el servidor. Puede ingresar sus nombres manualmente.");
       setDniValidado(false);
     } finally {
       setIsValidando(false);

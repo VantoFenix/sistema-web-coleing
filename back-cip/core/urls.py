@@ -22,6 +22,7 @@ urlpatterns = [
     path('api/postulaciones/', views.PublicPostulacionView.as_view(), name='crear-postulacion'),
     
     # Admin
+    path('api/admin/dashboard/', views.AdminDashboardView.as_view(), name='admin-dashboard'),
     path('api/admin/postulaciones/', views.AdminPostulacionesView.as_view(), name='admin-postulaciones'),
     path('api/admin/postulaciones/<int:pk>/resolver/', views.AdminResolverSolicitudView.as_view(), name='admin-resolver-postulacion'),
     path('api/admin/recaudacion/', views.AdminCargaRecaudacionView.as_view(), name='admin-recaudacion'),
