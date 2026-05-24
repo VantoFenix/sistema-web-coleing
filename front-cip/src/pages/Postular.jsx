@@ -25,39 +25,42 @@ export default function Postular() {
   const [dniError, setDniError] = useState('');
   const [submitError, setSubmitError] = useState('');
 
-  const handleValidarDNI = (e) => {
+  const handleValidarDNI = async (e) => {
     e.preventDefault();
     if (dni.length !== 8) {
       setDniError("El DNI debe tener 8 dígitos.");
       return;
     }
     setDniError('');
-
     setIsValidando(true);
 
-    // Simulador de apis.net.pe
-    setTimeout(() => {
-      setIsValidando(false);
-      
-      if (dni === '77777777') {
-        setDniError("DNI no encontrado en RENIEC o apis.net.pe. Verifique el número.");
+    try {
+      // Uso de API pública gratuita de apis.net.pe
+      const response = await fetch(`https://api.apis.net.pe/v1/dni?numero=${dni}`);
+      if (response.ok) {
+        const data = await response.json();
+        setNombres(`${data.apellidoPaterno} ${data.apellidoMaterno} ${data.nombres}`);
+        setDniValidado(true);
+      } else {
+        setDniError("DNI no encontrado en RENIEC. Intente manualmente o verifique el número.");
         setDniValidado(false);
         setNombres('');
-      } else {
-        // Simular éxito
-        setNombres('JUAN CARLOS PÉREZ GARCÍA');
-        setDniValidado(true);
       }
-    }, 1000);
+    } catch (error) {
+      setDniError("Error conectando con RENIEC. Puede ingresar sus nombres manualmente o intentar más tarde.");
+      setDniValidado(false);
+    } finally {
+      setIsValidando(false);
+    }
   };
 
   const handleFileChange = (e, setter) => {
     if (e.target.files && e.target.files[0]) {
-      setter(e.target.files[0].name);
+      setter(e.target.files[0]);
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError('');
     
@@ -77,11 +80,33 @@ export default function Postular() {
 
     setEnviando(true);
 
-    // Simulador de envío a backend
-    setTimeout(() => {
+    const formData = new FormData();
+    formData.append('dni', dni);
+    formData.append('nombres', nombres);
+    formData.append('celular', celular);
+    formData.append('correo', correo);
+    formData.append('carrera', carrera);
+    formData.append('foto', foto);
+    formData.append('titulo', titulo);
+    formData.append('recibo', recibo);
+
+    try {
+      const response = await fetch('/api/postulaciones/', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        setSuccess(true);
+      } else {
+        const errData = await response.json();
+        setSubmitError(errData.error || "Hubo un error al enviar la solicitud.");
+      }
+    } catch (error) {
+      setSubmitError("Error de conexión con el servidor.");
+    } finally {
       setEnviando(false);
-      setSuccess(true);
-    }, 1500);
+    }
   };
 
   if (success) {
@@ -135,7 +160,7 @@ export default function Postular() {
                 <label className="form-label">1. Fotografía Tamaño Pasaporte</label>
                 <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1.5rem', textAlign: 'center', background: 'white', cursor: 'pointer' }}>
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500' }}>{foto ? foto : "Clic para subir imagen (JPG/PNG)"}</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500' }}>{foto ? foto.name : "Clic para subir imagen (JPG/PNG)"}</p>
                   <input type="file" accept="image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-foto" onChange={(e) => handleFileChange(e, setFoto)} />
                   <label htmlFor="file-foto" className="btn btn-outline" style={{ marginTop: '1rem', borderColor: 'var(--border-color)', color: 'var(--text-main)', fontSize: '0.75rem', padding: '0.25rem 0.75rem' }}>Seleccionar archivo</label>
                 </div>
@@ -145,7 +170,7 @@ export default function Postular() {
                 <label className="form-label">2. Título Profesional</label>
                 <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1.5rem', textAlign: 'center', background: 'white' }}>
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500' }}>{titulo ? titulo : "Clic para subir documento (PDF)"}</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500' }}>{titulo ? titulo.name : "Clic para subir documento (PDF)"}</p>
                   <input type="file" accept=".pdf" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-titulo" onChange={(e) => handleFileChange(e, setTitulo)} />
                   <label htmlFor="file-titulo" className="btn btn-outline" style={{ marginTop: '1rem', borderColor: 'var(--border-color)', color: 'var(--text-main)', fontSize: '0.75rem', padding: '0.25rem 0.75rem' }}>Seleccionar archivo</label>
                 </div>
@@ -155,7 +180,7 @@ export default function Postular() {
                 <label className="form-label">3. Recibo de Pago (S/ 1500.00)</label>
                 <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1.5rem', textAlign: 'center', background: 'white' }}>
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500' }}>{recibo ? recibo : "Clic para subir comprobante (PDF/JPG)"}</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500' }}>{recibo ? recibo.name : "Clic para subir comprobante (PDF/JPG)"}</p>
                   <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-recibo" onChange={(e) => handleFileChange(e, setRecibo)} />
                   <label htmlFor="file-recibo" className="btn btn-outline" style={{ marginTop: '1rem', borderColor: 'var(--border-color)', color: 'var(--text-main)', fontSize: '0.75rem', padding: '0.25rem 0.75rem' }}>Seleccionar archivo</label>
                 </div>
@@ -189,15 +214,16 @@ export default function Postular() {
 
               <div className="form-group">
                 <label className="form-label">Nombres y Apellidos Completos</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  style={{ background: '#f1f5f9', cursor: 'not-allowed', color: 'var(--cip-blue)', fontWeight: '600' }}
-                  placeholder="Se autocompletará tras validar el DNI"
-                  value={nombres}
-                  readOnly
-                />
-              </div>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    style={{ background: '#f1f5f9', color: 'var(--cip-blue)', fontWeight: '600' }}
+                    placeholder="Se autocompletará tras validar el DNI"
+                    value={nombres}
+                    onChange={(e) => setNombres(e.target.value.toUpperCase())}
+                    readOnly={dniValidado}
+                  />
+                </div>
 
               <div className="form-row">
                 <div className="form-group">

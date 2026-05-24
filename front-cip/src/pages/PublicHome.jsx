@@ -32,18 +32,30 @@ export default function PublicHome() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSearch = (e) => {
+  const handleSearch = async (e) => {
     e.preventDefault();
+    setSearchResult(null);
     if (validateForm()) {
-      // Mock Result
-      setSearchResult({
-        nombre: searchMethod === 'documento' ? 'INGENIERO DE PRUEBA' : nombresVal.toUpperCase(),
-        cip: '123456',
-        sede: 'CD LIMA',
-        condicion: 'HABILITADO'
-      });
-    } else {
-      setSearchResult(null);
+      if (searchMethod === 'documento' && tipoDocumento === 'DNI') {
+        try {
+          const res = await fetch(`/api/public/padron/?dni=${documentoVal}`);
+          if (res.ok) {
+            const data = await res.json();
+            setSearchResult({
+              nombre: data.nombres,
+              cip: data.nro_colegiado,
+              sede: data.sede?.nombre || 'Desconocida',
+              condicion: data.habilitado ? 'HABILITADO' : 'INHABILITADO'
+            });
+          } else {
+            setErrors({ documento: 'Ingeniero no encontrado en el padrón.' });
+          }
+        } catch (err) {
+          setErrors({ documento: 'Error de conexión con el servidor.' });
+        }
+      } else {
+        setErrors({ documento: 'Solo la búsqueda por DNI está implementada en esta versión.' });
+      }
     }
   };
 

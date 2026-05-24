@@ -1,16 +1,14 @@
-import { useState } from 'react';
-import { Clock, CheckCircle, XCircle, Search, Eye, ArrowLeft, MinusSquare, XSquare, Image as ImageIcon, FileText, FileSpreadsheet } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Clock, CheckCircle, XCircle, Search, Eye, ArrowLeft, MinusSquare, XSquare, Image as ImageIcon, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 
 export default function AdminPostulaciones() {
-  const [postulaciones, setPostulaciones] = useState([
-    { id: 'EXP-001', dni: '70111222', nombres: 'RODRÍGUEZ PÉREZ, ANA', fecha: '2026-05-18 09:30 AM', estado: 'EN REVISIÓN', celular: '987654321', correo: 'ana.rodriguez@gmail.com', carrera: 'Ingeniería de Sistemas', fotoUrl: 'foto_ana.jpg', tituloUrl: 'titulo_ana.pdf', reciboUrl: 'recibo_ana.pdf' },
-    { id: 'EXP-002', dni: '45888999', nombres: 'GÓMEZ SÁNCHEZ, LUIS', fecha: '2026-05-19 14:15 PM', estado: 'EN REVISIÓN', celular: '988888888', correo: 'luis.gomez@gmail.com', carrera: 'Ingeniería Civil', fotoUrl: 'foto_luis.jpg', tituloUrl: 'titulo_luis.pdf', reciboUrl: 'recibo_luis.pdf' },
-    { id: 'EXP-003', dni: '71222333', nombres: 'QUISPE LÓPEZ, CARLOS', fecha: '2026-05-20 11:00 AM', estado: 'EN REVISIÓN', celular: '977777777', correo: 'carlos.quispe@gmail.com', carrera: 'Ingeniería Industrial', fotoUrl: 'foto_carlos.jpg', tituloUrl: 'titulo_carlos.pdf', reciboUrl: 'recibo_carlos.pdf' },
-  ]);
+  const [postulaciones, setPostulaciones] = useState([]);
+  const [cargando, setCargando] = useState(true);
 
   // View State
   const [vista, setVista] = useState('tabla'); // 'tabla' | 'detalle'
   const [expediente, setExpediente] = useState(null);
+  const [procesando, setProcesando] = useState(false);
 
   // Panel State
   const [showRechazoPanel, setShowRechazoPanel] = useState(false);
@@ -21,6 +19,24 @@ export default function AdminPostulaciones() {
   const [obsTitulo, setObsTitulo] = useState({ checked: false, text: '' });
   const [obsRecibo, setObsRecibo] = useState({ checked: false, text: '' });
   const [obsDatos, setObsDatos] = useState({ checked: false, text: '' });
+
+  useEffect(() => {
+    fetchPostulaciones();
+  }, []);
+
+  const fetchPostulaciones = async () => {
+    try {
+      const res = await fetch('/api/admin/postulaciones/');
+      if (res.ok) {
+        const data = await res.json();
+        setPostulaciones(data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setCargando(false);
+    }
+  };
 
   const resetPanelState = () => {
     setShowRechazoPanel(false);
@@ -43,15 +59,49 @@ export default function AdminPostulaciones() {
     resetPanelState();
   };
 
-  const handleAprobar = () => {
-    setPostulaciones(postulaciones.filter(p => p.id !== expediente.id));
-    handleBackToTable();
+  const handleAprobar = async () => {
+    setProcesando(true);
+    try {
+      const res = await fetch(`/api/admin/postulaciones/${expediente.id}/resolver/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'APROBAR' })
+      });
+      if (res.ok) {
+        setPostulaciones(postulaciones.filter(p => p.id !== expediente.id));
+        handleBackToTable();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setProcesando(false);
+    }
   };
 
-  const handleConfirmarRechazo = () => {
-    // Aquí se enviaría el correo con las observaciones (obsFoto, obsTitulo, etc.)
-    setPostulaciones(postulaciones.filter(p => p.id !== expediente.id));
-    handleBackToTable();
+  const handleConfirmarRechazo = async () => {
+    setProcesando(true);
+    const observaciones = [
+      obsFoto.checked ? `Foto: ${obsFoto.text}` : '',
+      obsTitulo.checked ? `Título: ${obsTitulo.text}` : '',
+      obsRecibo.checked ? `Recibo: ${obsRecibo.text}` : '',
+      obsDatos.checked ? `Datos: ${obsDatos.text}` : ''
+    ].filter(Boolean).join(' | ');
+
+    try {
+      const res = await fetch(`/api/admin/postulaciones/${expediente.id}/resolver/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'RECHAZAR', comentarios: observaciones })
+      });
+      if (res.ok) {
+        setPostulaciones(postulaciones.filter(p => p.id !== expediente.id));
+        handleBackToTable();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setProcesando(false);
+    }
   };
 
   // VISTA TABLA
@@ -84,31 +134,34 @@ export default function AdminPostulaciones() {
               </tr>
             </thead>
             <tbody>
-              {postulaciones.length === 0 && (
+              {cargando ? (
+                <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}><Loader2 className="spin" style={{margin: '0 auto'}}/> Cargando postulaciones...</td></tr>
+              ) : postulaciones.length === 0 ? (
                 <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay postulaciones pendientes.</td></tr>
+              ) : (
+                postulaciones.map((p, index) => (
+                  <tr key={p.id} style={{ borderBottom: '1px solid var(--border-color)', background: index === 0 ? '#FEF2F2' : 'white', cursor: 'pointer', transition: 'background 0.2s' }} onClick={() => handleRevisar(p)} onMouseOver={(e) => e.currentTarget.style.background = '#EFF6FF'} onMouseOut={(e) => e.currentTarget.style.background = index === 0 ? '#FEF2F2' : 'white'}>
+                    <td style={{ padding: '1rem 1.5rem', fontWeight: '600', color: 'var(--text-main)' }}>EXP-{p.id}</td>
+                    <td style={{ padding: '1rem 1.5rem', color: 'var(--text-muted)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Clock size={16} /> {new Date(p.creado_en).toLocaleString()}
+                      </div>
+                    </td>
+                    <td style={{ padding: '1rem 1.5rem' }}>{p.dni}</td>
+                    <td style={{ padding: '1rem 1.5rem', fontWeight: '500' }}>{p.nombres}</td>
+                    <td style={{ padding: '1rem 1.5rem' }}>
+                      <span style={{ background: '#FEF3C7', color: '#D97706', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700' }}>
+                        {p.estado}
+                      </span>
+                    </td>
+                    <td style={{ padding: '1rem 1.5rem', textAlign: 'center' }}>
+                      <button className="btn btn-outline" style={{ padding: '0.5rem', borderColor: 'var(--border-color)' }} onClick={(e) => { e.stopPropagation(); handleRevisar(p); }}>
+                        <Eye size={18} color="var(--cip-blue)" /> Revisar
+                      </button>
+                    </td>
+                  </tr>
+                ))
               )}
-              {postulaciones.map((p, index) => (
-                <tr key={p.id} style={{ borderBottom: '1px solid var(--border-color)', background: index === 0 ? '#FEF2F2' : 'white', cursor: 'pointer', transition: 'background 0.2s' }} onClick={() => handleRevisar(p)} onMouseOver={(e) => e.currentTarget.style.background = '#EFF6FF'} onMouseOut={(e) => e.currentTarget.style.background = index === 0 ? '#FEF2F2' : 'white'}>
-                  <td style={{ padding: '1rem 1.5rem', fontWeight: '600', color: 'var(--text-main)' }}>{p.id}</td>
-                  <td style={{ padding: '1rem 1.5rem', color: 'var(--text-muted)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Clock size={16} /> {p.fecha}
-                    </div>
-                  </td>
-                  <td style={{ padding: '1rem 1.5rem' }}>{p.dni}</td>
-                  <td style={{ padding: '1rem 1.5rem', fontWeight: '500' }}>{p.nombres}</td>
-                  <td style={{ padding: '1rem 1.5rem' }}>
-                    <span style={{ background: '#FEF3C7', color: '#D97706', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700' }}>
-                      {p.estado}
-                    </span>
-                  </td>
-                  <td style={{ padding: '1rem 1.5rem', textAlign: 'center' }}>
-                    <button className="btn btn-outline" style={{ padding: '0.5rem', borderColor: 'var(--border-color)' }} onClick={(e) => { e.stopPropagation(); handleRevisar(p); }}>
-                      <Eye size={18} color="var(--cip-blue)" /> Revisar
-                    </button>
-                  </td>
-                </tr>
-              ))}
             </tbody>
           </table>
           <div style={{ padding: '1rem 1.5rem', background: '#F8FAFC', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
@@ -145,7 +198,7 @@ export default function AdminPostulaciones() {
             <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>DNI</p><p style={{ fontWeight: '600' }}>{expediente.dni}</p></div>
             <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Celular</p><p style={{ fontWeight: '600' }}>{expediente.celular}</p></div>
             <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Correo Electrónico</p><p style={{ fontWeight: '600' }}>{expediente.correo}</p></div>
-            <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Especialidad / Carrera</p><p style={{ fontWeight: '600' }}>{expediente.carrera}</p></div>
+            <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Especialidad / Carrera</p><p style={{ fontWeight: '600' }}>{expediente.carrera?.nombre}</p></div>
           </div>
         </div>
 
@@ -176,14 +229,12 @@ export default function AdminPostulaciones() {
             </div>
           </div>
 
-          <div style={{ marginTop: '3rem', paddingTop: '1.5rem', borderTop: '2px solid var(--border-color)', display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-            <button className="btn btn-outline" style={{ borderColor: '#EF4444', color: '#B91C1C', padding: '1rem 2rem' }} onClick={() => { setShowRechazoPanel(true); setPanelMinimized(false); }}>
+            <button className="btn btn-outline" style={{ borderColor: '#EF4444', color: '#B91C1C', padding: '1rem 2rem' }} onClick={() => { setShowRechazoPanel(true); setPanelMinimized(false); }} disabled={procesando}>
               <XCircle size={18} style={{ marginRight: '0.5rem' }} /> Expediente Incorrecto (Observar)
             </button>
-            <button className="btn btn-primary" style={{ background: '#10B981', borderColor: '#10B981', padding: '1rem 2rem' }} onClick={handleAprobar}>
-              <CheckCircle size={18} style={{ marginRight: '0.5rem' }} /> Todo Conforme (Aprobar)
+            <button className="btn btn-primary" style={{ background: '#10B981', borderColor: '#10B981', padding: '1rem 2rem' }} onClick={handleAprobar} disabled={procesando}>
+              {procesando ? <Loader2 className="spin" size={18} /> : <CheckCircle size={18} style={{ marginRight: '0.5rem' }} />} Todo Conforme (Aprobar)
             </button>
-          </div>
         </div>
       </div>
 
@@ -288,9 +339,9 @@ export default function AdminPostulaciones() {
                   className="btn btn-primary btn-block" 
                   style={{ padding: '1rem', fontSize: '1.125rem', background: 'var(--cip-red)', borderColor: 'var(--cip-red)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                   onClick={handleConfirmarRechazo}
-                  disabled={!(obsFoto.checked || obsTitulo.checked || obsRecibo.checked || obsDatos.checked)}
+                  disabled={!(obsFoto.checked || obsTitulo.checked || obsRecibo.checked || obsDatos.checked) || procesando}
                 >
-                  <XCircle size={20} /> Confirmar Rechazo y Notificar
+                  {procesando ? <Loader2 className="spin" size={20} /> : <><XCircle size={20} /> Confirmar Rechazo y Notificar</>}
                 </button>
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', marginTop: '0.75rem' }}>Al confirmar, el expediente saldrá de la cola y se enviará un correo al postulante.</p>
               </div>
