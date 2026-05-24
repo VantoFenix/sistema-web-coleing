@@ -58,13 +58,16 @@ export default function PublicHome() {
   return (
     <div className="app-container">
       <nav className="navbar" style={{ padding: '1rem 3rem' }}>
-        <div className="logo-container">
-          <div className="logo-placeholder" style={{ background: 'var(--cip-red)', color: 'white' }}>CIP</div>
-          <span className="nav-title" style={{ fontSize: '1.5rem', fontWeight: '700' }}>Colegio de Ingenieros del Perú</span>
+        {/* Lado Izquierdo Vacío para equilibrar el centro */}
+        <div></div>
+
+        {/* CENTRO: Solo Logo CIP */}
+        <div className="logo-container" style={{ display: 'flex', justifyContent: 'center' }}>
+          <div className="logo-placeholder" style={{ background: 'var(--cip-red)', color: 'white', padding: '0.5rem 1rem', borderRadius: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>CIP</div>
         </div>
         
-        {/* TOP NAVIGATION BAR EXIGIDA */}
-        <div className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+        {/* DERECHA: Enlaces de navegación */}
+        <div className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: '2rem', justifySelf: 'end' }}>
           <NavLink 
             to="/postular" 
             className="nav-link" 
@@ -75,17 +78,17 @@ export default function PublicHome() {
           <NavLink 
             to="/" 
             className="nav-link active" 
-            style={{ fontWeight: '600', fontSize: '1.125rem', borderBottom: '3px solid white', padding: '0.5rem', borderRadius: '2px' }}
+            style={{ fontWeight: '600', fontSize: '1.125rem', borderBottom: '3px solid transparent', padding: '0.5rem', borderRadius: '2px' }}
           >
             Inicio
           </NavLink>
-          <button 
-            className="btn btn-primary" 
-            onClick={() => navigate('/login')} 
-            style={{ background: 'white', color: 'var(--cip-blue)', border: 'none', fontWeight: 'bold', padding: '0.6rem 1.5rem', fontSize: '1.125rem', borderRadius: '99px' }}
+          <NavLink 
+            to="/login" 
+            className="nav-link" 
+            style={{ fontWeight: '600', fontSize: '1.125rem', padding: '0.5rem', transition: 'all 0.2s' }}
           >
             Ingresar
-          </button>
+          </NavLink>
         </div>
       </nav>
 
