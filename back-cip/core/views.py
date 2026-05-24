@@ -86,6 +86,24 @@ class PublicPadronView(APIView):
         data['habilitado'] = habilitado
         return Response(data)
 
+class PublicConsultaSolicitudView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        dni = request.query_params.get('dni')
+        if not dni:
+            return Response({'error': 'DNI es requerido'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Buscar la solicitud más reciente para ese DNI
+        sol = Solicitud.objects.filter(dni=dni).order_by('-creado_en').first()
+        if not sol:
+            return Response({'error': 'No se encontró ninguna solicitud con ese DNI'}, status=status.HTTP_404_NOT_FOUND)
+        
+        return Response({
+            'estado': sol.estado,
+            'motivo_rechazo': sol.motivo_rechazo
+        })
+
 class PublicPostulacionView(APIView):
     permission_classes = [AllowAny]
 

@@ -65,8 +65,12 @@ export default function Postular() {
     setSubmitError('');
     
     // Validación manual de campos
-    if (!dniValidado) {
-      setSubmitError("Debe validar su DNI primero.");
+    if (dni.length !== 8) {
+      setSubmitError("El DNI debe tener 8 dígitos.");
+      return;
+    }
+    if (!nombres.trim()) {
+      setSubmitError("Debe ingresar sus nombres y apellidos completos.");
       return;
     }
     if (!celular || !correo || !carrera) {

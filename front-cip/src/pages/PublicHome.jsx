@@ -15,7 +15,9 @@ export default function PublicHome() {
   const [showModal, setShowModal] = useState(false);
   const [dniConsulta, setDniConsulta] = useState('');
   const [estadoConsulta, setEstadoConsulta] = useState(null); // null, 'EN_REVISION', 'APROBADA', 'RECHAZADA'
+  const [motivoRechazo, setMotivoRechazo] = useState('');
   const [consultaError, setConsultaError] = useState('');
+  const [consultando, setConsultando] = useState(false);
 
   const validateForm = () => {
     const newErrors = {};
@@ -59,17 +61,31 @@ export default function PublicHome() {
     }
   };
 
-  const handleConsultarTramite = (e) => {
+  const handleConsultarTramite = async (e) => {
     e.preventDefault();
     if (dniConsulta.length !== 8) {
       setConsultaError("Ingrese un DNI válido de 8 dígitos");
       return;
     }
     setConsultaError('');
-    // Mocking response
-    if (dniConsulta === '11111111') setEstadoConsulta('APROBADA');
-    else if (dniConsulta === '22222222') setEstadoConsulta('RECHAZADA');
-    else setEstadoConsulta('EN_REVISION');
+    setConsultando(true);
+    setMotivoRechazo('');
+    
+    try {
+      const res = await fetch(`/api/public/solicitudes/?dni=${dniConsulta}`);
+      if (res.ok) {
+        const data = await res.json();
+        setEstadoConsulta(data.estado);
+        setMotivoRechazo(data.motivo_rechazo || '');
+      } else {
+        setConsultaError("No se encontró ninguna solicitud de colegiatura para este DNI.");
+        setEstadoConsulta(null);
+      }
+    } catch (err) {
+      setConsultaError("Error de conexión con el servidor.");
+    } finally {
+      setConsultando(false);
+    }
   };
 
   const resetModal = () => {
@@ -261,10 +277,9 @@ export default function PublicHome() {
                     />
                     {consultaError && <span className="error-text" style={{ color: 'var(--cip-red)', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>{consultaError}</span>}
                   </div>
-                  <button type="submit" className="btn btn-primary btn-block">Consultar</button>
-                  <p style={{ fontSize: '0.875rem', marginTop: '1rem', color: 'var(--text-muted)' }}>
-                    Tips: Usa '11111111' para ver Aprobado, '22222222' para Rechazado.
-                  </p>
+                  <button type="submit" className="btn btn-primary btn-block" disabled={consultando}>
+                    {consultando ? 'Buscando...' : 'Consultar'}
+                  </button>
                 </form>
               ) : (
                 <div>
@@ -292,10 +307,9 @@ export default function PublicHome() {
                       <div>
                         <strong>Inscripción No Aprobada</strong>
                         <p style={{ marginBottom: '0.5rem' }}>Su trámite ha sido observado/rechazado por los siguientes motivos:</p>
-                        <ul style={{ marginLeft: '1.5rem', marginBottom: '1rem', fontWeight: '500' }}>
-                          <li>LA FOTO ESTÁ MAL ENCUADRADA</li>
-                          <li>EL RECIBO DE PAGO ES ILEGIBLE</li>
-                        </ul>
+                        <p style={{ marginLeft: '1rem', marginBottom: '1rem', fontWeight: '500', color: 'var(--cip-red)' }}>
+                          {motivoRechazo || "Documentación inconsistente o ilegible."}
+                        </p>
                         <p style={{ fontSize: '0.875rem' }}>* Por motivos de seguridad y privacidad, no puede editar este trámite. Deberá crear una nueva solicitud desde cero anexando los documentos correctos.</p>
                       </div>
                     </div>
