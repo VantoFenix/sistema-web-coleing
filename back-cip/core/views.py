@@ -209,7 +209,7 @@ class AdminResolverSolicitudView(APIView):
             with connection.cursor() as cursor:
                 cursor.execute("SELECT MAX(CAST(nro_colegiado AS INTEGER)) FROM colegiado WHERE carrera_id = %s", [solicitud.carrera_id])
                 row = cursor.fetchone()
-                siguiente_nro = str((row[0] or 1000) + 1)
+                siguiente_nro = str((row[0] or 0) + 1).zfill(5)
             
             Colegiado.objects.create(
                 correo=solicitud.correo,

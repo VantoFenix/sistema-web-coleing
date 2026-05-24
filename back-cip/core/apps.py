@@ -77,13 +77,13 @@ def do_seed_catalogos(sender, **kwargs):
                 'dni': '70000001', 'nombres': 'CARLOS ANDRES HUAMANI QUISPE',
                 'correo': 'carlos.huamani@email.com', 'celular': '987654321',
                 'password': '70000001', 'carrera': carrera_sistemas,
-                'sede': sede_la_libertad, 'nro_colegiado': '1001',
+                'sede': sede_la_libertad, 'nro_colegiado': '00001',
             },
             {
                 'dni': '70000002', 'nombres': 'MARIA ELENA TORRES VARGAS',
                 'correo': 'maria.torres@email.com', 'celular': '912345678',
                 'password': '70000002', 'carrera': carrera_civil,
-                'sede': sede_lima, 'nro_colegiado': '2001',
+                'sede': sede_lima, 'nro_colegiado': '00001',
             },
         ]
         from datetime import date
