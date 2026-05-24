@@ -1,9 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { UploadCloud, CheckCircle, Database } from 'lucide-react';
 
 export default function AdminPagos() {
   const [file, setFile] = useState(null);
+  const [carrera, setCarrera] = useState('');
+  const [carrerasOptions, setCarrerasOptions] = useState([]);
   const [procesando, setProcesando] = useState(false);
+  const [resultados, setResultados] = useState(null);
+
+
+
+  useEffect(() => {
+    const fetchCatalogos = async () => {
+      try {
+        const res = await fetch('/api/catalogos/');
+        if (res.ok) {
+          const data = await res.json();
+          setCarrerasOptions(data.carreras || []);
+        }
+      } catch (err) {}
+    };
+    fetchCatalogos();
+  }, []);
   const [resultados, setResultados] = useState(null);
 
   const handleFileChange = (e) => {
@@ -14,12 +32,16 @@ export default function AdminPagos() {
   };
 
   const handleProcesarCSV = async () => {
-    if (!file) return;
+    if (!file || !carrera) {
+      setResultados({ success: false, mensaje: "Debe seleccionar una carrera y un archivo." });
+      return;
+    }
     setProcesando(true);
     setResultados(null);
 
     const formData = new FormData();
     formData.append('archivo', file);
+    formData.append('carrera', carrera);
 
     try {
       const response = await fetch('/api/admin/recaudacion/', {
@@ -74,16 +96,30 @@ export default function AdminPagos() {
             ) : (
               <div>
                 <p style={{ fontWeight: '600', color: 'var(--text-main)' }}>Arrastre su archivo aquí o haga clic para buscar</p>
-                <p className="text-muted" style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>El CSV debe contener columnas: DNI, Monto, FechaPago</p>
+                <p className="text-muted" style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>El CSV debe contener columnas: CIP, MES, MONTO</p>
               </div>
             )}
+          </div>
+
+          <div className="form-group" style={{ marginTop: '1.5rem' }}>
+            <label className="form-label">Carrera de los colegiados en el archivo</label>
+            <select 
+              className="form-select"
+              value={carrera}
+              onChange={(e) => setCarrera(e.target.value)}
+            >
+              <option value="">Seleccione la carrera...</option>
+              {carrerasOptions.map(c => (
+                <option key={c.id} value={c.nombre}>{c.nombre}</option>
+              ))}
+            </select>
           </div>
 
           <button 
             className="btn btn-primary btn-block" 
             style={{ marginTop: '1.5rem', padding: '1rem', fontSize: '1.125rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
             onClick={handleProcesarCSV}
-            disabled={!file || procesando}
+            disabled={!file || !carrera || procesando}
           >
             {procesando ? 'Procesando archivo...' : <><Database size={20} /> Procesar Pagos y Subsanar Deudas</>}
           </button>

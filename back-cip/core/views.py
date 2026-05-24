@@ -263,8 +263,9 @@ class AdminCargaRecaudacionView(APIView):
 
     def post(self, request):
         archivo = request.FILES.get('archivo')
-        if not archivo:
-            return Response({'error': 'Debe adjuntar un archivo xlsx o csv'}, status=status.HTTP_400_BAD_REQUEST)
+        carrera = request.data.get('carrera')
+        if not archivo or not carrera:
+            return Response({'error': 'Archivo o carrera no proporcionados'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Leer archivo con pandas
         try:
@@ -277,7 +278,7 @@ class AdminCargaRecaudacionView(APIView):
 
         # Normalizar nombres de columnas
         df.columns = df.columns.str.strip().str.upper()
-        requeridas = ['CIP', 'CARRERA', 'MES', 'MONTO']
+        requeridas = ['CIP', 'MES', 'MONTO']
         for req in requeridas:
             if req not in df.columns:
                 return Response({'error': f'Columna requerida no encontrada: {req}'}, status=status.HTTP_400_BAD_REQUEST)
@@ -304,7 +305,7 @@ class AdminCargaRecaudacionView(APIView):
                 cip_str = str(row['CIP']).strip()
                 if cip_str.endswith('.0'): cip_str = cip_str[:-2]
                 
-                carrera_nombre = str(row['CARRERA']).strip()
+                carrera_nombre = carrera.strip()
                 mes_str = str(row['MES']).strip() # Esperado '2026-05' o '2026-05-01'
                 monto = float(row['MONTO'])
 
