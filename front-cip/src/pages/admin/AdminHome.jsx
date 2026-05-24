@@ -16,7 +16,7 @@ export default function AdminHome() {
           </div>
           <div>
             <p className="text-muted" style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.25rem' }}>Postulaciones Nuevas</p>
-            <h3 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>12</h3>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>124</h3>
           </div>
         </div>
 
@@ -27,7 +27,7 @@ export default function AdminHome() {
           </div>
           <div>
             <p className="text-muted" style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.25rem' }}>Colegiados Activos</p>
-            <h3 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>1,432</h3>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>85,432</h3>
           </div>
         </div>
 
@@ -38,7 +38,7 @@ export default function AdminHome() {
           </div>
           <div>
             <p className="text-muted" style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.25rem' }}>Pagos Procesados (Mes)</p>
-            <h3 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>845</h3>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>12,845</h3>
           </div>
         </div>
 

@@ -43,18 +43,10 @@ def do_seed_catalogos(sender, **kwargs):
 
         # 3. ADMINISTRADORES
         ADMINS = [
-            {
-                'usuario': 'admin.cip',
-                'correo': 'admin.principal@cip.org.pe',  # Cambiado para evitar choque con init.sql
-                'nombres': 'Administrador Principal CIP',
-                'password': 'Cip@2025',
-            },
-            {
-                'usuario': 'secretaria',
-                'correo': 'secretaria@cip.org.pe',
-                'nombres': 'Secretaria de Registro',
-                'password': 'Secretaria@2025',
-            },
+            {'usuario': 'admin.cip', 'correo': 'admin@cip.org.pe', 'password': 'Cip@2025', 'nombres': 'Administrador Principal CIP'},
+            {'usuario': 'secretaria', 'correo': 'secretaria@cip.org.pe', 'password': 'Secretaria@2025', 'nombres': 'Secretaria de Registro'},
+            {'usuario': 'tesoreria', 'correo': 'tesoreria@cip.org.pe', 'password': 'Tesoreria@2025', 'nombres': 'Area de Tesoreria'},
+            {'usuario': 'auditor', 'correo': 'auditor@cip.org.pe', 'password': 'Auditor@2025', 'nombres': 'Auditor del Sistema'},
         ]
         for a in ADMINS:
             if not Administrador.objects.filter(usuario=a['usuario']).exists() and not Administrador.objects.filter(correo=a['correo']).exists():
@@ -84,6 +76,30 @@ def do_seed_catalogos(sender, **kwargs):
                 'correo': 'maria.torres@email.com', 'celular': '912345678',
                 'password': '70000002', 'carrera': carrera_civil,
                 'sede': sede_lima, 'nro_colegiado': '00001',
+            },
+            {
+                'dni': '70000003', 'nombres': 'JUAN PABLO LOPEZ CASTRO',
+                'correo': 'juan.lopez@email.com', 'celular': '999888777',
+                'password': '70000003', 'carrera': carrera_sistemas,
+                'sede': sede_la_libertad, 'nro_colegiado': '00002',
+            },
+            {
+                'dni': '70000004', 'nombres': 'LUCIA MENDOZA RUIZ',
+                'correo': 'lucia.mendoza@email.com', 'celular': '944555666',
+                'password': '70000004', 'carrera': carrera_civil,
+                'sede': sede_lima, 'nro_colegiado': '00002',
+            },
+            {
+                'dni': '70000005', 'nombres': 'FERNANDO ALVAREZ GOMEZ',
+                'correo': 'fernando.alvarez@email.com', 'celular': '922111333',
+                'password': '70000005', 'carrera': carrera_sistemas,
+                'sede': sede_la_libertad, 'nro_colegiado': '00003',
+            },
+            {
+                'dni': '70000006', 'nombres': 'ANA MARIA ROJAS CHAVEZ',
+                'correo': 'ana.rojas@email.com', 'celular': '998877665',
+                'password': '70000006', 'carrera': carrera_civil,
+                'sede': sede_lima, 'nro_colegiado': '00003',
             },
         ]
         from datetime import date
