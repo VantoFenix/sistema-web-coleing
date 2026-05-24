@@ -7,6 +7,13 @@ import PerfilYo from './pages/portal/PerfilYo';
 import MiCarnet from './pages/portal/MiCarnet';
 import MisPagos from './pages/portal/MisPagos';
 
+import AdminLayout from './layouts/AdminLayout';
+import AdminLogin from './pages/admin/AdminLogin';
+import AdminHome from './pages/admin/AdminHome';
+import AdminPostulaciones from './pages/admin/AdminPostulaciones';
+import AdminPagos from './pages/admin/AdminPagos';
+import AdminPresencial from './pages/admin/AdminPresencial';
+
 function App() {
   return (
     <BrowserRouter>
@@ -21,6 +28,15 @@ function App() {
           <Route path="yo" element={<PerfilYo />} />
           <Route path="carnet" element={<MiCarnet />} />
           <Route path="pagos" element={<MisPagos />} />
+        </Route>
+
+        {/* Rutas del Portal Administrativo */}
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route path="home" element={<AdminHome />} />
+          <Route path="postulaciones" element={<AdminPostulaciones />} />
+          <Route path="pagos" element={<AdminPagos />} />
+          <Route path="presencial" element={<AdminPresencial />} />
         </Route>
       </Routes>
     </BrowserRouter>

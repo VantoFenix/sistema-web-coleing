@@ -107,10 +107,10 @@ export default function Postular() {
       {/* Botón de retroceso arriba a la izquierda */}
       <button 
         className="btn btn-outline" 
-        style={{ position: 'absolute', top: '1.5rem', left: '2rem', border: 'none', padding: '0.5rem', color: 'var(--text-muted)' }}
+        style={{ position: 'absolute', top: '2rem', left: '2rem', color: 'var(--text-muted)', borderColor: 'var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
         onClick={() => navigate('/')}
       >
-        <ArrowLeft size={24} /> Volver al inicio
+        <ArrowLeft size={18} /> Volver
       </button>
 
       <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'center', marginBottom: '2.5rem' }}>

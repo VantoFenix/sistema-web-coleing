@@ -8,11 +8,28 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (identificador && password) {
-      setErrorMsg('');
-      navigate('/portal/yo');
+      try {
+        const response = await fetch('http://localhost:8000/api/auth/login/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: identificador, password: password, role: 'COLEGIADO' })
+        });
+        const data = await response.json();
+        
+        if (response.ok) {
+          localStorage.setItem('colToken', data.token);
+          localStorage.setItem('colUser', JSON.stringify(data.user));
+          setErrorMsg('');
+          navigate('/portal/yo');
+        } else {
+          setErrorMsg(data.error || 'Credenciales inválidas');
+        }
+      } catch (err) {
+        setErrorMsg('Error al conectar con el servidor.');
+      }
     } else {
       setErrorMsg('Por favor, ingrese su DNI y contraseña.');
     }

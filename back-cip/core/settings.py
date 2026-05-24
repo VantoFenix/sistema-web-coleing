@@ -4,6 +4,7 @@ Django settings for core project.
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+import dj_database_url
 
 # Cargar las variables del archivo .env
 load_dotenv()
@@ -33,12 +34,12 @@ INSTALLED_APPS = [
     'corsheaders',
     
     # --- NUESTRAS APPS ---
-    'apps.tramites',
-    'apps.finanzas',
+    'core',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -68,16 +69,12 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-# Database (Conectado a PostgreSQL mediante .env)
+# Database (Conectado a PostgreSQL mediante .env o DATABASE_URL en Render)
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME'),
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
-        'PORT': os.getenv('DB_PORT'),
-    }
+    'default': dj_database_url.config(
+        default=f"postgres://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}",
+        conn_max_age=600
+    )
 }
 
 # Password validation
@@ -105,6 +102,13 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Donde Django buscará archivos estáticos adicionales (Ej. el build de React)
+FRONTEND_DIR = os.path.join(BASE_DIR.parent, 'front-cip', 'dist')
+STATICFILES_DIRS = [FRONTEND_DIR] if os.path.exists(FRONTEND_DIR) else []
+
+# Habilitar compresión y caché estática en producción
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # ==============================================================================
 # CONFIGURACIÓN DE MEDIA (Archivos subidos por usuarios)
