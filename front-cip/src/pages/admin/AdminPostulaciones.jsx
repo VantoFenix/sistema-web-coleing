@@ -17,7 +17,6 @@ export default function AdminPostulaciones() {
 
   // Visor de archivos
   const [visorArchivo, setVisorArchivo] = useState(null); // { url, tipo: 'imagen'|'pdf', titulo }
-  const [imgError, setImgError] = useState(false);
 
   // Observaciones State
   const [obsFoto, setObsFoto] = useState({ checked: false, text: '' });
@@ -117,120 +116,9 @@ export default function AdminPostulaciones() {
 
   const abrirArchivo = (url, titulo) => {
     if (!url) return;
-    const ext = url.split('.').pop().toLowerCase();
+    const ext = url.split('?')[0].split('.').pop().toLowerCase();
     const tipo = ext === 'pdf' ? 'pdf' : 'imagen';
-    setImgError(false);
     setVisorArchivo({ url, tipo, titulo });
-  };
-
-  // ── MODAL VISOR DE ARCHIVOS ──────────────────────────────────────────────────
-  const VisorModal = () => {
-    if (!visorArchivo) return null;
-    return (
-      <div
-        style={{
-          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.85)',
-          zIndex: 2000, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', padding: '1rem',
-        }}
-        onClick={() => setVisorArchivo(null)}
-      >
-        {/* Barra superior */}
-        <div
-          style={{
-            width: '100%', maxWidth: '900px',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '0.75rem 1rem', background: 'var(--cip-blue)',
-            borderRadius: '12px 12px 0 0', color: 'white',
-          }}
-          onClick={e => e.stopPropagation()}
-        >
-          <span style={{ fontWeight: '600', fontSize: '0.95rem' }}>{visorArchivo.titulo}</span>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <a
-              href={visorArchivo.url} target="_blank" rel="noopener noreferrer"
-              style={{
-                background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white',
-                borderRadius: '6px', padding: '0.4rem 0.75rem', fontSize: '0.8rem',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem',
-                textDecoration: 'none',
-              }}
-              title="Abrir en nueva pestaña"
-            >
-              <ExternalLink size={14} /> Nueva pestaña
-            </a>
-            <a
-              href={visorArchivo.url} download
-              style={{
-                background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white',
-                borderRadius: '6px', padding: '0.4rem 0.75rem', fontSize: '0.8rem',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem',
-                textDecoration: 'none',
-              }}
-              title="Descargar"
-            >
-              <Download size={14} /> Descargar
-            </a>
-            <button
-              onClick={() => setVisorArchivo(null)}
-              style={{
-                background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white',
-                borderRadius: '6px', padding: '0.4rem 0.75rem', cursor: 'pointer',
-                display: 'flex', alignItems: 'center',
-              }}
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-
-        {/* Contenido */}
-        <div
-          style={{
-            width: '100%', maxWidth: '900px', background: '#1E293B',
-            borderRadius: '0 0 12px 12px', overflow: 'hidden',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            minHeight: '500px',
-          }}
-          onClick={e => e.stopPropagation()}
-        >
-          {visorArchivo.tipo === 'imagen' ? (
-            imgError ? (
-              <div style={{ textAlign: 'center', color: '#94A3B8', padding: '3rem' }}>
-                <ImageIcon size={48} style={{ marginBottom: '1rem', opacity: 0.4 }} />
-                <p style={{ fontWeight: '600', marginBottom: '0.5rem' }}>No se pudo cargar la imagen</p>
-                <p style={{ fontSize: '0.8rem', opacity: 0.7, wordBreak: 'break-all' }}>{visorArchivo.url}</p>
-                <a href={visorArchivo.url} target="_blank" rel="noopener noreferrer"
-                  style={{ display: 'inline-block', marginTop: '1rem', color: '#60A5FA', fontSize: '0.85rem' }}>
-                  Intentar abrir directamente →
-                </a>
-              </div>
-            ) : (
-              <img
-                src={visorArchivo.url}
-                alt={visorArchivo.titulo}
-                onError={() => setImgError(true)}
-                style={{
-                  maxWidth: '100%', maxHeight: '80vh',
-                  objectFit: 'contain', display: 'block',
-                }}
-              />
-            )
-          ) : (
-            <iframe
-              src={visorArchivo.url}
-              title={visorArchivo.titulo}
-              style={{ width: '100%', height: '80vh', border: 'none', background: 'white' }}
-            />
-          )}
-        </div>
-
-        {/* Instrucción */}
-        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem', marginTop: '0.75rem' }}>
-          Clic fuera del visor para cerrar
-        </p>
-      </div>
-    );
   };
 
   // VISTA TABLA
@@ -318,7 +206,7 @@ export default function AdminPostulaciones() {
             Mostrando {postulaciones.length} expedientes en cola. (El expediente resaltado es el más antiguo).
           </div>
         </div>
-        <VisorModal />
+        <VisorModal visor={visorArchivo} onClose={() => setVisorArchivo(null)} />
       </div>
     );
   }
@@ -529,7 +417,7 @@ export default function AdminPostulaciones() {
       )}
 
       {/* Modal visor de archivos */}
-      <VisorModal />
+      <VisorModal visor={visorArchivo} onClose={() => setVisorArchivo(null)} />
     </div>
   );
 }
@@ -564,6 +452,128 @@ function DocBox({ icono, titulo, url, btnLabel, btnIcono, onVer }) {
       ) : (
         <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Sin archivo</span>
       )}
+    </div>
+  );
+}
+
+// ── Visor de archivos — componente de módulo (ESTABLE, no se destruye en cada render) ────
+function VisorModal({ visor, onClose }) {
+  const [imgError, setImgError] = useState(false);
+  const [cargandoPdf, setCargandoPdf] = useState(false);
+
+  // Resetear error al cambiar de archivo
+  useState(() => { setImgError(false); setCargandoPdf(false); }, [visor?.url]);
+
+  if (!visor) return null;
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.88)',
+        zIndex: 2000, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', padding: '1rem',
+      }}
+      onClick={onClose}
+    >
+      {/* ── Barra superior ── */}
+      <div
+        style={{
+          width: '100%', maxWidth: '960px',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '0.75rem 1rem', background: 'var(--cip-blue)',
+          borderRadius: '12px 12px 0 0', color: 'white', flexShrink: 0,
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <span style={{ fontWeight: '600', fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>
+          {visor.tipo === 'pdf' ? '📄' : '🖼️'} {visor.titulo}
+        </span>
+        <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+          <a
+            href={visor.url} target="_blank" rel="noopener noreferrer"
+            style={{ background: 'rgba(255,255,255,0.15)', color: 'white', borderRadius: '6px', padding: '0.35rem 0.65rem', fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none' }}
+          >
+            <ExternalLink size={13} /> Nueva pestaña
+          </a>
+          <a
+            href={visor.url} download
+            style={{ background: 'rgba(255,255,255,0.15)', color: 'white', borderRadius: '6px', padding: '0.35rem 0.65rem', fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none' }}
+          >
+            <Download size={13} /> Descargar
+          </a>
+          <button
+            onClick={onClose}
+            style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', borderRadius: '6px', padding: '0.35rem 0.7rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* ── Área de contenido ── */}
+      <div
+        style={{
+          width: '100%', maxWidth: '960px', background: '#111827',
+          borderRadius: '0 0 12px 12px', overflow: 'hidden',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          minHeight: '520px', position: 'relative',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {visor.tipo === 'imagen' ? (
+          imgError ? (
+            /* ─ Error de imagen ─ */
+            <div style={{ textAlign: 'center', color: '#94A3B8', padding: '3rem' }}>
+              <ImageIcon size={52} style={{ marginBottom: '1rem', opacity: 0.35 }} />
+              <p style={{ fontWeight: '600', marginBottom: '0.5rem' }}>No se pudo cargar la imagen</p>
+              <p style={{ fontSize: '0.75rem', opacity: 0.6, wordBreak: 'break-all', maxWidth: '500px' }}>{visor.url}</p>
+              <a href={visor.url} target="_blank" rel="noopener noreferrer"
+                style={{ display: 'inline-block', marginTop: '1.25rem', color: '#60A5FA', fontSize: '0.85rem', textDecoration: 'underline' }}>
+                Abrir URL directamente →
+              </a>
+            </div>
+          ) : (
+            /* ─ Imagen ─ */
+            <img
+              key={visor.url}
+              src={visor.url}
+              alt={visor.titulo}
+              onError={() => setImgError(true)}
+              style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block' }}
+            />
+          )
+        ) : (
+          /* ─ PDF con <embed> (más compatible que <iframe>) ─ */
+          <div style={{ width: '100%', height: '80vh', position: 'relative' }}>
+            {cargandoPdf && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111827', zIndex: 1 }}>
+                <Loader2 size={32} className="spin" style={{ color: '#94A3B8' }} />
+              </div>
+            )}
+            <embed
+              key={visor.url}
+              src={visor.url}
+              type="application/pdf"
+              width="100%"
+              height="100%"
+              onLoad={() => setCargandoPdf(false)}
+              style={{ display: 'block', background: 'white' }}
+            />
+            {/* Fallback si el browser no soporta embed PDF */}
+            <noscript>
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#94A3B8' }}>
+                <a href={visor.url} target="_blank" rel="noopener noreferrer" style={{ color: '#60A5FA' }}>
+                  Abrir PDF en nueva pestaña →
+                </a>
+              </div>
+            </noscript>
+          </div>
+        )}
+      </div>
+
+      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.72rem', marginTop: '0.6rem' }}>
+        Clic fuera del visor para cerrar
+      </p>
     </div>
   );
 }
