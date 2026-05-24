@@ -214,6 +214,7 @@ class PublicPostulacionView(APIView):
             print(f"[ERROR] Fallo al crear solicitud en BD: {e}", file=sys.stderr)
             return Response({'error': f'Error al registrar la solicitud: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
         return Response({'success': True, 'solicitud_id': solicitud.id})
 
 class AdminPostulacionesView(APIView):
@@ -253,7 +254,7 @@ class AdminResolverSolicitudView(APIView):
             with connection.cursor() as cursor:
                 cursor.execute("SELECT MAX(CAST(nro_colegiado AS INTEGER)) FROM colegiado WHERE carrera_id = %s", [solicitud.carrera_id])
                 row = cursor.fetchone()
-                siguiente_nro = str((row[0] or 1000) + 1)
+                siguiente_nro = str((row[0] or 0) + 1).zfill(5)
             
             Colegiado.objects.create(
                 correo=solicitud.correo,

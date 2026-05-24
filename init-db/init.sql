@@ -284,8 +284,8 @@ LEFT JOIN pago p
 WHERE p.id IS NULL;
 
 -- [MVP] Estado de habilitación resumido por colegiado.
--- ESTA es la fuente del carnet: si meses_adeudados > 0 -> marca de agua INHABILITADO.
-CREATE VIEW v_estado_colegiado AS
+-- ESTA es la fuente del carnet: pierde la habilitación a los 3 meses de deuda (trimestre vencido)
+CREATE OR REPLACE VIEW v_estado_colegiado AS
 SELECT
     c.id              AS colegiado_id,
     c.dni,
@@ -298,7 +298,6 @@ SELECT
 FROM colegiado c
 JOIN carrera car ON car.id = c.carrera_id
 LEFT JOIN v_deuda d ON d.colegiado_id = c.id
-WHERE c.activo = TRUE
 GROUP BY c.id, c.dni, c.nombres, c.nro_colegiado, car.nombre;
 
 

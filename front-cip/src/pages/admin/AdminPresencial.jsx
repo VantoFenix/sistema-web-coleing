@@ -45,6 +45,7 @@ export default function AdminPresencial() {
     setIsValidando(true);
     try {
       const response = await fetch(`/api/public/reniec/?dni=${dni}`);
+
       if (response.ok) {
         const data = await response.json();
         setNombres(data.nombre_completo);
@@ -237,7 +238,7 @@ export default function AdminPresencial() {
                 <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1rem', textAlign: 'center', background: '#f8fafc', cursor: 'pointer', position: 'relative' }}>
                   <input type="file" accept={accept} onChange={(e) => handleFileChange(e, setter)} style={{ opacity: 0, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', cursor: 'pointer' }} />
                   <UploadCloud size={24} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500' }}>{state ? state.name : 'Subir archivo'}</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px', margin: '0 auto' }}>{state ? state.name : 'Subir archivo'}</p>
                 </div>
               </div>
             ))}

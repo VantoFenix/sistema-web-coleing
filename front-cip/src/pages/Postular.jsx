@@ -59,6 +59,7 @@ export default function Postular() {
 
     try {
       const response = await fetch(`/api/public/reniec/?dni=${dni}`);
+
       if (response.ok) {
         const data = await response.json();
         setNombres(data.nombre_completo);
@@ -210,7 +211,7 @@ export default function Postular() {
                 <label className="form-label">1. Fotografía Tamaño Pasaporte</label>
                 <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1.5rem', textAlign: 'center', background: 'white', cursor: 'pointer' }}>
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500' }}>{foto ? foto.name : "Clic para subir imagen (JPG/PNG)"}</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>{foto ? foto.name : "Clic para subir imagen (JPG/PNG)"}</p>
                   <input type="file" accept="image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-foto" onChange={(e) => handleFileChange(e, setFoto)} />
                   <label htmlFor="file-foto" className="btn btn-outline" style={{ marginTop: '1rem', borderColor: 'var(--border-color)', color: 'var(--text-main)', fontSize: '0.75rem', padding: '0.25rem 0.75rem' }}>Seleccionar archivo</label>
                 </div>
@@ -220,7 +221,7 @@ export default function Postular() {
                 <label className="form-label">2. Título Profesional</label>
                 <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1.5rem', textAlign: 'center', background: 'white' }}>
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500' }}>{titulo ? titulo.name : "Clic para subir documento (PDF)"}</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>{titulo ? titulo.name : "Clic para subir documento (PDF)"}</p>
                   <input type="file" accept=".pdf" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-titulo" onChange={(e) => handleFileChange(e, setTitulo)} />
                   <label htmlFor="file-titulo" className="btn btn-outline" style={{ marginTop: '1rem', borderColor: 'var(--border-color)', color: 'var(--text-main)', fontSize: '0.75rem', padding: '0.25rem 0.75rem' }}>Seleccionar archivo</label>
                 </div>
@@ -230,7 +231,7 @@ export default function Postular() {
                 <label className="form-label">3. Recibo de Pago (S/ 1500.00)</label>
                 <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1.5rem', textAlign: 'center', background: 'white' }}>
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500' }}>{recibo ? recibo.name : "Clic para subir comprobante (PDF/JPG)"}</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>{recibo ? recibo.name : "Clic para subir comprobante (PDF/JPG)"}</p>
                   <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-recibo" onChange={(e) => handleFileChange(e, setRecibo)} />
                   <label htmlFor="file-recibo" className="btn btn-outline" style={{ marginTop: '1rem', borderColor: 'var(--border-color)', color: 'var(--text-main)', fontSize: '0.75rem', padding: '0.25rem 0.75rem' }}>Seleccionar archivo</label>
                 </div>
