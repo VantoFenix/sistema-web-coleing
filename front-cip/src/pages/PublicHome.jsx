@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, NavLink } from 'react-router-dom';
 import { Search, Info, X } from 'lucide-react';
 
 export default function PublicHome() {
   const navigate = useNavigate();
   const [searchMethod, setSearchMethod] = useState('documento');
-  const [tipoColegiado, setTipoColegiado] = useState('Ordinario');
   const [tipoDocumento, setTipoDocumento] = useState('DNI');
   const [documentoVal, setDocumentoVal] = useState('');
   const [nombresVal, setNombresVal] = useState('');
@@ -58,15 +57,35 @@ export default function PublicHome() {
 
   return (
     <div className="app-container">
-      <nav className="navbar">
+      <nav className="navbar" style={{ padding: '1rem 3rem' }}>
         <div className="logo-container">
-          <div className="logo-placeholder">CIP</div>
-          <span className="nav-title">Colegio de Ingenieros del Perú</span>
+          <div className="logo-placeholder" style={{ background: 'var(--cip-red)', color: 'white' }}>CIP</div>
+          <span className="nav-title" style={{ fontSize: '1.5rem', fontWeight: '700' }}>Colegio de Ingenieros del Perú</span>
         </div>
-        <div className="nav-links">
-          <button className="btn btn-outline">Postular</button>
-          <span className="nav-link active">Inicio</span>
-          <button className="btn btn-primary" onClick={() => navigate('/login')}>Ingresar</button>
+        
+        {/* TOP NAVIGATION BAR EXIGIDA */}
+        <div className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+          <NavLink 
+            to="/postular" 
+            className="nav-link" 
+            style={{ fontWeight: '500', fontSize: '1.125rem', padding: '0.5rem', transition: 'all 0.2s' }}
+          >
+            Postular
+          </NavLink>
+          <NavLink 
+            to="/" 
+            className="nav-link active" 
+            style={{ fontWeight: '600', fontSize: '1.125rem', borderBottom: '3px solid white', padding: '0.5rem', borderRadius: '2px' }}
+          >
+            Inicio
+          </NavLink>
+          <button 
+            className="btn btn-primary" 
+            onClick={() => navigate('/login')} 
+            style={{ background: 'white', color: 'var(--cip-blue)', border: 'none', fontWeight: 'bold', padding: '0.6rem 1.5rem', fontSize: '1.125rem', borderRadius: '99px' }}
+          >
+            Ingresar
+          </button>
         </div>
       </nav>
 
@@ -92,7 +111,7 @@ export default function PublicHome() {
           </div>
 
           <form onSubmit={handleSearch}>
-            <div className="form-row">
+            <div className="form-row" style={{ gridTemplateColumns: '1fr' }}>
               <div className="form-group">
                 <label className="form-label">Método de búsqueda</label>
                 <select 
@@ -102,18 +121,6 @@ export default function PublicHome() {
                 >
                   <option value="documento">Por Número de Documento</option>
                   <option value="nombres">Por Apellidos y Nombres</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Tipo de Colegiado</label>
-                <select 
-                  className="form-select"
-                  value={tipoColegiado}
-                  onChange={(e) => setTipoColegiado(e.target.value)}
-                >
-                  <option value="Ordinario">Ordinario / Vitalicio</option>
-                  <option value="Temporal">Temporal</option>
                 </select>
               </div>
             </div>

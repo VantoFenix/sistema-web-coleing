@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import PublicHome from './pages/PublicHome';
+import Postular from './pages/Postular';
 import Login from './pages/Login';
 import PortalLayout from './layouts/PortalLayout';
 import PerfilYo from './pages/portal/PerfilYo';
@@ -12,6 +13,7 @@ function App() {
       <Routes>
         {/* Rutas Públicas */}
         <Route path="/" element={<PublicHome />} />
+        <Route path="/postular" element={<Postular />} />
         <Route path="/login" element={<Login />} />
         
         {/* Rutas Protegidas (Portal del Colegiado) */}
