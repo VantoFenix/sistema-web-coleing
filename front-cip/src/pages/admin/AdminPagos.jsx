@@ -22,7 +22,8 @@ export default function AdminPagos() {
     };
     fetchCatalogos();
   }, []);
-  const [resultados, setResultados] = useState(null);
+
+
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -86,7 +87,7 @@ export default function AdminPagos() {
           <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Cargar Archivo (.csv)</h2>
           
           <div style={{ border: '2px dashed var(--border-color)', borderRadius: '12px', padding: '3rem 2rem', textAlign: 'center', background: '#F8FAFC', cursor: 'pointer', transition: 'all 0.2s', position: 'relative' }}>
-            <input type="file" accept=".csv" onChange={handleFileChange} style={{ opacity: 0, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', cursor: 'pointer' }} />
+            <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileChange} style={{ opacity: 0, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', cursor: 'pointer' }} />
             <UploadCloud size={48} color="var(--text-muted)" style={{ margin: '0 auto 1rem auto' }} />
             {file ? (
               <div>

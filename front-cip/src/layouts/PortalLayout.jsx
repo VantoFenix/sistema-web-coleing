@@ -1,12 +1,24 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { User, CreditCard, Receipt, LogOut } from 'lucide-react';
 
 export default function PortalLayout() {
   const navigate = useNavigate();
 
+  // Auth guard: redirigir si no hay token
+  useEffect(() => {
+    const token = localStorage.getItem('colToken');
+    if (!token) {
+      navigate('/login');
+    }
+  }, [navigate]);
+
   const handleLogout = () => {
+    localStorage.removeItem('colToken');
+    localStorage.removeItem('colUser');
     navigate('/');
   };
+
 
   return (
     <div className="app-container">
