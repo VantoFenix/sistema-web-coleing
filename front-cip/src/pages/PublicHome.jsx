@@ -9,7 +9,7 @@ export default function PublicHome() {
   const [documentoVal, setDocumentoVal] = useState('');
   const [nombresVal, setNombresVal] = useState('');
   const [errors, setErrors] = useState({});
-  const [searchResult, setSearchResult] = useState(null);
+  const [searchResult, setSearchResult] = useState([]);
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
@@ -36,27 +36,37 @@ export default function PublicHome() {
 
   const handleSearch = async (e) => {
     e.preventDefault();
-    setSearchResult(null);
+    setSearchResult([]);
     if (validateForm()) {
-      if (searchMethod === 'documento' && tipoDocumento === 'DNI') {
-        try {
-          const res = await fetch(`/api/public/padron/?dni=${documentoVal}`);
-          if (res.ok) {
-            const data = await res.json();
-            setSearchResult({
-              nombre: data.nombres,
-              cip: data.nro_colegiado,
-              sede: data.sede?.nombre || 'Desconocida',
-              condicion: data.habilitado ? 'HABILITADO' : 'INHABILITADO'
-            });
-          } else {
-            setErrors({ documento: 'Ingeniero no encontrado en el padrón.' });
-          }
-        } catch (err) {
-          setErrors({ documento: 'Error de conexión con el servidor.' });
+      try {
+        let url = '';
+        if (searchMethod === 'documento') {
+          if (tipoDocumento === 'DNI') url = `/api/public/padron/?dni=${documentoVal}`;
+          else url = `/api/public/padron/?cip=${documentoVal}`;
+        } else {
+          url = `/api/public/padron/?nombres=${nombresVal}`;
         }
-      } else {
-        setErrors({ documento: 'Solo la búsqueda por DNI está implementada en esta versión.' });
+
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.length === 0) {
+            setErrors({ general: 'No se encontraron resultados en el padrón.' });
+          } else {
+            const mappedResults = data.map(col => ({
+              nombre: col.nombres,
+              cip: col.nro_colegiado,
+              carrera: col.carrera.nombre,
+              sede: col.sede?.nombre || 'Desconocida',
+              condicion: col.habilitado ? 'HABILITADO' : 'INHABILITADO'
+            }));
+            setSearchResult(mappedResults);
+          }
+        } else {
+          setErrors({ general: 'Ingeniero no encontrado o datos incorrectos.' });
+        }
+      } catch (err) {
+        setErrors({ general: 'Error de conexión con el servidor.' });
       }
     }
   };
@@ -213,40 +223,51 @@ export default function PublicHome() {
             <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem' }}>
               <Search size={18} /> Buscar en Padrón
             </button>
+            {errors.general && <div className="error-text" style={{ marginTop: '1rem', color: 'var(--cip-red)', fontWeight: '500' }}>{errors.general}</div>}
           </form>
 
-          {/* TARJETA DE RESULTADO DE BÚSQUEDA */}
-          {searchResult && (
-            <div style={{ marginTop: '2.5rem', padding: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '12px', background: '#F8FAFC' }}>
-              <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Resultado de Búsqueda</h3>
+          {/* TARJETAS DE RESULTADO DE BÚSQUEDA */}
+          {searchResult.length > 0 && (
+            <div style={{ marginTop: '2.5rem' }}>
+              <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>
+                Resultados de Búsqueda ({searchResult.length})
+              </h3>
               
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
-                <div>
-                  <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Apellidos y Nombres</p>
-                  <p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{searchResult.nombre}</p>
-                </div>
-                <div>
-                  <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Registro CIP</p>
-                  <p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{searchResult.cip}</p>
-                </div>
-                <div>
-                  <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Sede Departamental</p>
-                  <p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{searchResult.sede}</p>
-                </div>
-                <div>
-                  <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Condición</p>
-                  <span style={{ 
-                    display: 'inline-block',
-                    padding: '0.25rem 0.75rem', 
-                    borderRadius: '9999px', 
-                    fontSize: '0.875rem', 
-                    fontWeight: '700',
-                    background: searchResult.condicion === 'HABILITADO' ? '#D1FAE5' : '#FEE2E2',
-                    color: searchResult.condicion === 'HABILITADO' ? '#065F46' : '#991B1B'
-                  }}>
-                    {searchResult.condicion}
-                  </span>
-                </div>
+              <div style={{ display: 'grid', gap: '1rem' }}>
+                {searchResult.map((res, idx) => (
+                  <div key={idx} style={{ padding: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '12px', background: '#F8FAFC', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+                    <div>
+                      <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Apellidos y Nombres</p>
+                      <p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{res.nombre}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Carrera</p>
+                      <p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{res.carrera}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Registro CIP</p>
+                      <p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{res.cip}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Sede Departamental</p>
+                      <p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{res.sede}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Condición</p>
+                      <span style={{ 
+                        display: 'inline-block',
+                        padding: '0.25rem 0.75rem', 
+                        borderRadius: '9999px', 
+                        fontSize: '0.875rem', 
+                        fontWeight: '700',
+                        background: res.condicion === 'HABILITADO' ? '#D1FAE5' : '#FEE2E2',
+                        color: res.condicion === 'HABILITADO' ? '#065F46' : '#991B1B'
+                      }}>
+                        {res.condicion}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

@@ -68,23 +68,32 @@ class PublicPadronView(APIView):
 
     def get(self, request):
         dni = request.query_params.get('dni')
-        if not dni:
-            return Response({'error': 'Debe proporcionar DNI'}, status=status.HTTP_400_BAD_REQUEST)
+        cip = request.query_params.get('cip')
+        nombres = request.query_params.get('nombres')
         
-        # Buscar el colegiado
-        col = Colegiado.objects.filter(dni=dni).first()
-        if not col:
-            return Response({'error': 'No se encontró un ingeniero colegiado con ese DNI'}, status=status.HTTP_404_NOT_FOUND)
-
-        # Consultar la vista v_estado_colegiado
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT habilitado FROM v_estado_colegiado WHERE colegiado_id = %s", [col.id])
-            row = cursor.fetchone()
-            habilitado = row[0] if row else False
-
-        data = ColegiadoSerializer(col).data
-        data['habilitado'] = habilitado
-        return Response(data)
+        queryset = Colegiado.objects.all()
+        
+        if dni:
+            queryset = queryset.filter(dni=dni)
+        elif cip:
+            queryset = queryset.filter(nro_colegiado=cip)
+        elif nombres:
+            queryset = queryset.filter(nombres__icontains=nombres)
+        else:
+            return Response({'error': 'Debe proporcionar DNI, CIP o Nombres'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        resultados = []
+        for col in queryset:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT habilitado FROM v_estado_colegiado WHERE colegiado_id = %s", [col.id])
+                row = cursor.fetchone()
+                habilitado = row[0] if row else False
+            
+            data = ColegiadoSerializer(col).data
+            data['habilitado'] = habilitado
+            resultados.append(data)
+            
+        return Response(resultados)
 
 class PublicConsultaSolicitudView(APIView):
     permission_classes = [AllowAny]
@@ -186,11 +195,11 @@ class AdminResolverSolicitudView(APIView):
             solicitud.save()
             
             # Generar Colegiado
-            # Generar un Nro Colegiado (Simulado: max nro + 1)
+            # Generar un Nro Colegiado (Simulado: max nro + 1 por carrera)
             with connection.cursor() as cursor:
-                cursor.execute("SELECT MAX(CAST(nro_colegiado AS INTEGER)) FROM colegiado")
+                cursor.execute("SELECT MAX(CAST(nro_colegiado AS INTEGER)) FROM colegiado WHERE carrera_id = %s", [solicitud.carrera_id])
                 row = cursor.fetchone()
-                siguiente_nro = str((row[0] or 10000) + 1)
+                siguiente_nro = str((row[0] or 1000) + 1)
             
             Colegiado.objects.create(
                 correo=solicitud.correo,
