@@ -160,8 +160,8 @@ class PublicPostulacionView(APIView):
         solicitud = Solicitud.objects.create(
             dni=dni,
             nombres=nombres,
-            correo=correo,
             celular=celular,
+            correo=correo,
             carrera=carrera,
             sede=sede,
             foto_url=f"/media/{foto_name}",

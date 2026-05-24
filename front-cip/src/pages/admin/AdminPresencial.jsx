@@ -46,7 +46,7 @@ export default function AdminPresencial() {
     try {
       const response = await fetch(`https://api.apis.net.pe/v2/reniec/dni?numero=${dni}`, {
         headers: {
-          'Authorization': 'Bearer sk_15798.m04UTcWH3vUexNYAfT6LTxdae1G3Qt6r'
+          'Authorization': 'Bearer sk_15798.trHLAgX83RJEDT2jthOzCrNXjVQNR79m'
         }
       });
       if (response.ok) {
@@ -238,7 +238,7 @@ export default function AdminPresencial() {
                 <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1rem', textAlign: 'center', background: '#f8fafc', cursor: 'pointer', position: 'relative' }}>
                   <input type="file" accept={accept} onChange={(e) => handleFileChange(e, setter)} style={{ opacity: 0, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', cursor: 'pointer' }} />
                   <UploadCloud size={24} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500' }}>{state ? state.name : 'Subir archivo'}</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px', margin: '0 auto' }}>{state ? state.name : 'Subir archivo'}</p>
                 </div>
               </div>
             ))}

@@ -129,6 +129,56 @@ def do_seed_catalogos(sender, **kwargs):
         import sys
         print(f"[SEED WARNING] No se pudo ejecutar el seed: {e}", file=sys.stderr)
 
+    try:
+        # 5. SEMILLA DE SOLICITUDES Y PAGOS (Para Dashboard Admin)
+        if Solicitud.objects.count() == 0:
+            import random
+            from datetime import timedelta
+            
+            carreras = list(Carrera.objects.all())
+            sedes = list(Sede.objects.all())
+            
+            if carreras and sedes:
+                # Insertar 120 postulaciones pendientes/aprobadas aleatorias
+                for i in range(120):
+                    estado = random.choice(['EN_REVISION', 'APROBADA', 'RECHAZADA'])
+                    Solicitud.objects.create(
+                        dni=str(random.randint(40000000, 79999999)),
+                        nombres=f"POSTULANTE MOCK {i}",
+                        correo=f"mock{i}@test.com",
+                        celular="999999999",
+                        carrera=random.choice(carreras),
+                        sede=random.choice(sedes),
+                        foto_url="/media/placeholder.jpg",
+                        titulo_pdf_url="/media/placeholder.pdf",
+                        recibo_pago_url="/media/placeholder.pdf",
+                        estado=estado,
+                        creado_en=today - timedelta(days=random.randint(0, 30))
+                    )
+        
+        # Insertar algunos pagos si no hay
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM pago")
+            row = cursor.fetchone()
+            if row and row[0] == 0:
+                colegiados = list(Colegiado.objects.all()[:5])
+                admin = Administrador.objects.first()
+                if colegiados and admin:
+                    for col in colegiados:
+                        # Insertar pago de incorporacion y mensualidad
+                        cursor.execute("""
+                            INSERT INTO pago (colegiado_id, tipo, periodo, monto, canal, metodo, fecha_pago, registrado_por)
+                            VALUES (%s, 'INCORPORACION', %s, 1500.00, 'CAJA', 'TARJETA', %s, %s)
+                        """, [col.id, today.replace(day=1), today, admin.id])
+                        
+                        cursor.execute("""
+                            INSERT INTO pago (colegiado_id, tipo, periodo, monto, canal, metodo, fecha_pago, registrado_por)
+                            VALUES (%s, 'MENSUALIDAD', %s, 20.00, 'CAJA', 'EFECTIVO', %s, %s)
+                        """, [col.id, today.replace(day=1), today, admin.id])
+    except Exception as e:
+        print(f"[SEED WARNING] No se insertaron solicitudes/pagos: {e}")
+
 
 class CoreConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
