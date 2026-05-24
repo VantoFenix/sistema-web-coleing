@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, UploadCloud, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, UploadCloud, CheckCircle2, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 
 export default function Postular() {
   const navigate = useNavigate();
@@ -22,13 +22,16 @@ export default function Postular() {
   const [dniValidado, setDniValidado] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [dniError, setDniError] = useState('');
+  const [submitError, setSubmitError] = useState('');
 
   const handleValidarDNI = (e) => {
     e.preventDefault();
     if (dni.length !== 8) {
-      alert("El DNI debe tener 8 dígitos.");
+      setDniError("El DNI debe tener 8 dígitos.");
       return;
     }
+    setDniError('');
 
     setIsValidando(true);
 
@@ -37,8 +40,7 @@ export default function Postular() {
       setIsValidando(false);
       
       if (dni === '77777777') {
-        // Simular error de contraste
-        alert("DNI no encontrado en RENIEC o apis.net.pe. Verifique el número.");
+        setDniError("DNI no encontrado en RENIEC o apis.net.pe. Verifique el número.");
         setDniValidado(false);
         setNombres('');
       } else {
@@ -57,11 +59,21 @@ export default function Postular() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setSubmitError('');
     
     // Validación manual de campos
-    if (!dniValidado) return alert("Debe validar su DNI primero.");
-    if (!celular || !correo || !carrera) return alert("Complete todos los datos de contacto y académicos.");
-    if (!foto || !titulo || !recibo) return alert("Debe adjuntar todos los documentos requeridos (Foto, Título y Recibo).");
+    if (!dniValidado) {
+      setSubmitError("Debe validar su DNI primero.");
+      return;
+    }
+    if (!celular || !correo || !carrera) {
+      setSubmitError("Complete todos los datos de contacto y académicos.");
+      return;
+    }
+    if (!foto || !titulo || !recibo) {
+      setSubmitError("Debe adjuntar todos los documentos requeridos (Foto, Título y Recibo).");
+      return;
+    }
 
     setEnviando(true);
 
@@ -112,7 +124,7 @@ export default function Postular() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem' }}>
             
             {/* COLUMNA IZQUIERDA: ARCHIVOS */}
-            <div>
+            <div style={{ background: '#f8fafc', padding: '2rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
               <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Documentos Adjuntos</h3>
               
               <div className="alert alert-warning" style={{ padding: '0.75rem', fontSize: '0.875rem' }}>
@@ -121,7 +133,7 @@ export default function Postular() {
 
               <div className="form-group" style={{ marginTop: '1.5rem' }}>
                 <label className="form-label">1. Fotografía Tamaño Pasaporte</label>
-                <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1.5rem', textAlign: 'center', background: '#f8fafc', cursor: 'pointer' }}>
+                <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1.5rem', textAlign: 'center', background: 'white', cursor: 'pointer' }}>
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
                   <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500' }}>{foto ? foto : "Clic para subir imagen (JPG/PNG)"}</p>
                   <input type="file" accept="image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-foto" onChange={(e) => handleFileChange(e, setFoto)} />
@@ -130,8 +142,8 @@ export default function Postular() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">2. Título Profesional (Sunedu)</label>
-                <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1.5rem', textAlign: 'center', background: '#f8fafc' }}>
+                <label className="form-label">2. Título Profesional</label>
+                <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1.5rem', textAlign: 'center', background: 'white' }}>
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
                   <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500' }}>{titulo ? titulo : "Clic para subir documento (PDF)"}</p>
                   <input type="file" accept=".pdf" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-titulo" onChange={(e) => handleFileChange(e, setTitulo)} />
@@ -141,7 +153,7 @@ export default function Postular() {
 
               <div className="form-group">
                 <label className="form-label">3. Recibo de Pago (S/ 1500.00)</label>
-                <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1.5rem', textAlign: 'center', background: '#f8fafc' }}>
+                <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1.5rem', textAlign: 'center', background: 'white' }}>
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
                   <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500' }}>{recibo ? recibo : "Clic para subir comprobante (PDF/JPG)"}</p>
                   <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-recibo" onChange={(e) => handleFileChange(e, setRecibo)} />
@@ -152,11 +164,11 @@ export default function Postular() {
             </div>
 
             {/* COLUMNA DERECHA: DATOS */}
-            <div>
+            <div style={{ padding: '2rem 0' }}>
               <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Datos Personales y Académicos</h3>
               
               <div className="form-group">
-                <label className="form-label">DNI</label>
+                <label className="form-label">Número de DNI</label>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <input 
                     type="text" 
@@ -165,12 +177,14 @@ export default function Postular() {
                     placeholder="Ingrese su DNI de 8 dígitos"
                     maxLength={8}
                     value={dni}
-                    onChange={(e) => { setDni(e.target.value); setDniValidado(false); setNombres(''); }}
+                    disabled={dniValidado}
+                    onChange={(e) => { setDni(e.target.value); setDniError(''); setDniValidado(false); setNombres(''); }}
                   />
-                  <button type="button" className="btn btn-outline" style={{ borderColor: 'var(--cip-blue)', color: 'var(--cip-blue)' }} onClick={handleValidarDNI} disabled={isValidando}>
-                    {isValidando ? <Loader2 size={18} className="spin" /> : 'Validar DNI'}
+                  <button type="button" className="btn btn-outline" style={{ borderColor: 'var(--cip-blue)', color: 'var(--cip-blue)' }} onClick={handleValidarDNI} disabled={isValidando || dniValidado}>
+                    {isValidando ? <Loader2 size={18} className="spin" /> : <><CheckCircle size={18} style={{marginRight: '5px'}}/> Validar</>}
                   </button>
                 </div>
+                {dniError && <span className="error-text" style={{ color: 'var(--cip-red)', fontSize: '0.875rem', marginTop: '0.5rem', display: 'block' }}>{dniError}</span>}
               </div>
 
               <div className="form-group">
@@ -225,6 +239,12 @@ export default function Postular() {
                   <option value="Ingeniería de Minas">Ingeniería de Minas</option>
                 </select>
               </div>
+
+              {submitError && (
+                <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.75rem', borderRadius: '8px', marginTop: '1.5rem', fontSize: '0.875rem', fontWeight: '500' }}>
+                  {submitError}
+                </div>
+              )}
 
             </div>
 

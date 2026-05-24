@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, NavLink } from 'react-router-dom';
-import { Search, Info, X } from 'lucide-react';
+import { Search, Info, X, CheckCircle, FileText, Home, LogIn } from 'lucide-react';
 
 export default function PublicHome() {
   const navigate = useNavigate();
@@ -9,11 +9,13 @@ export default function PublicHome() {
   const [documentoVal, setDocumentoVal] = useState('');
   const [nombresVal, setNombresVal] = useState('');
   const [errors, setErrors] = useState({});
+  const [searchResult, setSearchResult] = useState(null);
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
   const [dniConsulta, setDniConsulta] = useState('');
   const [estadoConsulta, setEstadoConsulta] = useState(null); // null, 'EN_REVISION', 'APROBADA', 'RECHAZADA'
+  const [consultaError, setConsultaError] = useState('');
 
   const validateForm = () => {
     const newErrors = {};
@@ -33,16 +35,25 @@ export default function PublicHome() {
   const handleSearch = (e) => {
     e.preventDefault();
     if (validateForm()) {
-      alert("Búsqueda pública iniciada (Solo muestra condición habilitado/inhabilitado).");
+      // Mock Result
+      setSearchResult({
+        nombre: searchMethod === 'documento' ? 'INGENIERO DE PRUEBA' : nombresVal.toUpperCase(),
+        cip: '123456',
+        sede: 'CD LIMA',
+        condicion: 'HABILITADO'
+      });
+    } else {
+      setSearchResult(null);
     }
   };
 
   const handleConsultarTramite = (e) => {
     e.preventDefault();
     if (dniConsulta.length !== 8) {
-      alert("Ingrese un DNI válido de 8 dígitos");
+      setConsultaError("Ingrese un DNI válido de 8 dígitos");
       return;
     }
+    setConsultaError('');
     // Mocking response
     if (dniConsulta === '11111111') setEstadoConsulta('APROBADA');
     else if (dniConsulta === '22222222') setEstadoConsulta('RECHAZADA');
@@ -53,6 +64,7 @@ export default function PublicHome() {
     setShowModal(false);
     setDniConsulta('');
     setEstadoConsulta(null);
+    setConsultaError('');
   };
 
   return (
@@ -64,27 +76,29 @@ export default function PublicHome() {
         </div>
 
         {/* CENTRO: Enlaces de navegación */}
-        <div className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: '2rem', justifySelf: 'center' }}>
+        <div className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: '1rem', justifySelf: 'center' }}>
           <NavLink 
             to="/postular" 
             className="nav-link" 
-            style={{ fontWeight: '500', fontSize: '1.125rem', padding: '0.5rem', transition: 'all 0.2s' }}
+            style={{ fontWeight: '500', fontSize: '1.125rem', padding: '0.5rem', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            Postular
+            <FileText size={18} /> Postular
           </NavLink>
+          <div style={{ width: '1px', height: '24px', background: 'var(--border-color)' }}></div>
           <NavLink 
             to="/" 
             className="nav-link active" 
-            style={{ fontWeight: '600', fontSize: '1.125rem', borderBottom: '3px solid transparent', padding: '0.5rem', borderRadius: '2px' }}
+            style={{ fontWeight: '600', fontSize: '1.125rem', borderBottom: '3px solid transparent', padding: '0.5rem', borderRadius: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            Inicio
+            <Home size={18} /> Inicio
           </NavLink>
+          <div style={{ width: '1px', height: '24px', background: 'var(--border-color)' }}></div>
           <NavLink 
             to="/login" 
             className="nav-link" 
-            style={{ fontWeight: '600', fontSize: '1.125rem', padding: '0.5rem', transition: 'all 0.2s' }}
+            style={{ fontWeight: '500', fontSize: '1.125rem', padding: '0.5rem', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            Ingresar
+            <LogIn size={18} /> Ingresar
           </NavLink>
         </div>
         
@@ -164,6 +178,7 @@ export default function PublicHome() {
                   value={nombresVal}
                   onChange={(e) => setNombresVal(e.target.value)}
                 />
+                {errors.nombres && <span className="error-text" style={{ color: 'var(--cip-red)', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>{errors.nombres}</span>}
               </div>
             )}
 
@@ -171,6 +186,43 @@ export default function PublicHome() {
               <Search size={18} /> Buscar en Padrón
             </button>
           </form>
+
+          {/* TARJETA DE RESULTADO DE BÚSQUEDA */}
+          {searchResult && (
+            <div style={{ marginTop: '2.5rem', padding: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '12px', background: '#F8FAFC' }}>
+              <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Resultado de Búsqueda</h3>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+                <div>
+                  <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Apellidos y Nombres</p>
+                  <p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{searchResult.nombre}</p>
+                </div>
+                <div>
+                  <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Registro CIP</p>
+                  <p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{searchResult.cip}</p>
+                </div>
+                <div>
+                  <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Sede Departamental</p>
+                  <p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{searchResult.sede}</p>
+                </div>
+                <div>
+                  <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Condición</p>
+                  <span style={{ 
+                    display: 'inline-block',
+                    padding: '0.25rem 0.75rem', 
+                    borderRadius: '9999px', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '700',
+                    background: searchResult.condicion === 'HABILITADO' ? '#D1FAE5' : '#FEE2E2',
+                    color: searchResult.condicion === 'HABILITADO' ? '#065F46' : '#991B1B'
+                  }}>
+                    {searchResult.condicion}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </main>
 
@@ -189,12 +241,13 @@ export default function PublicHome() {
                     <label className="form-label">Ingrese su DNI</label>
                     <input 
                       type="text" 
-                      className="form-input" 
+                      className={`form-input ${consultaError ? 'error' : ''}`} 
                       placeholder="Número de DNI de 8 dígitos"
                       value={dniConsulta}
-                      onChange={(e) => setDniConsulta(e.target.value)}
+                      onChange={(e) => { setDniConsulta(e.target.value); setConsultaError(''); }}
                       maxLength={8}
                     />
+                    {consultaError && <span className="error-text" style={{ color: 'var(--cip-red)', fontSize: '0.875rem', marginTop: '0.25rem', display: 'block' }}>{consultaError}</span>}
                   </div>
                   <button type="submit" className="btn btn-primary btn-block">Consultar</button>
                   <p style={{ fontSize: '0.875rem', marginTop: '1rem', color: 'var(--text-muted)' }}>

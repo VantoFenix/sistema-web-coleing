@@ -6,13 +6,15 @@ export default function Login() {
   const navigate = useNavigate();
   const [identificador, setIdentificador] = useState('');
   const [password, setPassword] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   const handleLogin = (e) => {
     e.preventDefault();
     if (identificador && password) {
+      setErrorMsg('');
       navigate('/portal/yo');
     } else {
-      alert("Ingrese sus credenciales.");
+      setErrorMsg('Por favor, ingrese su DNI y contraseña.');
     }
   };
 
@@ -48,6 +50,15 @@ export default function Login() {
           Portal Oficial del Colegiado. Consulte su estado, pagos y credenciales digitales en un solo lugar.
         </p>
 
+        {/* Botón Volver (En el lado izquierdo arriba) */}
+        <button 
+          className="btn btn-outline" 
+          style={{ position: 'absolute', top: '2rem', left: '2rem', borderColor: 'rgba(255,255,255,0.3)', color: 'white', zIndex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+          onClick={() => navigate('/')}
+        >
+          <ArrowLeft size={18} /> Volver
+        </button>
+
       </div>
 
       {/* LADO DERECHO: Formulario */}
@@ -60,21 +71,18 @@ export default function Login() {
         padding: '3rem',
         position: 'relative'
       }}>
-        {/* Botón Volver (Ahora en el lado derecho para máxima visibilidad) */}
-        <button 
-          className="btn btn-outline" 
-          style={{ position: 'absolute', top: '2rem', right: '2rem', color: 'var(--text-muted)', borderColor: 'var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-          onClick={() => navigate('/')}
-        >
-          <ArrowLeft size={18} /> Volver
-        </button>
-
         <div style={{ width: '100%', maxWidth: '400px' }}>
           
           <div style={{ marginBottom: '2.5rem', textAlign: 'center' }}>
             <h2 style={{ color: 'var(--cip-blue)', fontSize: '2rem', fontWeight: '800' }}>Bienvenido de nuevo</h2>
             <p className="text-muted" style={{ marginTop: '0.5rem' }}>Ingrese sus credenciales para acceder a su portal</p>
           </div>
+
+          {errorMsg && (
+            <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.75rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.875rem', fontWeight: '500', textAlign: 'center' }}>
+              {errorMsg}
+            </div>
+          )}
 
           <form onSubmit={handleLogin}>
             <div className="form-group" style={{ marginBottom: '1.5rem' }}>
@@ -115,13 +123,6 @@ export default function Login() {
               Ingresar de forma segura
             </button>
           </form>
-
-          <div style={{ marginTop: '2.5rem', textAlign: 'center' }}>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-              ¿Olvidó su contraseña? <br />
-              <a href="#" style={{ color: 'var(--cip-red)', fontWeight: '600', textDecoration: 'none' }}>Acérquese a su sede departamental.</a>
-            </p>
-          </div>
 
         </div>
       </div>
