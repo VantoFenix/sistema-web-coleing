@@ -44,15 +44,15 @@ export default function AdminPresencial() {
     setErrorMsg('');
     setIsValidando(true);
     try {
-      const response = await fetch(`https://api.apis.net.pe/v2/reniec/dni?numero=${dni}`, {
-        headers: {
-          'Authorization': 'Bearer sk_15798.trHLAgX83RJEDT2jthOzCrNXjVQNR79m'
-        }
-      });
+      const response = await fetch(`/api/public/reniec/?dni=${dni}`);
+
       if (response.ok) {
         const data = await response.json();
-        setNombres(`${data.apellidoPaterno} ${data.apellidoMaterno} ${data.nombres}`);
+        setNombres(data.nombre_completo);
         setDniValidado(true);
+      } else if (response.status === 429) {
+        setErrorMsg("El servicio de RENIEC ha superado su límite de consultas. Ingrese el nombre manualmente.");
+        setDniValidado(false);
       } else {
         setErrorMsg("DNI no encontrado en RENIEC. Puede ingresar el nombre manualmente.");
         setDniValidado(false);
