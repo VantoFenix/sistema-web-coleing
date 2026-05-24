@@ -8,7 +8,7 @@ def do_seed_catalogos(sender, **kwargs):
     """
     try:
         from django.contrib.auth.hashers import make_password
-        from .models import Sede, Carrera, Administrador, Colegiado
+        from .models import Sede, Carrera, Administrador, Colegiado, Solicitud, Pago
 
         # 1. SEDES
         SEDES = [
