@@ -14,6 +14,8 @@ import os
 import uuid
 import pandas as pd
 from datetime import datetime, date
+from django.core.mail import send_mail
+from django.conf import settings
 
 from .models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago, CargaRecaudacion
 from .serializers import AdministradorSerializer, ColegiadoSerializer, SolicitudSerializer, CarreraSerializer, SedeSerializer
@@ -222,6 +224,36 @@ class AdminResolverSolicitudView(APIView):
                 solicitud=solicitud,
                 colegiado_desde=datetime.utcnow().date()
             )
+
+            # Enviar correo de bienvenida al colegiado
+            try:
+                asunto = f"¡Bienvenido al Colegio de Ingenieros del Perú!"
+                mensaje = f"""Estimado(a) {solicitud.nombres},
+
+Su solicitud de colegiatura ha sido APROBADA satisfactoriamente.
+
+Sus credenciales de acceso al Portal del Colegiado son:
+- Número de Colegiatura (CIP): {siguiente_nro}
+- DNI: {solicitud.dni}
+- Contraseña temporal: {solicitud.dni}
+
+Puede ingresar a su portal aquí:
+https://tu-dominio.com/login
+
+Atentamente,
+Colegio de Ingenieros del Perú
+"""
+                send_mail(
+                    asunto,
+                    mensaje,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [solicitud.correo],
+                    fail_silently=True,
+                )
+            except Exception as e:
+                import sys
+                print(f"[MAIL WARNING] No se pudo enviar el correo: {e}", file=sys.stderr)
+
             return Response({'success': True, 'estado': 'APROBADA'})
             
         return Response({'error': 'Acción inválida'}, status=status.HTTP_400_BAD_REQUEST)
