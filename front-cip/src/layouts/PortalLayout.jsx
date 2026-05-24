@@ -12,11 +12,14 @@ export default function PortalLayout() {
     <div className="app-container">
       {/* Header Privado */}
       <nav className="navbar">
-        <div className="logo-container">
+        {/* Lado Izquierdo: Logo y Título */}
+        <div className="logo-container" style={{ display: 'flex', justifyContent: 'flex-start' }}>
           <div className="logo-placeholder" style={{ fontSize: '1rem', padding: '0.25rem 0.75rem' }}>CIP</div>
-          <span className="nav-title">Portal del Colegiado</span>
+          <span className="nav-title" style={{ fontWeight: '600', color: 'var(--cip-blue)', marginLeft: '0.5rem' }}>Portal del Colegiado</span>
         </div>
-        <div className="nav-links">
+
+        {/* CENTRO: Enlaces del portal */}
+        <div className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', justifySelf: 'center' }}>
           <NavLink to="/portal/carnet" className={({isActive}) => isActive ? "nav-link active" : "nav-link"} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <CreditCard size={18} /> MI CARNET
           </NavLink>
@@ -26,8 +29,24 @@ export default function PortalLayout() {
           <NavLink to="/portal/pagos" className={({isActive}) => isActive ? "nav-link active" : "nav-link"} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Receipt size={18} /> MIS PAGOS
           </NavLink>
-          <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.2)', margin: '0 0.5rem' }}></div>
-          <button onClick={handleLogout} className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', fontSize: '0.875rem' }}>
+        </div>
+
+        {/* DERECHA: Botón Salir */}
+        <div style={{ justifySelf: 'end' }}>
+          <button 
+            onClick={handleLogout} 
+            className="btn btn-outline" 
+            style={{ 
+              padding: '0.5rem 1rem', 
+              fontSize: '0.875rem', 
+              borderColor: 'var(--cip-red)', 
+              color: 'var(--cip-red)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontWeight: '600'
+            }}
+          >
             <LogOut size={16} /> Salir
           </button>
         </div>
