@@ -90,20 +90,20 @@ export default function Postular() {
   }
 
   return (
-    <div className="app-container" style={{ padding: '2rem' }}>
+    <div className="app-container" style={{ padding: '4rem 2rem 2rem 2rem', position: 'relative' }}>
       
-      <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <div>
-          <h1 style={{ color: 'var(--cip-blue)', fontSize: '2rem', fontWeight: '700' }}>Formulario de Colegiatura</h1>
-          <p className="text-muted">Inicie su trámite de inscripción adjuntando los documentos requeridos.</p>
-        </div>
-        <button 
-          className="btn btn-outline" 
-          style={{ borderColor: 'var(--border-color)', color: 'var(--cip-blue)' }}
-          onClick={() => navigate('/')}
-        >
-          <ArrowLeft size={20} /> Volver
-        </button>
+      {/* Botón de retroceso arriba a la izquierda */}
+      <button 
+        className="btn btn-outline" 
+        style={{ position: 'absolute', top: '1.5rem', left: '2rem', border: 'none', padding: '0.5rem', color: 'var(--text-muted)' }}
+        onClick={() => navigate('/')}
+      >
+        <ArrowLeft size={24} /> Volver al inicio
+      </button>
+
+      <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'center', marginBottom: '2.5rem' }}>
+        <h1 style={{ color: 'var(--cip-blue)', fontSize: '2.25rem', fontWeight: '800' }}>Formulario de Colegiatura</h1>
+        <p className="text-muted" style={{ fontSize: '1.125rem', marginTop: '0.5rem' }}>Inicie su trámite de inscripción adjuntando los documentos requeridos.</p>
       </div>
 
       <div className="card" style={{ maxWidth: '1000px', margin: '0 auto' }}>
