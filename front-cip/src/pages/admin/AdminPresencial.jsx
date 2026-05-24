@@ -140,9 +140,13 @@ export default function AdminPresencial() {
       const solicitudId = postData.solicitud_id;
 
       // 2. Auto-aprobar inmediatamente (flujo presencial)
+      const adminToken = localStorage.getItem('adminToken');
       const resAprob = await fetch(`/api/admin/postulaciones/${solicitudId}/resolver/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`,
+        },
         body: JSON.stringify({ accion: 'APROBAR' })
       });
 
