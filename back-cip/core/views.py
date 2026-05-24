@@ -12,8 +12,10 @@ from django.http import HttpResponse
 from django.core.files.storage import default_storage
 import os
 import uuid
+import pandas as pd
+from datetime import datetime, date
 
-from .models import Administrador, Colegiado, Solicitud, Carrera, Sede
+from .models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago, CargaRecaudacion
 from .serializers import AdministradorSerializer, ColegiadoSerializer, SolicitudSerializer, CarreraSerializer, SedeSerializer
 
 def generate_jwt(user_id, role):
@@ -185,6 +187,142 @@ class AdminResolverSolicitudView(APIView):
             return Response({'success': True, 'estado': 'APROBADA'})
             
         return Response({'error': 'Acción inválida'}, status=status.HTTP_400_BAD_REQUEST)
+
+class PortalPerfilView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user_id = request.user.id
+        col = Colegiado.objects.filter(id=user_id).first()
+        if not col:
+            return Response({'error': 'No se encontró el colegiado'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Consultar si está habilitado usando la vista SQL
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT habilitado FROM v_estado_colegiado WHERE colegiado_id = %s", [col.id])
+            row = cursor.fetchone()
+            habilitado = row[0] if row else False
+
+        data = ColegiadoSerializer(col).data
+        data['habilitado'] = habilitado
+        return Response(data)
+
+class PortalPagosView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user_id = request.user.id
+        pagos = Pago.objects.filter(colegiado_id=user_id).order_by('-fecha_pago', '-periodo')
+        
+        pagos_data = []
+        for p in pagos:
+            pagos_data.append({
+                'id': p.id,
+                'tipo': p.tipo,
+                'periodo': p.periodo.strftime('%Y-%m'),
+                'monto': p.monto,
+                'canal': p.canal,
+                'nro_operacion': p.nro_operacion,
+                'fecha_pago': p.fecha_pago.strftime('%Y-%m-%d'),
+            })
+            
+        return Response(pagos_data)
+
+class AdminCargaRecaudacionView(APIView):
+    permission_classes = [AllowAny] # MVP: En prod debería ser IsAuthenticated(Admin)
+
+    def post(self, request):
+        archivo = request.FILES.get('archivo')
+        if not archivo:
+            return Response({'error': 'Debe adjuntar un archivo xlsx o csv'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Leer archivo con pandas
+        try:
+            if archivo.name.endswith('.csv'):
+                df = pd.read_csv(archivo)
+            else:
+                df = pd.read_excel(archivo)
+        except Exception as e:
+            return Response({'error': f'Error al leer el archivo: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Normalizar nombres de columnas
+        df.columns = df.columns.str.strip().str.upper()
+        requeridas = ['CIP', 'CARRERA', 'MES', 'MONTO']
+        for req in requeridas:
+            if req not in df.columns:
+                return Response({'error': f'Columna requerida no encontrada: {req}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Crear registro de auditoría (asumiendo que el admin tiene ID 1 para el MVP, en real sacar de request.user)
+        admin = Administrador.objects.first()
+        carga = CargaRecaudacion.objects.create(
+            nombre_archivo=archivo.name,
+            procesado_por=admin,
+            total_filas=len(df),
+            filas_ok=0,
+            filas_error=0
+        )
+
+        filas_ok = 0
+        filas_error = 0
+        errores = []
+
+        # Como todos los pagos se suben "a fin de mes", usaremos el final del mes provisto, o la fecha actual
+        fecha_pago_defecto = date.today()
+
+        for index, row in df.iterrows():
+            try:
+                cip_str = str(row['CIP']).strip()
+                if cip_str.endswith('.0'): cip_str = cip_str[:-2]
+                
+                carrera_nombre = str(row['CARRERA']).strip()
+                mes_str = str(row['MES']).strip() # Esperado '2026-05' o '2026-05-01'
+                monto = float(row['MONTO'])
+
+                # Parsear el periodo
+                if len(mes_str) >= 7:
+                    año = int(mes_str[0:4])
+                    mes = int(mes_str[5:7])
+                    periodo_date = date(año, mes, 1)
+                else:
+                    raise ValueError(f"Formato de mes inválido: {mes_str}")
+
+                # Buscar colegiado
+                colegiado = Colegiado.objects.filter(nro_colegiado=cip_str, carrera__nombre=carrera_nombre).first()
+                if not colegiado:
+                    raise ValueError(f"Colegiado no encontrado (CIP: {cip_str}, Carrera: {carrera_nombre})")
+
+                # Crear el pago o actualizar si existe (solo hay 1 pago de mensualidad por periodo)
+                pago, created = Pago.objects.update_or_create(
+                    colegiado=colegiado,
+                    periodo=periodo_date,
+                    defaults={
+                        'tipo': 'MENSUALIDAD',
+                        'monto': monto,
+                        'canal': 'ARCHIVO_RECAUDACION',
+                        'fecha_pago': fecha_pago_defecto,
+                        'carga': carga,
+                        'registrado_por': admin,
+                        'nro_operacion': f"CARGA-{carga.id}-ROW-{index}"
+                    }
+                )
+                filas_ok += 1
+            except Exception as e:
+                filas_error += 1
+                errores.append(f"Fila {index + 2}: {str(e)}")
+
+        # Actualizar auditoría
+        carga.filas_ok = filas_ok
+        carga.filas_error = filas_error
+        carga.save()
+
+        return Response({
+            'success': True,
+            'carga_id': carga.id,
+            'total': len(df),
+            'ok': filas_ok,
+            'error': filas_error,
+            'errores': errores[:10] # Enviar solo los primeros 10 errores para no saturar
+        })
 
 @api_view(['GET'])
 @permission_classes([AllowAny])

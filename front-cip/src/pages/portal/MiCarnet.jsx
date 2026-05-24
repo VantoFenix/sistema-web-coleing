@@ -1,38 +1,42 @@
-import { useState } from 'react';
-import { AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 
 export default function MiCarnet() {
-  // Simulador de estado para probar el diseño
-  const [tieneDeuda, setTieneDeuda] = useState(false);
+  const [colegiado, setColegiado] = useState(null);
+  const [cargando, setCargando] = useState(true);
 
-  const colegiado = {
-    cip: '45892',
-    nombres: 'JUAN CARLOS',
-    apellidos: 'PÉREZ GARCÍA',
-    carrera: 'INGENIERÍA DE SISTEMAS',
-    sede: 'CD LIMA'
+  useEffect(() => {
+    fetchPerfil();
+  }, []);
+
+  const fetchPerfil = async () => {
+    try {
+      const token = localStorage.getItem('colToken');
+      const res = await fetch('/api/portal/yo/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setColegiado(data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setCargando(false);
+    }
   };
+
+  if (cargando) return <div style={{ textAlign: 'center', padding: '3rem' }}><Loader2 className="spin" /></div>;
+  if (!colegiado) return <div style={{ textAlign: 'center', padding: '3rem' }}>Error al cargar datos.</div>;
+
+  const tieneDeuda = !colegiado.habilitado;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem' }}>
       
-      {/* Botón para probar dinámicamente (solo para desarrollo) */}
-      <div style={{ background: 'white', padding: '1rem', borderRadius: '8px', boxShadow: 'var(--shadow-sm)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <span style={{ fontWeight: '500' }}>Simulador de Estado:</span>
-        <button 
-          className={`btn ${tieneDeuda ? 'btn-outline' : 'btn-primary'}`} 
-          style={tieneDeuda ? { color: 'var(--cip-blue)', borderColor: 'var(--cip-blue)' } : {}}
-          onClick={() => setTieneDeuda(false)}
-        >
-          Habilitado
-        </button>
-        <button 
-          className={`btn ${!tieneDeuda ? 'btn-outline' : 'btn-primary'}`} 
-          style={!tieneDeuda ? { color: 'var(--danger)', borderColor: 'var(--danger)' } : { background: 'var(--danger)', color: 'white' }}
-          onClick={() => setTieneDeuda(true)}
-        >
-          Inhabilitado
-        </button>
+      {/* Nota sobre el estado real */}
+      <div style={{ background: 'white', padding: '1rem', borderRadius: '8px', boxShadow: 'var(--shadow-sm)', textAlign: 'center' }}>
+        <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>El estado de habilitación se actualiza automáticamente con sus pagos.</p>
       </div>
 
       {tieneDeuda && (
@@ -63,18 +67,17 @@ export default function MiCarnet() {
             </div>
             
             <div className="carnet-info">
-              <h3>{colegiado.apellidos}</h3>
-              <p style={{ color: 'var(--cip-blue)', fontWeight: '500' }}>{colegiado.nombres}</p>
+              <h3>{colegiado.nombres}</h3>
               
               <div style={{ margin: '1rem 0', width: '30px', height: '2px', background: 'var(--cip-red)' }}></div>
               
               <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: '600', color: 'var(--text-main)' }}>
-                {colegiado.carrera}
+                {colegiado.carrera?.nombre}
               </p>
               
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>CIP N°</span>
-                <span className="carnet-cip">{colegiado.cip}</span>
+                <span className="carnet-cip">{colegiado.nro_colegiado}</span>
               </div>
             </div>
           </div>
@@ -87,7 +90,7 @@ export default function MiCarnet() {
           )}
 
           <div style={{ background: 'var(--cip-blue)', color: 'white', padding: '0.5rem', textAlign: 'center', fontSize: '0.75rem' }}>
-            {colegiado.sede}
+            {colegiado.sede?.nombre}
           </div>
 
         </div>

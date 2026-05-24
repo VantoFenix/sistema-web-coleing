@@ -1,19 +1,36 @@
-import { useState } from 'react';
-import { Calendar, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Calendar, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function MisPagos() {
-  const [tab, setTab] = useState('deudas'); // 'deudas' | 'historial'
+  const [tab, setTab] = useState('historial'); // 'deudas' | 'historial'
+  const [historial, setHistorial] = useState([]);
+  const [cargando, setCargando] = useState(true);
 
-  // Datos mockeados
-  const deudas = [
-    { id: 1, periodo: 'Febrero 2026', monto: 20.00, vencimiento: '28/02/2026' },
-    { id: 2, periodo: 'Marzo 2026', monto: 20.00, vencimiento: '31/03/2026' },
-  ];
+  // Deudas (En el MVP solo mostramos historial)
+  const deudas = [];
 
-  const historial = [
-    { id: 3, periodo: 'Enero 2026', monto: 20.00, fechaPago: '15/01/2026', recibo: 'REC-00142' },
-    { id: 4, periodo: 'Diciembre 2025', monto: 20.00, fechaPago: '10/12/2025', recibo: 'REC-00089' },
-  ];
+  useEffect(() => {
+    fetchPagos();
+  }, []);
+
+  const fetchPagos = async () => {
+    try {
+      const token = localStorage.getItem('colToken');
+      const res = await fetch('/api/portal/mis-pagos/', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setHistorial(data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setCargando(false);
+    }
+  };
 
   return (
     <div className="card" style={{ maxWidth: '900px', margin: '0 auto', padding: '0' }}>
@@ -95,19 +112,25 @@ export default function MisPagos() {
                   </tr>
                 </thead>
                 <tbody>
-                  {historial.map(h => (
-                    <tr key={h.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <td style={{ padding: '1.25rem 1rem', fontWeight: '500' }}>{h.periodo}</td>
-                      <td style={{ padding: '1.25rem 1rem' }}>{h.fechaPago}</td>
-                      <td style={{ padding: '1.25rem 1rem', fontFamily: 'monospace', color: 'var(--text-muted)' }}>{h.recibo}</td>
-                      <td style={{ padding: '1.25rem 1rem', textAlign: 'right', fontWeight: '600' }}>S/ {h.monto.toFixed(2)}</td>
-                      <td style={{ padding: '1.25rem 1rem', textAlign: 'center' }}>
-                        <span style={{ background: 'var(--success-bg)', color: 'var(--success)', padding: '0.25rem 0.75rem', borderRadius: '99px', fontSize: '0.875rem', fontWeight: '600' }}>
-                          PAGADO
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {cargando ? (
+                    <tr><td colSpan="5" style={{ padding: '2rem', textAlign: 'center' }}><Loader2 className="spin" /> Cargando pagos...</td></tr>
+                  ) : historial.length === 0 ? (
+                    <tr><td colSpan="5" style={{ padding: '2rem', textAlign: 'center' }}>No hay pagos registrados.</td></tr>
+                  ) : (
+                    historial.map(h => (
+                      <tr key={h.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '1.25rem 1rem', fontWeight: '500' }}>{h.periodo}</td>
+                        <td style={{ padding: '1.25rem 1rem' }}>{h.fecha_pago}</td>
+                        <td style={{ padding: '1.25rem 1rem', fontFamily: 'monospace', color: 'var(--text-muted)' }}>{h.nro_operacion || 'Caja'}</td>
+                        <td style={{ padding: '1.25rem 1rem', textAlign: 'right', fontWeight: '600' }}>S/ {parseFloat(h.monto).toFixed(2)}</td>
+                        <td style={{ padding: '1.25rem 1rem', textAlign: 'center' }}>
+                          <span style={{ background: 'var(--success-bg)', color: 'var(--success)', padding: '0.25rem 0.75rem', borderRadius: '99px', fontSize: '0.875rem', fontWeight: '600' }}>
+                            PAGADO
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

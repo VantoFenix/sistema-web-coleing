@@ -13,19 +13,43 @@ export default function AdminPagos() {
     }
   };
 
-  const handleProcesarCSV = () => {
+  const handleProcesarCSV = async () => {
     if (!file) return;
     setProcesando(true);
-    
-    // Simular procesamiento backend
-    setTimeout(() => {
-      setProcesando(false);
-      setResultados({
-        total: 150,
-        procesados: 148,
-        errores: 2
+    setResultados(null);
+
+    const formData = new FormData();
+    formData.append('archivo', file);
+
+    try {
+      const response = await fetch('/api/admin/recaudacion/', {
+        method: 'POST',
+        body: formData,
       });
-    }, 2000);
+
+      const data = await response.json();
+      if (response.ok) {
+        setResultados({
+          success: true,
+          total: data.total,
+          procesados: data.ok,
+          errores: data.error,
+          detalles: data.errores
+        });
+      } else {
+        setResultados({
+          success: false,
+          mensaje: data.error || "Ocurrió un error al procesar el archivo."
+        });
+      }
+    } catch (err) {
+      setResultados({
+        success: false,
+        mensaje: "Error de conexión con el servidor."
+      });
+    } finally {
+      setProcesando(false);
+    }
   };
 
   return (
@@ -66,7 +90,7 @@ export default function AdminPagos() {
         </div>
 
         <div>
-          {resultados && (
+          {resultados && resultados.success && (
             <div className="card" style={{ borderLeft: '4px solid #10B981' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
                 <CheckCircle size={32} color="#059669" />
@@ -86,11 +110,32 @@ export default function AdminPagos() {
                   <span style={{ fontWeight: '700', color: '#065F46' }}>{resultados.procesados}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem', background: '#FEE2E2', borderRadius: '8px' }}>
-                  <span style={{ color: '#991B1B' }}>Errores (DNI no encontrado / Inválido):</span>
+                  <span style={{ color: '#991B1B' }}>Errores o Ingenieros no encontrados:</span>
                   <span style={{ fontWeight: '700', color: '#991B1B' }}>{resultados.errores}</span>
                 </div>
               </div>
+              
+              {resultados.detalles && resultados.detalles.length > 0 && (
+                <div style={{ marginTop: '1.5rem' }}>
+                  <p style={{ fontSize: '0.875rem', fontWeight: '600', color: '#991B1B', marginBottom: '0.5rem' }}>Detalle de errores (Máx 10):</p>
+                  <ul style={{ fontSize: '0.75rem', color: '#B91C1C', paddingLeft: '1rem', margin: 0 }}>
+                    {resultados.detalles.map((err, i) => <li key={i}>{err}</li>)}
+                  </ul>
+                </div>
+              )}
             </div>
+          )}
+
+          {resultados && !resultados.success && (
+             <div className="card" style={{ borderLeft: '4px solid #EF4444' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <Database size={32} color="#DC2626" />
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#991B1B' }}>Error de Archivo</h3>
+                  <p style={{ color: '#B91C1C', fontSize: '0.875rem' }}>{resultados.mensaje}</p>
+                </div>
+              </div>
+             </div>
           )}
         </div>
       </div>
