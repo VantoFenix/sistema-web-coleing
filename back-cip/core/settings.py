@@ -151,7 +151,7 @@ CORS_ALLOW_CREDENTIALS = True
 REST_FRAMEWORK = {
     # Autenticación por defecto: JWT
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'core.authentication.CustomJWTAuthentication',
     ],
     
     # Permisos por defecto
