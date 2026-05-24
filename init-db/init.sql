@@ -294,7 +294,7 @@ SELECT
     car.nombre        AS carrera,
     COUNT(d.periodo)  AS meses_adeudados,
     COALESCE(COUNT(d.periodo) * 20.00, 0) AS deuda_total,
-    (COUNT(d.periodo) < 3) AS habilitado
+    (COUNT(d.periodo) = 0) AS habilitado
 FROM colegiado c
 JOIN carrera car ON car.id = c.carrera_id
 LEFT JOIN v_deuda d ON d.colegiado_id = c.id
