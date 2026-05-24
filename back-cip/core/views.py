@@ -51,8 +51,8 @@ class AuthLoginView(APIView):
             return Response({'error': 'Credenciales inválidas'}, status=status.HTTP_401_UNAUTHORIZED)
             
         else:
-            # Buscar en Colegiado (por DNI o Correo)
-            col = Colegiado.objects.filter(dni=username).first() or Colegiado.objects.filter(correo=username).first()
+            # Buscar en Colegiado (solo por DNI)
+            col = Colegiado.objects.filter(dni=username).first()
             if col and check_password(password, col.password_hash):
                 token = generate_jwt(col.id, 'COLEGIADO')
                 return Response({

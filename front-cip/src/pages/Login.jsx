@@ -103,7 +103,7 @@ export default function Login() {
 
           <form onSubmit={handleLogin}>
             <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-              <label className="form-label" style={{ fontWeight: '600' }}>DNI o Correo Electrónico</label>
+              <label className="form-label" style={{ fontWeight: '600' }}>Número de DNI</label>
               <div style={{ position: 'relative' }}>
                 <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
                   <User size={18} />
@@ -113,8 +113,9 @@ export default function Login() {
                   className="form-input" 
                   style={{ width: '100%', padding: '0.875rem 1rem 0.875rem 2.75rem', background: 'var(--bg-main)', border: '1px solid var(--border-color)' }}
                   placeholder="Ej. 70123456"
+                  maxLength={8}
                   value={identificador}
-                  onChange={(e) => setIdentificador(e.target.value)}
+                  onChange={(e) => setIdentificador(e.target.value.replace(/\D/g, ''))}
                 />
               </div>
             </div>
