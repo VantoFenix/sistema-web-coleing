@@ -1,21 +1,21 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Lock, Mail } from 'lucide-react';
+import { ShieldCheck, Lock, User } from 'lucide-react';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
-  const [correo, setCorreo] = useState('');
+  const [usuario, setUsuario] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (correo && password) {
+    if (usuario && password) {
       try {
         const response = await fetch('/api/auth/login/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: correo, password: password, role: 'ADMIN' })
+          body: JSON.stringify({ username: usuario, password: password, role: 'ADMIN' })
         });
         const data = await response.json();
         
@@ -30,7 +30,7 @@ export default function AdminLogin() {
         setErrorMsg('Error al conectar con el servidor.');
       }
     } else {
-      setErrorMsg('Por favor, ingrese su correo y contraseña.');
+      setErrorMsg('Por favor, ingrese su usuario y contraseña.');
     }
   };
 
@@ -93,18 +93,18 @@ export default function AdminLogin() {
 
           <form onSubmit={handleLogin}>
             <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-              <label className="form-label" style={{ fontWeight: '600' }}>Correo Electrónico</label>
+              <label className="form-label" style={{ fontWeight: '600' }}>Nombre de Usuario</label>
               <div style={{ position: 'relative' }}>
                 <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
-                  <Mail size={18} />
+                  <User size={18} />
                 </div>
                 <input 
-                  type="email" 
+                  type="text" 
                   className="form-input" 
                   style={{ paddingLeft: '2.75rem', width: '100%' }}
-                  placeholder="admin@cip.org.pe"
-                  value={correo}
-                  onChange={(e) => { setCorreo(e.target.value); setErrorMsg(''); }}
+                  placeholder="admin.cip"
+                  value={usuario}
+                  onChange={(e) => { setUsuario(e.target.value); setErrorMsg(''); }}
                 />
               </div>
             </div>
