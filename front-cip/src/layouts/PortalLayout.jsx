@@ -14,7 +14,7 @@ export default function PortalLayout() {
       <nav className="navbar">
         {/* Lado Izquierdo: Logo y Título */}
         <div className="logo-container" style={{ display: 'flex', justifyContent: 'flex-start' }}>
-          <div className="logo-placeholder" style={{ fontSize: '1rem', padding: '0.25rem 0.75rem' }}>CIP</div>
+          <img src="/webp-logo-cip.webp" alt="CIP" style={{ height: '36px', width: 'auto' }} />
           <span className="nav-title" style={{ fontWeight: '600', color: 'var(--cip-blue)', marginLeft: '0.5rem' }}>Portal del Colegiado</span>
         </div>
 

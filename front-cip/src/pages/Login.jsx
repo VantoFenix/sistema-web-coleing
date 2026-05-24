@@ -9,7 +9,6 @@ export default function Login() {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    // Simulando login exitoso
     if (identificador && password) {
       navigate('/portal/yo');
     } else {
@@ -18,76 +17,120 @@ export default function Login() {
   };
 
   return (
-    <div className="app-container" style={{ background: 'var(--cip-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', width: '100%' }}>
       
-      {/* Botón de retroceso arriba a la izquierda */}
-      <button 
-        className="btn btn-outline" 
-        style={{ position: 'absolute', top: '2rem', left: '2rem', border: 'none', padding: '0.5rem' }}
-        onClick={() => navigate('/')}
-      >
-        <ArrowLeft size={24} /> Volver al inicio
-      </button>
-
-      <div className="card" style={{ width: '100%', maxWidth: '420px', padding: '3rem 2rem', textAlign: 'center' }}>
+      {/* LADO IZQUIERDO: Branding */}
+      <div style={{ 
+        flex: 1, 
+        background: 'linear-gradient(135deg, var(--cip-red) 0%, var(--cip-red-hover) 100%)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '3rem',
+        color: 'white',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        {/* Efecto de fondo */}
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'radial-gradient(rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '20px 20px', opacity: 0.5, pointerEvents: 'none' }}></div>
         
-        <div style={{ marginBottom: '2rem' }}>
-          <div style={{ 
-            width: '80px', height: '80px', background: 'var(--cip-red)', color: 'white', 
-            borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 1rem auto', fontSize: '2rem', fontWeight: 'bold'
-          }}>
-            CIP
-          </div>
-          <h2 style={{ color: 'var(--cip-blue)', fontSize: '1.75rem' }}>Portal del Colegiado</h2>
-          <p className="text-muted" style={{ marginTop: '0.5rem' }}>Ingrese sus credenciales para acceder</p>
-        </div>
-
-        <form onSubmit={handleLogin} style={{ textAlign: 'left' }}>
-          <div className="form-group">
-            <label className="form-label">DNI o Correo Electrónico</label>
-            <div style={{ position: 'relative' }}>
-              <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
-                <User size={18} />
-              </div>
-              <input 
-                type="text" 
-                className="form-input" 
-                style={{ width: '100%', paddingLeft: '2.5rem' }}
-                placeholder="Ej. 70123456"
-                value={identificador}
-                onChange={(e) => setIdentificador(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Contraseña</label>
-            <div style={{ position: 'relative' }}>
-              <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
-                <KeyRound size={18} />
-              </div>
-              <input 
-                type="password" 
-                className="form-input" 
-                style={{ width: '100%', paddingLeft: '2.5rem' }}
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: '1rem', padding: '0.875rem' }}>
-            Ingresar de forma segura
-          </button>
-        </form>
-
-        <p style={{ marginTop: '2rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-          ¿Olvidó su contraseña? Acérquese a su sede departamental.
+        <img 
+          src="/webp-logo-cip.webp" 
+          alt="Logo CIP" 
+          style={{ width: '180px', height: 'auto', marginBottom: '2rem', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.2))', zIndex: 1 }} 
+        />
+        
+        <h2 style={{ fontSize: '2.5rem', fontWeight: '800', textAlign: 'center', marginBottom: '1rem', letterSpacing: '-0.5px', zIndex: 1 }}>
+          Colegio de Ingenieros del Perú
+        </h2>
+        <p style={{ fontSize: '1.25rem', textAlign: 'center', opacity: 0.9, maxWidth: '400px', zIndex: 1 }}>
+          Portal Oficial del Colegiado. Consulte su estado, pagos y credenciales digitales en un solo lugar.
         </p>
 
+        {/* Botón Volver (Ahora en el lado izquierdo) */}
+        <button 
+          className="btn btn-outline" 
+          style={{ position: 'absolute', top: '2rem', left: '2rem', borderColor: 'rgba(255,255,255,0.3)', color: 'white', zIndex: 1 }}
+          onClick={() => navigate('/')}
+        >
+          <ArrowLeft size={20} /> Volver al Inicio
+        </button>
       </div>
+
+      {/* LADO DERECHO: Formulario */}
+      <div style={{ 
+        flex: 1, 
+        background: 'white',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '3rem'
+      }}>
+        <div style={{ width: '100%', maxWidth: '400px' }}>
+          
+          <div style={{ marginBottom: '2.5rem', textAlign: 'center' }}>
+            <h2 style={{ color: 'var(--cip-blue)', fontSize: '2rem', fontWeight: '800' }}>Bienvenido de nuevo</h2>
+            <p className="text-muted" style={{ marginTop: '0.5rem' }}>Ingrese sus credenciales para acceder a su portal</p>
+          </div>
+
+          <form onSubmit={handleLogin}>
+            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+              <label className="form-label" style={{ fontWeight: '600' }}>DNI o Correo Electrónico</label>
+              <div style={{ position: 'relative' }}>
+                <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
+                  <User size={18} />
+                </div>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  style={{ width: '100%', padding: '0.875rem 1rem 0.875rem 2.75rem', background: 'var(--bg-main)', border: '1px solid var(--border-color)' }}
+                  placeholder="Ej. 70123456"
+                  value={identificador}
+                  onChange={(e) => setIdentificador(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '2rem' }}>
+              <label className="form-label" style={{ fontWeight: '600' }}>Contraseña</label>
+              <div style={{ position: 'relative' }}>
+                <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
+                  <KeyRound size={18} />
+                </div>
+                <input 
+                  type="password" 
+                  className="form-input" 
+                  style={{ width: '100%', padding: '0.875rem 1rem 0.875rem 2.75rem', background: 'var(--bg-main)', border: '1px solid var(--border-color)' }}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <button type="submit" className="btn btn-primary btn-block" style={{ padding: '1rem', fontSize: '1.125rem', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)' }}>
+              Ingresar de forma segura
+            </button>
+          </form>
+
+          <div style={{ marginTop: '2.5rem', textAlign: 'center' }}>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+              ¿Olvidó su contraseña? <br />
+              <a href="#" style={{ color: 'var(--cip-red)', fontWeight: '600', textDecoration: 'none' }}>Acérquese a su sede departamental.</a>
+            </p>
+          </div>
+
+        </div>
+      </div>
+
+      {/* Responsive Fixes */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @media (max-width: 768px) {
+          body > div > div { flex-direction: column !important; }
+          body > div > div > div:first-child { min-height: 400px; }
+        }
+      `}} />
     </div>
   );
 }
