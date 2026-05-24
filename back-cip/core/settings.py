@@ -107,6 +107,9 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 FRONTEND_DIR = os.path.join(BASE_DIR.parent, 'front-cip', 'dist')
 STATICFILES_DIRS = [FRONTEND_DIR] if os.path.exists(FRONTEND_DIR) else []
 
+# Directorio raíz para archivos estáticos no vinculados a STATIC_URL (Soluciona la pantalla en blanco)
+WHITENOISE_ROOT = FRONTEND_DIR
+
 # Habilitar compresión y caché estática en producción
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
