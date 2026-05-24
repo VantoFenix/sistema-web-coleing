@@ -59,7 +59,7 @@ export default function AdminHome() {
         : undefined,
       icono: <CheckCircle size={24} />,
       bg: '#D1FAE5', color: '#059669', borde: '#10B981',
-      ruta: '/admin/pagos',
+      ruta: '/admin/pagos-presencial',
     },
     {
       label: 'Trámites Atrasados',

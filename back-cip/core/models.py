@@ -82,7 +82,8 @@ class Colegiado(models.Model):
     class Meta:
         managed = False
         db_table = 'colegiado'
-        unique_together = ('carrera', 'nro_colegiado')
+        # CIP único por carrera + sede (cada combinación tiene su propia serie 00001, 00002…)
+        unique_together = ('carrera', 'sede', 'nro_colegiado')
 
 class CargaRecaudacion(models.Model):
     nombre_archivo = models.CharField(max_length=255)
@@ -113,8 +114,8 @@ class Pago(models.Model):
     metodo = models.CharField(max_length=30, null=True, blank=True)
     nro_operacion = models.CharField(max_length=40, null=True, blank=True)
     fecha_pago = models.DateField()
-    carga = models.ForeignKey(CargaRecaudacion, on_delete=models.DO_NOTHING, null=True, blank=True)
-    registrado_por = models.ForeignKey(Administrador, on_delete=models.DO_NOTHING, null=True, blank=True)
+    carga = models.ForeignKey(CargaRecaudacion, on_delete=models.DO_NOTHING, null=True, blank=True, db_column='carga_id')
+    registrado_por = models.ForeignKey(Administrador, on_delete=models.DO_NOTHING, null=True, blank=True, db_column='registrado_por')
     creado_en = models.DateTimeField(auto_now_add=True)
 
     class Meta:

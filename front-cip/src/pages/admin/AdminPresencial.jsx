@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { UploadCloud, CheckCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { procesarFotoCarnet } from '../../utils/fotoCarnet';
 
 export default function AdminPresencial() {
   const [dni, setDni] = useState('');
@@ -13,6 +14,7 @@ export default function AdminPresencial() {
   const [sedesOptions, setSedesOptions] = useState([]);
 
   const [foto, setFoto] = useState(null);
+  const [fotoInfo, setFotoInfo] = useState('');
   const [titulo, setTitulo] = useState(null);
   const [recibo, setRecibo] = useState(null);
 
@@ -68,6 +70,22 @@ export default function AdminPresencial() {
   const handleFileChange = (e, setter) => {
     if (e.target.files && e.target.files[0]) {
       setter(e.target.files[0]);
+    }
+  };
+
+  const handleFotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErrorMsg('');
+    setFotoInfo('Procesando imagen…');
+    setFoto(null);
+    try {
+      const procesada = await procesarFotoCarnet(file);
+      setFoto(procesada);
+      setFotoInfo(`✓ 413 × 531 px · ${(procesada.size / 1024).toFixed(0)} KB`);
+    } catch (err) {
+      setFotoInfo('');
+      setErrorMsg(typeof err === 'string' ? err : 'Error al procesar la imagen.');
     }
   };
 
@@ -143,7 +161,7 @@ export default function AdminPresencial() {
   const resetForm = () => {
     setSuccess(false); setDni(''); setNombres(''); setCelular('');
     setCorreo(''); setCarrera(''); setSede('');
-    setFoto(null); setTitulo(null); setRecibo(null);
+    setFoto(null); setFotoInfo(''); setTitulo(null); setRecibo(null);
     setDniValidado(false); setErrorMsg('');
   };
 
@@ -228,8 +246,34 @@ export default function AdminPresencial() {
           <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Documentación Física Verificada</h3>
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
+
+            {/* ── Foto Tamaño Pasaporte (procesada a 413×531 px) ── */}
+            <div className="form-group">
+              <label className="form-label">
+                Foto Tamaño Pasaporte
+                <span style={{ fontSize: '0.7rem', fontWeight: '400', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>
+                  3.5 × 4.5 cm · máx. 2 MB
+                </span>
+              </label>
+              <div style={{ border: `2px dashed ${foto ? 'var(--cip-blue)' : 'var(--border-color)'}`, borderRadius: '8px', padding: '1rem', textAlign: 'center', background: '#f8fafc', cursor: 'pointer', position: 'relative' }}>
+                <input type="file" accept="image/*" onChange={handleFotoChange}
+                  style={{ opacity: 0, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', cursor: 'pointer' }} />
+                <UploadCloud size={24} color={foto ? 'var(--cip-blue)' : 'var(--text-muted)'} style={{ margin: '0 auto 0.5rem auto' }} />
+                <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px', margin: '0 auto' }}>
+                  {fotoInfo === 'Procesando imagen…' ? (
+                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', color: 'var(--text-muted)' }}>
+                      <Loader2 size={14} className="spin" /> Procesando…
+                    </span>
+                  ) : foto ? foto.name : 'Subir imagen'}
+                </p>
+                {fotoInfo && fotoInfo !== 'Procesando imagen…' && (
+                  <p style={{ fontSize: '0.7rem', color: '#059669', fontWeight: '600', margin: '0.25rem 0 0' }}>{fotoInfo}</p>
+                )}
+              </div>
+            </div>
+
+            {/* ── Título y Recibo (sin procesamiento especial) ── */}
             {[
-              { label: 'Foto Tamaño Pasaporte', accept: 'image/*', state: foto, setter: setFoto },
               { label: 'Título Profesional', accept: '.pdf', state: titulo, setter: setTitulo },
               { label: 'Recibo en Caja', accept: '.pdf,image/*', state: recibo, setter: setRecibo },
             ].map(({ label, accept, state, setter }) => (

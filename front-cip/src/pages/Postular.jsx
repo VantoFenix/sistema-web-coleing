@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, UploadCloud, CheckCircle2, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
+import { procesarFotoCarnet } from '../utils/fotoCarnet';
 
 export default function Postular() {
   const navigate = useNavigate();
@@ -37,6 +38,7 @@ export default function Postular() {
   
   // Archivos
   const [foto, setFoto] = useState(null);
+  const [fotoInfo, setFotoInfo] = useState('');   // descripción tamaño/dim para el usuario
   const [titulo, setTitulo] = useState(null);
   const [recibo, setRecibo] = useState(null);
 
@@ -96,6 +98,23 @@ export default function Postular() {
   const handleFileChange = (e, setter) => {
     if (e.target.files && e.target.files[0]) {
       setter(e.target.files[0]);
+    }
+  };
+
+  // Manejo especial para la foto: redimensiona a 413×531 px y valida ≤ 2 MB
+  const handleFotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSubmitError('');
+    setFotoInfo('Procesando imagen…');
+    setFoto(null);
+    try {
+      const procesada = await procesarFotoCarnet(file);
+      setFoto(procesada);
+      setFotoInfo(`✓ 413 × 531 px · ${(procesada.size / 1024).toFixed(0)} KB`);
+    } catch (err) {
+      setFotoInfo('');
+      setSubmitError(typeof err === 'string' ? err : 'Error al procesar la imagen.');
     }
   };
 
@@ -224,9 +243,19 @@ export default function Postular() {
                 <label className="form-label">1. Fotografía Tamaño Pasaporte</label>
                 <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1.5rem', textAlign: 'center', background: 'white', cursor: 'pointer' }}>
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>{foto ? foto.name : "Clic para subir imagen (JPG/PNG)"}</p>
-                  <input type="file" accept="image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-foto" onChange={(e) => handleFileChange(e, setFoto)} />
-                  <label htmlFor="file-foto" className="btn btn-outline" style={{ marginTop: '1rem', borderColor: 'var(--border-color)', color: 'var(--text-main)', fontSize: '0.75rem', padding: '0.25rem 0.75rem' }}>Seleccionar archivo</label>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>
+                    {foto ? foto.name : 'Foto pasaporte (JPG/PNG)'}
+                  </p>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                    3.5 × 4.5 cm · máx. 2 MB
+                  </p>
+                  {fotoInfo && (
+                    <p style={{ fontSize: '0.72rem', color: fotoInfo.startsWith('✓') ? '#059669' : '#D97706', marginTop: '0.2rem', fontWeight: '600' }}>
+                      {fotoInfo}
+                    </p>
+                  )}
+                  <input type="file" accept="image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-foto" onChange={handleFotoChange} />
+                  <label htmlFor="file-foto" className="btn btn-outline" style={{ marginTop: '0.75rem', borderColor: 'var(--border-color)', color: 'var(--text-main)', fontSize: '0.75rem', padding: '0.25rem 0.75rem' }}>Seleccionar archivo</label>
                 </div>
               </div>
 

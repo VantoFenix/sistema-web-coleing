@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AlertCircle, Loader2, CheckCircle, Shield, Download } from 'lucide-react';
 
 export default function MiCarnet() {
   const [colegiado, setColegiado] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [flipped, setFlipped] = useState(false);
+  const [fotoError, setFotoError] = useState(false);
 
   useEffect(() => {
     fetchPerfil();
@@ -50,12 +51,12 @@ export default function MiCarnet() {
       <div style={{
         display: 'inline-flex', alignItems: 'center', gap: '0.75rem',
         padding: '0.6rem 1.5rem', borderRadius: '9999px', fontWeight: '700', fontSize: '0.9rem',
-        background: habilitado ? '#D1FAE5' : '#FEE2E2',
-        color: habilitado ? '#065F46' : '#991B1B',
-        border: `2px solid ${habilitado ? '#6EE7B7' : '#FCA5A5'}`
+        background: habilitado === false ? '#FEE2E2' : '#D1FAE5',
+        color: habilitado === false ? '#991B1B' : '#065F46',
+        border: `2px solid ${habilitado === false ? '#FCA5A5' : '#6EE7B7'}`
       }}>
-        {habilitado ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
-        Estado Colegiado: {habilitado ? 'HABILITADO' : 'INHABILITADO'}
+        {habilitado === false ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
+        Estado Colegiado: {habilitado === false ? 'INHABILITADO' : 'HABILITADO'}
       </div>
 
       {/* Contenedor de Flip */}
@@ -114,8 +115,13 @@ export default function MiCarnet() {
                 background: '#eee',
                 display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}>
-                {colegiado.foto_url && !colegiado.foto_url.includes('placeholder') ? (
-                  <img src={colegiado.foto_url} alt="Foto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                {colegiado.foto_url && !colegiado.foto_url.includes('placeholder') && !fotoError ? (
+                  <img
+                    src={colegiado.foto_url}
+                    alt="Foto"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={() => setFotoError(true)}
+                  />
                 ) : (
                   <svg viewBox="0 0 100 120" style={{ width: '70%', fill: 'rgba(0,0,0,0.2)' }}>
                     <path d="M50,55 C61,55 70,46 70,35 C70,24 61,15 50,15 C39,15 30,24 30,35 C30,46 39,55 50,55 Z M15,105 L85,105 C85,82 70,70 50,70 C30,70 15,82 15,105 Z"/>
@@ -146,28 +152,23 @@ export default function MiCarnet() {
               </div>
             </div>
 
-            {/* Footer */}
-            <div style={{
-              position: 'absolute', bottom: 0, left: '8px', right: 0, height: '40px',
-              background: habilitado ? 'rgba(16,185,129,0.2)' : 'rgba(220,38,38,0.3)',
-              borderTop: `1px solid ${habilitado ? 'rgba(16,185,129,0.4)' : 'rgba(220,38,38,0.4)'}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
-            }}>
-              {habilitado ? (
-                <>
-                  <CheckCircle size={14} color="#10B981" />
-                  <span style={{ color: '#10B981', fontWeight: '700', fontSize: '0.7rem', letterSpacing: '1px' }}>HABILITADO</span>
-                </>
-              ) : (
-                <>
-                  <AlertCircle size={14} color="#EF4444" />
-                  <span style={{ color: '#EF4444', fontWeight: '700', fontSize: '0.7rem', letterSpacing: '1px' }}>INHABILITADO — CUOTAS PENDIENTES</span>
-                </>
-              )}
-            </div>
+            {/* Footer — solo aparece cuando está INHABILITADO (cuotas atrasadas) */}
+            {habilitado === false && (
+              <div style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0, height: '40px',
+                background: 'rgba(220,38,38,0.3)',
+                borderTop: '1px solid rgba(220,38,38,0.4)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
+              }}>
+                <AlertCircle size={14} color="#EF4444" />
+                <span style={{ color: '#EF4444', fontWeight: '700', fontSize: '0.7rem', letterSpacing: '1px' }}>
+                  INHABILITADO — CUOTAS PENDIENTES
+                </span>
+              </div>
+            )}
 
-            {/* Watermark INHABILITADO */}
-            {!habilitado && (
+            {/* Sello diagonal — solo cuando está INHABILITADO */}
+            {habilitado === false && (
               <div style={{
                 position: 'absolute', top: '50%', left: '55%',
                 transform: 'translate(-50%, -50%) rotate(-30deg)',
@@ -229,7 +230,7 @@ export default function MiCarnet() {
       </p>
 
       {/* Mensaje de estado */}
-      {!habilitado && (
+      {habilitado === false && (
         <div className="alert alert-danger" style={{ maxWidth: '440px', width: '100%' }}>
           <AlertCircle size={20} />
           <div>

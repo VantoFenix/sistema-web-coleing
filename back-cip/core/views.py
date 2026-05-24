@@ -345,10 +345,22 @@ class AdminResolverSolicitudView(APIView):
             solicitud.resuelto_en = datetime.utcnow()
             solicitud.save()
             
-            # Generar Colegiado
-            # Generar un Nro Colegiado (Simulado: max nro + 1 por carrera)
+            # Generar Nro Colegiado — único por CARRERA + SEDE
+            # Ej: Civil Lima → 00001, 00002 ... independiente de Civil Arequipa → 00001, 00002
             with connection.cursor() as cursor:
-                cursor.execute("SELECT MAX(CAST(nro_colegiado AS INTEGER)) FROM colegiado WHERE carrera_id = %s", [solicitud.carrera_id])
+                if solicitud.sede_id:
+                    cursor.execute(
+                        "SELECT MAX(CAST(nro_colegiado AS INTEGER)) "
+                        "FROM colegiado WHERE carrera_id = %s AND sede_id = %s",
+                        [solicitud.carrera_id, solicitud.sede_id]
+                    )
+                else:
+                    # Sin sede → serie propia solo por carrera (sin sede asignada)
+                    cursor.execute(
+                        "SELECT MAX(CAST(nro_colegiado AS INTEGER)) "
+                        "FROM colegiado WHERE carrera_id = %s AND sede_id IS NULL",
+                        [solicitud.carrera_id]
+                    )
                 row = cursor.fetchone()
                 siguiente_nro = str((row[0] or 0) + 1).zfill(5)
             
@@ -418,26 +430,195 @@ class PortalPerfilView(APIView):
         data['habilitado'] = habilitado
         return Response(data)
 
+class PortalFotoView(APIView):
+    """Permite al colegiado autenticado subir/actualizar su foto de perfil."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user_id = request.user.id
+        col = Colegiado.objects.filter(id=user_id, activo=True).first()
+        if not col:
+            return Response({'error': 'Colegiado no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+
+        foto = request.FILES.get('foto')
+        if not foto:
+            return Response({'error': 'No se envió ningún archivo'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validar que sea imagen
+        if not foto.content_type.startswith('image/'):
+            return Response({'error': 'El archivo debe ser una imagen (JPG, PNG)'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Máximo 5 MB
+        if foto.size > 5 * 1024 * 1024:
+            return Response({'error': 'La imagen no debe superar los 5 MB'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            ext = foto.name.split('.')[-1].lower()
+            foto_name = f"fotos/{uuid.uuid4().hex}.{ext}"
+            saved_path = default_storage.save(foto_name, foto)
+            foto_url = f"/media/{saved_path}"
+
+            col.foto_url = foto_url
+            col.save(update_fields=['foto_url'])
+
+            return Response({'success': True, 'foto_url': foto_url})
+        except Exception as e:
+            return Response({'error': f'Error al guardar la imagen: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 class PortalPagosView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user_id = request.user.id
-        pagos = Pago.objects.filter(colegiado_id=user_id).order_by('-fecha_pago', '-periodo')
-        
-        pagos_data = []
-        for p in pagos:
-            pagos_data.append({
-                'id': p.id,
-                'tipo': p.tipo,
-                'periodo': p.periodo.strftime('%Y-%m'),
-                'monto': p.monto,
-                'canal': p.canal,
-                'nro_operacion': p.nro_operacion,
-                'fecha_pago': p.fecha_pago.strftime('%Y-%m-%d'),
+        """Historial de pagos + deuda pendiente del colegiado autenticado."""
+        import sys
+        try:
+            user_id = request.user.id
+            # Sin filtro activo=True para que coincida con PortalPerfilView
+            col = Colegiado.objects.filter(id=user_id).first()
+            if not col:
+                return Response({'error': 'Colegiado no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+
+            # ── Historial de pagos ────────────────────────────────────────────
+            def _fmt_date(d, fmt):
+                """strftime seguro: normaliza datetime→date y maneja None."""
+                if d is None:
+                    return None
+                if hasattr(d, 'date') and callable(d.date):  # es datetime
+                    d = d.date()
+                return d.strftime(fmt)
+
+            pagos = Pago.objects.filter(colegiado=col).order_by('-periodo')
+            historial = []
+            for p in pagos:
+                try:
+                    historial.append({
+                        'id': p.id,
+                        'tipo': p.tipo or '',
+                        'periodo': _fmt_date(p.periodo, '%Y-%m') or '',
+                        'monto': str(p.monto) if p.monto is not None else '0.00',
+                        'canal': p.canal or '',
+                        'metodo': p.metodo or '',
+                        'nro_operacion': p.nro_operacion or '',
+                        'fecha_pago': _fmt_date(p.fecha_pago, '%Y-%m-%d') or '',
+                    })
+                except Exception as ep:
+                    print(f"[PAGOS] Error serializando pago id={p.id}: {ep}", file=sys.stderr)
+
+            # ── Periodos pendientes ───────────────────────────────────────────
+            pendientes = []
+            try:
+                if col.colegiado_desde:
+                    raw_pagados = set(
+                        Pago.objects.filter(colegiado=col, tipo='MENSUALIDAD')
+                        .values_list('periodo', flat=True)
+                    )
+                    # Normalizar a date una sola vez fuera del bucle
+                    pagados_norm = set()
+                    for p in raw_pagados:
+                        if p is None:
+                            continue
+                        if hasattr(p, 'date') and callable(p.date):
+                            pagados_norm.add(p.date())
+                        elif isinstance(p, str):
+                            try:
+                                from datetime import datetime as dt
+                                pagados_norm.add(dt.strptime(p[:10], '%Y-%m-%d').date())
+                            except Exception:
+                                pass
+                        else:
+                            pagados_norm.add(p)
+
+                    hoy = date.today()
+                    todos_los_meses = _meses_entre(col.colegiado_desde, hoy)
+                    for m in todos_los_meses:
+                        if m not in pagados_norm:
+                            pendientes.append({
+                                'periodo': m.strftime('%Y-%m'),
+                                'fecha': m.strftime('%Y-%m-%d'),
+                            })
+            except Exception as e:
+                print(f"[PAGOS] Error calculando pendientes: {e}", file=sys.stderr)
+                pendientes = []
+
+            return Response({
+                'historial': historial,
+                'periodos_pendientes': pendientes,
+                'habilitado': _get_habilitado(col.id),
+                'monto_mensualidad': '20.00',
             })
-            
-        return Response(pagos_data)
+
+        except Exception as e:
+            import traceback
+            print(f"[PAGOS GET] Error inesperado: {e}\n{traceback.format_exc()}", file=sys.stderr)
+            return Response({'error': f'Error interno: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def post(self, request):
+        """Procesa pago desde la pasarela virtual del portal del colegiado."""
+        user_id = request.user.id
+        col = Colegiado.objects.filter(id=user_id, activo=True).first()
+        if not col:
+            return Response({'error': 'Colegiado no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+
+        periodos = request.data.get('periodos', [])
+        monto_total = request.data.get('monto')
+        metodo_pago = request.data.get('metodo', 'EFECTIVO').upper()
+        # Validar método permitido
+        if metodo_pago not in ('EFECTIVO', 'TARJETA'):
+            metodo_pago = 'EFECTIVO'
+
+        if not periodos:
+            return Response({'error': 'Seleccione al menos un periodo'}, status=status.HTTP_400_BAD_REQUEST)
+        if not monto_total:
+            return Response({'error': 'Monto inválido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            monto_total = float(monto_total)
+        except (ValueError, TypeError):
+            return Response({'error': 'Monto inválido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        monto_por_periodo = round(monto_total / len(periodos), 2)
+        fecha_hoy = date.today()
+
+        # Generar código de operación único
+        nro_operacion = f"WEB-{uuid.uuid4().hex[:10].upper()}"
+
+        registrados = []
+        ya_existian = []
+
+        for periodo_str in periodos:
+            try:
+                año, mes = map(int, periodo_str.split('-'))
+                periodo_date = date(año, mes, 1)
+                pago, created = Pago.objects.get_or_create(
+                    colegiado=col,
+                    periodo=periodo_date,
+                    defaults={
+                        'tipo': 'MENSUALIDAD',
+                        'monto': monto_por_periodo,
+                        'canal': 'PORTAL',
+                        'metodo': metodo_pago,
+                        'nro_operacion': nro_operacion,
+                        'fecha_pago': fecha_hoy,
+                    }
+                )
+                if created:
+                    registrados.append(periodo_str)
+                else:
+                    ya_existian.append(periodo_str)
+            except Exception:
+                pass
+
+        if not registrados:
+            return Response({'error': 'Esos periodos ya tenían pago registrado.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'success': True,
+            'periodos_pagados': registrados,
+            'nro_operacion': nro_operacion,
+            'habilitado_nuevo': _get_habilitado(col.id),
+            'monto_cobrado': monto_total,
+        })
 
 class AdminCargaRecaudacionView(APIView):
     authentication_classes = []
@@ -547,6 +728,215 @@ def get_catalogos(request):
         'carreras': CarreraSerializer(carreras, many=True).data,
         'sedes': SedeSerializer(sedes, many=True).data
     })
+
+
+# ==============================================================================
+# HU14 — Registro de Pagos Presencial por Administrador
+# ==============================================================================
+
+def _get_habilitado(colegiado_id):
+    """Consulta la vista v_estado_colegiado y retorna True/False."""
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT habilitado FROM v_estado_colegiado WHERE colegiado_id = %s",
+                [colegiado_id]
+            )
+            row = cursor.fetchone()
+            return bool(row[0]) if row else False
+    except Exception:
+        return False
+
+
+def _meses_entre(inicio, fin):
+    """Genera lista de primer-día-del-mes entre inicio y fin (inclusive).
+    Normaliza a date por si Supabase devuelve datetime en vez de date.
+    """
+    # Normalizar a date (Supabase a veces devuelve datetime para DateField)
+    if hasattr(inicio, 'date'):
+        inicio = inicio.date()
+    if hasattr(fin, 'date'):
+        fin = fin.date()
+    resultado = []
+    current = date(inicio.year, inicio.month, 1)
+    fin_m   = date(fin.year, fin.month, 1)
+    while current <= fin_m:
+        resultado.append(current)
+        if current.month == 12:
+            current = date(current.year + 1, 1, 1)
+        else:
+            current = date(current.year, current.month + 1, 1)
+    return resultado
+
+
+class AdminBuscarColegiadoView(APIView):
+    """Busca colegiados por DNI, nombre o número de colegiado."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.db.models import Q
+        q = request.query_params.get('q', '').strip()
+        if not q or len(q) < 2:
+            return Response([])
+
+        colegiados = Colegiado.objects.filter(
+            Q(dni__icontains=q) |
+            Q(nombres__icontains=q) |
+            Q(nro_colegiado__icontains=q),
+            activo=True
+        ).select_related('carrera', 'sede')[:10]
+
+        resultados = []
+        for col in colegiados:
+            resultados.append({
+                'id': col.id,
+                'dni': col.dni,
+                'nombres': col.nombres,
+                'nro_colegiado': col.nro_colegiado,
+                'carrera': col.carrera.nombre,
+                'sede': col.sede.nombre if col.sede else '—',
+                'colegiado_desde': col.colegiado_desde.strftime('%Y-%m-%d'),
+                'habilitado': _get_habilitado(col.id),
+            })
+
+        return Response(resultados)
+
+
+class AdminDeudaColegiadoView(APIView):
+    """Devuelve los periodos sin pago de un colegiado (su deuda pendiente)."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk):
+        try:
+            col = Colegiado.objects.select_related('carrera', 'sede').get(pk=pk, activo=True)
+        except Colegiado.DoesNotExist:
+            return Response({'error': 'Colegiado no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Periodos ya pagados como mensualidad
+        pagos_existentes = set(
+            Pago.objects.filter(colegiado=col, tipo='MENSUALIDAD')
+            .values_list('periodo', flat=True)
+        )
+
+        # Todos los meses desde colegiado_desde hasta hoy
+        hoy = date.today()
+        todos_los_meses = _meses_entre(col.colegiado_desde, hoy)
+
+        pendientes = []
+        for m in todos_los_meses:
+            if m not in pagos_existentes:
+                pendientes.append({
+                    'periodo': m.strftime('%Y-%m'),
+                    'fecha': m.strftime('%Y-%m-%d'),
+                })
+
+        return Response({
+            'colegiado': {
+                'id': col.id,
+                'dni': col.dni,
+                'nombres': col.nombres,
+                'nro_colegiado': col.nro_colegiado,
+                'carrera': col.carrera.nombre,
+                'sede': col.sede.nombre if col.sede else '—',
+                'colegiado_desde': col.colegiado_desde.strftime('%Y-%m-%d'),
+                'habilitado': _get_habilitado(col.id),
+            },
+            'periodos_pendientes': pendientes,
+            'total_deuda': len(pendientes),
+        })
+
+
+class AdminRegistrarPagoPresencialView(APIView):
+    """Registra uno o varios pagos presenciales para un colegiado."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        colegiado_id  = request.data.get('colegiado_id')
+        periodos      = request.data.get('periodos', [])   # ["2025-01", "2025-02"]
+        monto_total   = request.data.get('monto')
+        metodo        = request.data.get('metodo', '').upper()  # YAPE|PLIN|EFECTIVO|TRANSFERENCIA
+        nro_operacion = request.data.get('nro_operacion', '').strip() or None
+        fecha_pago_str = request.data.get('fecha_pago', '')
+
+        # Validaciones básicas
+        if not colegiado_id:
+            return Response({'error': 'Debe indicar el colegiado'}, status=status.HTTP_400_BAD_REQUEST)
+        if not periodos:
+            return Response({'error': 'Seleccione al menos un periodo'}, status=status.HTTP_400_BAD_REQUEST)
+        if not monto_total:
+            return Response({'error': 'Ingrese el monto del pago'}, status=status.HTTP_400_BAD_REQUEST)
+        if metodo not in ('YAPE', 'PLIN', 'EFECTIVO', 'TRANSFERENCIA'):
+            return Response({'error': 'Método de pago inválido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            colegiado = Colegiado.objects.select_related('carrera').get(pk=colegiado_id, activo=True)
+        except Colegiado.DoesNotExist:
+            return Response({'error': 'Colegiado no encontrado o inactivo'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            monto_total = float(monto_total)
+            if monto_total <= 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            return Response({'error': 'Monto inválido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            fecha_pago = date.fromisoformat(fecha_pago_str) if fecha_pago_str else date.today()
+        except ValueError:
+            return Response({'error': 'Fecha de pago inválida (use YYYY-MM-DD)'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Monto proporcional por periodo
+        monto_por_periodo = round(monto_total / len(periodos), 2)
+
+        registrados = []
+        ya_existian = []
+        errores     = []
+
+        for periodo_str in periodos:
+            try:
+                año, mes = map(int, periodo_str.split('-'))
+                periodo_date = date(año, mes, 1)
+
+                pago, created = Pago.objects.get_or_create(
+                    colegiado=colegiado,
+                    periodo=periodo_date,
+                    defaults={
+                        'tipo': 'MENSUALIDAD',
+                        'monto': monto_por_periodo,
+                        'canal': 'CAJA',
+                        'metodo': metodo,
+                        'nro_operacion': nro_operacion,
+                        'fecha_pago': fecha_pago,
+                    }
+                )
+
+                if created:
+                    registrados.append(periodo_str)
+                else:
+                    ya_existian.append(periodo_str)
+
+            except Exception as e:
+                errores.append(f"Período {periodo_str}: {str(e)}")
+
+        if not registrados:
+            return Response({
+                'error': 'No se registró ningún pago nuevo.',
+                'ya_existian': ya_existian,
+                'errores': errores,
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'success': True,
+            'colegiado': colegiado.nombres,
+            'periodos_registrados': registrados,
+            'ya_existian': ya_existian,
+            'errores': errores,
+            'habilitado_nuevo': _get_habilitado(colegiado.id),
+            'total_registrado': len(registrados),
+        })
 
 def react_catchall_view(request):
     try:

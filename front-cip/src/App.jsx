@@ -11,8 +11,8 @@ import AdminLayout from './layouts/AdminLayout';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminHome from './pages/admin/AdminHome';
 import AdminPostulaciones from './pages/admin/AdminPostulaciones';
-import AdminPagos from './pages/admin/AdminPagos';
 import AdminPresencial from './pages/admin/AdminPresencial';
+import AdminPagoPresencial from './pages/admin/AdminPagoPresencial';
 
 function App() {
   return (
@@ -35,7 +35,7 @@ function App() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route path="home" element={<AdminHome />} />
           <Route path="postulaciones" element={<AdminPostulaciones />} />
-          <Route path="pagos" element={<AdminPagos />} />
+          <Route path="pagos-presencial" element={<AdminPagoPresencial />} />
           <Route path="presencial" element={<AdminPresencial />} />
         </Route>
       </Routes>

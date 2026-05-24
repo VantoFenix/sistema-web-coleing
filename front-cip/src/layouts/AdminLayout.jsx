@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FileText, UploadCloud, UserPlus, LogOut } from 'lucide-react';
+import { LayoutDashboard, FileText, UserPlus, LogOut, Wallet } from 'lucide-react';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -45,17 +45,18 @@ export default function AdminLayout() {
             <span>Postulaciones</span>
           </NavLink>
 
-          <NavLink 
-            to="/admin/pagos" 
+          <NavLink
+            to="/admin/pagos-presencial"
             className={({isActive}) => isActive ? "admin-nav active" : "admin-nav"}
             style={({isActive}) => ({
               display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.5rem', color: isActive ? 'white' : 'rgba(255,255,255,0.7)',
               background: isActive ? 'rgba(255,255,255,0.1)' : 'transparent', textDecoration: 'none', borderLeft: isActive ? '4px solid var(--cip-red)' : '4px solid transparent', transition: 'all 0.2s'
             })}
           >
-            <UploadCloud size={20} />
-            <span>Registrar Pagos</span>
+            <Wallet size={20} />
+            <span>Pagos Presenciales</span>
           </NavLink>
+
 
           <NavLink 
             to="/admin/presencial" 
