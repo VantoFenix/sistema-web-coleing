@@ -44,7 +44,11 @@ export default function AdminPresencial() {
     setErrorMsg('');
     setIsValidando(true);
     try {
-      const response = await fetch(`https://api.apis.net.pe/v1/dni?numero=${dni}`);
+      const response = await fetch(`https://api.apis.net.pe/v2/reniec/dni?numero=${dni}`, {
+        headers: {
+          'Authorization': 'Bearer sk_15798.m04UTcWH3vUexNYAfT6LTxdae1G3Qt6r'
+        }
+      });
       if (response.ok) {
         const data = await response.json();
         setNombres(`${data.apellidoPaterno} ${data.apellidoMaterno} ${data.nombres}`);

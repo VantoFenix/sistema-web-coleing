@@ -58,8 +58,12 @@ export default function Postular() {
     setIsValidando(true);
 
     try {
-      // Uso de API pública gratuita de apis.net.pe
-      const response = await fetch(`https://api.apis.net.pe/v1/dni?numero=${dni}`);
+      // Uso de API con token (V2) para evitar limites
+      const response = await fetch(`https://api.apis.net.pe/v2/reniec/dni?numero=${dni}`, {
+        headers: {
+          'Authorization': 'Bearer sk_15798.m04UTcWH3vUexNYAfT6LTxdae1G3Qt6r'
+        }
+      });
       if (response.ok) {
         const data = await response.json();
         setNombres(`${data.apellidoPaterno} ${data.apellidoMaterno} ${data.nombres}`);
