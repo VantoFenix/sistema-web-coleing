@@ -70,16 +70,17 @@ body {
    NAVIGATION
    ========================================================================== */
 .navbar {
-  background-color: var(--cip-red);
-  color: white;
+  background-color: white;
+  color: var(--cip-blue);
   padding: 1rem 3rem;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  box-shadow: 0 4px 6px -1px rgba(185, 28, 28, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); /* Sombra sutil pero visible */
   position: sticky;
   top: 0;
   z-index: 50;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .logo-container {
@@ -89,8 +90,8 @@ body {
 }
 
 .logo-placeholder {
-  background-color: white;
-  color: var(--cip-red);
+  background-color: var(--cip-red);
+  color: white;
   font-weight: 800;
   padding: 0.5rem 1rem;
   border-radius: var(--radius-sm);
@@ -106,12 +107,11 @@ body {
 
 .nav-links {
   display: flex;
-  gap: 1.5rem;
-  align-items: center;
+  gap: 1rem;
 }
 
 .nav-link {
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-muted);
   text-decoration: none;
   font-weight: 500;
   transition: all 0.2s;
@@ -119,12 +119,12 @@ body {
 }
 
 .nav-link:hover {
-  color: white;
+  color: var(--cip-blue);
 }
 
 .nav-link.active {
-  color: white;
-  border-bottom: 2px solid white;
+  color: var(--cip-red);
+  border-bottom: 2px solid var(--cip-red);
 }
 
 /* ==========================================================================
