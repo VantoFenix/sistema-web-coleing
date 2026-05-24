@@ -64,13 +64,16 @@ export default function Postular() {
         const data = await response.json();
         setNombres(`${data.apellidoPaterno} ${data.apellidoMaterno} ${data.nombres}`);
         setDniValidado(true);
+      } else if (response.status === 429) {
+        setDniError("El servicio de RENIEC ha superado su límite de consultas. Por favor ingrese su nombre manualmente.");
+        setDniValidado(false);
       } else {
-        setDniError("DNI no encontrado en RENIEC. Intente manualmente o verifique el número.");
+        setDniError("DNI no encontrado en RENIEC. Puede ingresar su nombre manualmente.");
         setDniValidado(false);
         setNombres('');
       }
     } catch (error) {
-      setDniError("Error conectando con RENIEC. Puede ingresar sus nombres manualmente o intentar más tarde.");
+      setDniError("Error conectando con RENIEC. Puede ingresar sus nombres manualmente.");
       setDniValidado(false);
     } finally {
       setIsValidando(false);
