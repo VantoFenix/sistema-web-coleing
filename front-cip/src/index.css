@@ -119,7 +119,7 @@ body {
 }
 
 .nav-link:hover {
-  color: var(--cip-blue);
+  color: var(--cip-red);
 }
 
 .nav-link.active {

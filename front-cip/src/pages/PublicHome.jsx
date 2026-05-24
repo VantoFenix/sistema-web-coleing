@@ -60,7 +60,7 @@ export default function PublicHome() {
       <nav className="navbar" style={{ padding: '1rem 3rem' }}>
         {/* Lado Izquierdo: Logo CIP */}
         <div className="logo-container" style={{ display: 'flex', justifyContent: 'flex-start' }}>
-          <img src="/webp-logo-cip.webp" alt="Colegio de Ingenieros del Perú" style={{ height: '48px', width: 'auto' }} />
+          <img src="/webp-logo-cip.webp" alt="Colegio de Ingenieros del Perú" style={{ height: '64px', width: 'auto', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }} />
         </div>
 
         {/* CENTRO: Enlaces de navegación */}
