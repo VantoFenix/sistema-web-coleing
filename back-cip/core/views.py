@@ -113,18 +113,20 @@ class PublicPostulacionView(APIView):
         celular = request.data.get('celular')
         correo = request.data.get('correo')
         carrera_nombre = request.data.get('carrera')
+        sede_nombre = request.data.get('sede')
         
         foto = request.FILES.get('foto')
         titulo = request.FILES.get('titulo')
         recibo = request.FILES.get('recibo')
 
-        if not all([dni, nombres, correo, carrera_nombre, foto, titulo, recibo]):
+        if not all([dni, nombres, correo, carrera_nombre, sede_nombre, foto, titulo, recibo]):
             return Response({'error': 'Faltan campos o documentos requeridos'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Buscar carrera
+        # Buscar carrera y sede
         carrera = Carrera.objects.filter(nombre=carrera_nombre).first()
-        if not carrera:
-            return Response({'error': 'Carrera no válida'}, status=status.HTTP_400_BAD_REQUEST)
+        sede = Sede.objects.filter(nombre=sede_nombre).first()
+        if not carrera or not sede:
+            return Response({'error': 'Carrera o Sede no válida'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Guardar archivos (Usando el sistema local temporal)
         base_path = 'postulaciones/'
@@ -142,6 +144,7 @@ class PublicPostulacionView(APIView):
             correo=correo,
             celular=celular,
             carrera=carrera,
+            sede=sede,
             foto_url=f"/media/{foto_name}",
             titulo_pdf_url=f"/media/{titulo_name}",
             recibo_pago_url=f"/media/{recibo_name}",

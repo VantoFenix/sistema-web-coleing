@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, UploadCloud, CheckCircle2, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 
@@ -11,6 +11,29 @@ export default function Postular() {
   const [celular, setCelular] = useState('');
   const [correo, setCorreo] = useState('');
   const [carrera, setCarrera] = useState('');
+  const [sede, setSede] = useState('');
+  
+  // Catálogos
+  const [carrerasOptions, setCarrerasOptions] = useState([]);
+  const [sedesOptions, setSedesOptions] = useState([]);
+  
+
+
+  useEffect(() => {
+    const fetchCatalogos = async () => {
+      try {
+        const res = await fetch('/api/catalogos/');
+        if (res.ok) {
+          const data = await res.json();
+          setCarrerasOptions(data.carreras || []);
+          setSedesOptions(data.sedes || []);
+        }
+      } catch (err) {
+        console.error("Error cargando catálogos", err);
+      }
+    };
+    fetchCatalogos();
+  }, []);
   
   // Archivos
   const [foto, setFoto] = useState(null);
@@ -73,8 +96,8 @@ export default function Postular() {
       setSubmitError("Debe ingresar sus nombres y apellidos completos.");
       return;
     }
-    if (!celular || !correo || !carrera) {
-      setSubmitError("Complete todos los datos de contacto y académicos.");
+    if (!celular || !correo || !carrera || !sede) {
+      setSubmitError("Complete todos los datos de contacto, sede y académicos.");
       return;
     }
     if (!foto || !titulo || !recibo) {
@@ -90,6 +113,7 @@ export default function Postular() {
     formData.append('celular', celular);
     formData.append('correo', correo);
     formData.append('carrera', carrera);
+    formData.append('sede', sede);
     formData.append('foto', foto);
     formData.append('titulo', titulo);
     formData.append('recibo', recibo);
@@ -261,12 +285,23 @@ export default function Postular() {
                   onChange={(e) => setCarrera(e.target.value)}
                 >
                   <option value="">Seleccione una carrera...</option>
-                  <option value="Ingeniería Civil">Ingeniería Civil</option>
-                  <option value="Ingeniería Industrial">Ingeniería Industrial</option>
-                  <option value="Ingeniería de Sistemas">Ingeniería de Sistemas e Inteligencia Artificial</option>
-                  <option value="Ingeniería Agrónoma">Ingeniería Agrónoma</option>
-                  <option value="Ingeniería Ambiental">Ingeniería Ambiental</option>
-                  <option value="Ingeniería de Minas">Ingeniería de Minas</option>
+                  {carrerasOptions.map(c => (
+                    <option key={c.id} value={c.nombre}>{c.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group" style={{ marginTop: '1.5rem' }}>
+                <label className="form-label">Sede Departamental</label>
+                <select 
+                  className="form-select"
+                  value={sede}
+                  onChange={(e) => setSede(e.target.value)}
+                >
+                  <option value="">Seleccione una sede...</option>
+                  {sedesOptions.map(s => (
+                    <option key={s.id} value={s.nombre}>{s.nombre}</option>
+                  ))}
                 </select>
               </div>
 
