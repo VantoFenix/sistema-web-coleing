@@ -58,15 +58,10 @@ export default function Postular() {
     setIsValidando(true);
 
     try {
-      // Uso de API con token (V2) para evitar limites
-      const response = await fetch(`https://api.apis.net.pe/v2/reniec/dni?numero=${dni}`, {
-        headers: {
-          'Authorization': 'Bearer sk_15798.m04UTcWH3vUexNYAfT6LTxdae1G3Qt6r'
-        }
-      });
+      const response = await fetch(`/api/public/reniec/?dni=${dni}`);
       if (response.ok) {
         const data = await response.json();
-        setNombres(`${data.apellidoPaterno} ${data.apellidoMaterno} ${data.nombres}`);
+        setNombres(data.nombre_completo);
         setDniValidado(true);
       } else if (response.status === 429) {
         setDniError("El servicio de RENIEC ha superado su límite de consultas. Por favor ingrese su nombre manualmente.");
@@ -148,11 +143,17 @@ export default function Postular() {
       if (response.ok) {
         setSuccess(true);
       } else {
-        const errData = await response.json();
-        setSubmitError(errData.error || "Hubo un error al enviar la solicitud.");
+        let errorMsg = "Hubo un error al enviar la solicitud.";
+        try {
+          const errData = await response.json();
+          errorMsg = errData.error || errorMsg;
+        } catch {
+          errorMsg = `Error del servidor (código ${response.status}). Intente nuevamente.`;
+        }
+        setSubmitError(errorMsg);
       }
     } catch (error) {
-      setSubmitError("Error de conexión con el servidor.");
+      setSubmitError("No se pudo conectar con el servidor. Verifique que el backend esté corriendo.");
     } finally {
       setEnviando(false);
     }

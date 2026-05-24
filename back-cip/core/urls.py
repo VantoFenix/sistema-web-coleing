@@ -13,6 +13,9 @@ urlpatterns = [
     # Catalogos
     path('api/catalogos/', views.get_catalogos, name='catalogos'),
     
+    # RENIEC (proxy seguro)
+    path('api/public/reniec/', views.ReniecConsultaView.as_view(), name='reniec-consulta'),
+
     # Public
     path('api/public/padron/', views.PublicPadronView.as_view(), name='public-padron'),
     path('api/public/solicitudes/', views.PublicConsultaSolicitudView.as_view(), name='public-consultar-solicitud'),

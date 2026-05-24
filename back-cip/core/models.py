@@ -56,7 +56,6 @@ class Solicitud(models.Model):
     
     creado_en = models.DateTimeField(auto_now_add=True)
     resuelto_en = models.DateTimeField(null=True, blank=True)
-    resuelto_por = models.ForeignKey(Administrador, on_delete=models.DO_NOTHING, null=True, blank=True)
 
     class Meta:
         managed = False

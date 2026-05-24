@@ -65,6 +65,40 @@ class AuthLoginView(APIView):
             return Response({'error': 'Credenciales inválidas'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
+class ReniecConsultaView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        dni = request.query_params.get('dni')
+        if not dni or len(dni) != 8 or not dni.isdigit():
+            return Response({'error': 'DNI inválido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        token = os.getenv('RENIEC_TOKEN')
+        if not token:
+            return Response({'error': 'Token RENIEC no configurado'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                f'https://api.decolecta.com/v1/reniec/dni?numero={dni}',
+                headers={
+                    'Authorization': f'Bearer {token}',
+                    'Content-Type': 'application/json'
+                }
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                import json
+                data = json.loads(resp.read().decode())
+                nombre_completo = data.get('full_name', '').strip()
+                return Response({'nombre_completo': nombre_completo})
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                return Response({'error': 'Límite de consultas RENIEC alcanzado'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+            return Response({'error': 'DNI no encontrado en RENIEC'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception:
+            return Response({'error': 'Error conectando con RENIEC'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
 class PublicPadronView(APIView):
     permission_classes = [AllowAny]
 
@@ -153,22 +187,32 @@ class PublicPostulacionView(APIView):
         titulo_name = f"{base_path}{uuid.uuid4()}_{titulo.name}"
         recibo_name = f"{base_path}{uuid.uuid4()}_{recibo.name}"
 
-        default_storage.save(foto_name, foto)
-        default_storage.save(titulo_name, titulo)
-        default_storage.save(recibo_name, recibo)
+        try:
+            default_storage.save(foto_name, foto)
+            default_storage.save(titulo_name, titulo)
+            default_storage.save(recibo_name, recibo)
+        except Exception as e:
+            import sys
+            print(f"[ERROR] Fallo al guardar archivos: {e}", file=sys.stderr)
+            return Response({'error': f'Error al guardar los archivos: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        solicitud = Solicitud.objects.create(
-            dni=dni,
-            nombres=nombres,
-            correo=correo,
-            celular=celular,
-            carrera=carrera,
-            sede=sede,
-            foto_url=f"/media/{foto_name}",
-            titulo_pdf_url=f"/media/{titulo_name}",
-            recibo_pago_url=f"/media/{recibo_name}",
-            estado='EN_REVISION'
-        )
+        try:
+            solicitud = Solicitud.objects.create(
+                dni=dni,
+                nombres=nombres,
+                correo=correo,
+                celular=celular,
+                carrera=carrera,
+                sede=sede,
+                foto_url=f"/media/{foto_name}",
+                titulo_pdf_url=f"/media/{titulo_name}",
+                recibo_pago_url=f"/media/{recibo_name}",
+                estado='EN_REVISION'
+            )
+        except Exception as e:
+            import sys
+            print(f"[ERROR] Fallo al crear solicitud en BD: {e}", file=sys.stderr)
+            return Response({'error': f'Error al registrar la solicitud: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({'success': True, 'solicitud_id': solicitud.id})
 
