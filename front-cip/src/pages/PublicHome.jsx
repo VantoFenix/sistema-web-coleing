@@ -60,7 +60,7 @@ export default function PublicHome() {
       <nav className="navbar" style={{ padding: '1rem 3rem' }}>
         {/* Lado Izquierdo: Logo CIP */}
         <div className="logo-container" style={{ display: 'flex', justifyContent: 'flex-start' }}>
-          <div className="logo-placeholder" style={{ background: 'var(--cip-red)', color: 'white', padding: '0.5rem 1rem', borderRadius: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>CIP</div>
+          <div className="logo-placeholder">CIP</div>
         </div>
 
         {/* CENTRO: Enlaces de navegación */}

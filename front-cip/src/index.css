@@ -10,7 +10,7 @@
   --cip-gold: #F59E0B;
   
   /* Neutrals */
-  --bg-main: #F8FAFC;
+  --bg-main: #F4F6F8;
   --bg-card: #FFFFFF;
   --text-main: #1E293B;
   --text-muted: #64748B;
@@ -70,17 +70,16 @@ body {
    NAVIGATION
    ========================================================================== */
 .navbar {
-  background-color: white;
-  color: var(--cip-blue);
+  background-color: var(--cip-red);
+  color: white;
   padding: 1rem 3rem;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 4px 6px -1px rgba(185, 28, 28, 0.2);
   position: sticky;
   top: 0;
   z-index: 50;
-  border-bottom: 1px solid var(--border-color);
 }
 
 .logo-container {
@@ -92,7 +91,7 @@ body {
 .logo-placeholder {
   background-color: white;
   color: var(--cip-red);
-  font-weight: bold;
+  font-weight: 800;
   padding: 0.5rem 1rem;
   border-radius: var(--radius-sm);
   font-size: 1.25rem;
@@ -112,7 +111,7 @@ body {
 }
 
 .nav-link {
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.8);
   text-decoration: none;
   font-weight: 500;
   transition: all 0.2s;
@@ -120,12 +119,12 @@ body {
 }
 
 .nav-link:hover {
-  color: var(--cip-blue);
+  color: white;
 }
 
 .nav-link.active {
-  color: var(--cip-red);
-  border-bottom-color: var(--cip-red) !important;
+  color: white;
+  border-bottom: 2px solid white;
 }
 
 /* ==========================================================================
