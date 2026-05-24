@@ -103,13 +103,27 @@ def do_seed_catalogos(sender, **kwargs):
             },
         ]
         from datetime import date
-        for c in COLEGIADOS:
+        from dateutil.relativedelta import relativedelta
+        today = date.today()
+        
+        for idx, c in enumerate(COLEGIADOS):
+            # Simulamos diferentes deudas restando meses a su fecha de colegiatura
+            # idx=0 -> 0 meses de deuda (Habilitado perfecto)
+            # idx=1 -> 1 mes de deuda (Habilitado con deuda)
+            # idx=2 -> 2 meses de deuda (Habilitado con riesgo)
+            # idx>=3 -> >3 meses de deuda (Inhabilitado)
+            meses_atras = idx
+            if idx >= 3:
+                meses_atras = 5 # Debe 5 meses
+                
+            fecha_col = today - relativedelta(months=meses_atras)
+            
             if c['carrera'] and c['sede'] and not Colegiado.objects.filter(dni=c['dni']).exists():
                 Colegiado.objects.create(
                     dni=c['dni'], nombres=c['nombres'], correo=c['correo'],
                     celular=c['celular'], password_hash=make_password(c['password']),
                     foto_url='', carrera=c['carrera'], sede=c['sede'],
-                    nro_colegiado=c['nro_colegiado'], colegiado_desde=date(2024, 1, 1), activo=True,
+                    nro_colegiado=c['nro_colegiado'], colegiado_desde=fecha_col, activo=True,
                 )
     except Exception as e:
         import sys
