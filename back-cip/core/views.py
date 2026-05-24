@@ -8,6 +8,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from django.contrib.auth.hashers import check_password
 from django.db import connection
+from django.http import HttpResponse
+import os
 
 from .models import Administrador, Colegiado, Solicitud, Carrera, Sede
 from .serializers import AdministradorSerializer, ColegiadoSerializer, SolicitudSerializer, CarreraSerializer, SedeSerializer
@@ -96,3 +98,16 @@ def get_catalogos(request):
         'carreras': CarreraSerializer(carreras, many=True).data,
         'sedes': SedeSerializer(sedes, many=True).data
     })
+
+def react_catchall_view(request):
+    try:
+        with open(os.path.join(settings.FRONTEND_DIR, 'index.html')) as f:
+            return HttpResponse(f.read())
+    except FileNotFoundError:
+        return HttpResponse(
+            """
+            <h2>React Frontend not built!</h2>
+            <p>Run <code>npm run build</code> in front-cip, or make sure the build script ran properly.</p>
+            """,
+            status=501,
+        )
