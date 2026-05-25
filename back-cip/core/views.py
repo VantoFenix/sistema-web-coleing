@@ -1417,16 +1417,27 @@ class AdminMPVerificarView(APIView):
     def post(self, request):
         import mercadopago, sys
 
-        external_ref = request.data.get('external_ref', '')
-        if not external_ref:
-            return Response({'error': 'external_ref requerido.'}, status=400)
+        external_ref  = request.data.get('external_ref', '')
+        preference_id = request.data.get('preference_id', '')
 
-        sdk    = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
-        result = sdk.payment().search({"external_reference": external_ref})
+        if not external_ref and not preference_id:
+            return Response({'error': 'external_ref o preference_id requerido.'}, status=400)
+
+        sdk = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
+
+        # Buscar por preference_id primero (único por QR generado, evita falsos positivos
+        # de pagos anteriores con el mismo external_ref).
+        if preference_id:
+            result = sdk.payment().search({"preference_id": preference_id})
+            print("[ADMIN MP VERIF] preference_id={} → buscando por preferencia".format(preference_id), file=sys.stderr)
+        else:
+            result = sdk.payment().search({"external_reference": external_ref})
+            print("[ADMIN MP VERIF] external_ref={} → buscando por referencia".format(external_ref), file=sys.stderr)
+
         data   = result.get("response", {})
         pagos  = (data.get("results") or [])
 
-        print("[ADMIN MP VERIF] external_ref={} encontrados={}".format(external_ref, len(pagos)), file=sys.stderr)
+        print("[ADMIN MP VERIF] encontrados={}".format(len(pagos)), file=sys.stderr)
 
         # Buscar el pago aprobado más reciente
         pago_aprobado = next(

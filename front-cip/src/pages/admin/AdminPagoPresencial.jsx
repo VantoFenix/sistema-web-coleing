@@ -93,13 +93,14 @@ export default function AdminPagoPresencial() {
   // Auto-polling cada 5s mientras hay un QR activo
   useEffect(() => {
     if (!mpData) return;
-    const ref = mpData.external_ref;
+    const ref   = mpData.external_ref;
+    const prefId = mpData.preference_id;
     const intervalo = setInterval(async () => {
       try {
         const res = await fetch('/api/admin/mp/verificar/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ external_ref: ref }),
+          body: JSON.stringify({ external_ref: ref, preference_id: prefId }),
         });
         const data = await res.json();
         if (data.success) {
@@ -268,7 +269,7 @@ export default function AdminPagoPresencial() {
       const res = await fetch('/api/admin/mp/verificar/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ external_ref: mpData.external_ref }),
+        body: JSON.stringify({ external_ref: mpData.external_ref, preference_id: mpData.preference_id }),
       });
       const data = await res.json();
       if (data.success) {
