@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   CheckCircle2, XCircle, Calendar, Loader2, CreditCard,
   ShieldCheck, ArrowLeft, AlertCircle, Clock, Receipt,
@@ -280,37 +280,126 @@ function VoucherUpload({ archivo, onChange }) {
   );
 }
 
-// ── Paso: Yape online via MercadoPago Checkout Pro ───────────────────────────
-function StepYape({ total, periodos, onVolver, onExito }) {
-  const [creando, setCreando]   = useState(false);
-  const [errLocal, setErrLocal] = useState('');
+// ── Paso: Yape online (flujo transparente — sin redirect, sin login MP) ───────
+function StepYape({ total, periodos, onVolver, onExito, onError }) {
+  const [telefono, setTelefono]   = useState('');
+  const [enviando, setEnviando]   = useState(false);
+  const [esperando, setEsperando] = useState(false);
+  const [mpId, setMpId]           = useState(null);
+  const [errLocal, setErrLocal]   = useState('');
+  const pollRef                   = useRef(null);
+
+  // Limpiar polling al desmontar
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  const iniciarPolling = (paymentId) => {
+    let intentos = 0;
+    const MAX = 60; // 60 × 3 s = 3 min
+    pollRef.current = setInterval(async () => {
+      intentos++;
+      if (intentos > MAX) {
+        clearInterval(pollRef.current);
+        setEsperando(false);
+        setErrLocal('Tiempo agotado. No recibimos confirmación de Yape. Intenta de nuevo.');
+        return;
+      }
+      try {
+        const token = localStorage.getItem('colToken');
+        const periodosStr = periodos.join(',');
+        const res = await fetch(`/api/pagos/online/status/${paymentId}?periodos=${encodeURIComponent(periodosStr)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+          clearInterval(pollRef.current);
+          setEsperando(false);
+          onExito(data);
+        } else if (data.status === 'rejected' || data.error) {
+          clearInterval(pollRef.current);
+          setEsperando(false);
+          const msg = data.error || 'Pago rechazado por Yape.';
+          setErrLocal(msg);
+          onError(msg);
+        }
+        // status === 'pending' → seguir esperando
+      } catch { /* error de red — seguir intentando */ }
+    }, 3000);
+  };
+
+  const handleCancelar = () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    setEsperando(false);
+    setMpId(null);
+  };
 
   const handlePagar = async () => {
+    const tel = telefono.trim();
+    if (tel.length < 9) { setErrLocal('Ingresa tu número de Yape (9 dígitos).'); return; }
     setErrLocal('');
-    setCreando(true);
+    setEnviando(true);
     try {
       const token = localStorage.getItem('colToken');
-      const res = await fetch('/api/pagos/preferencia/', {
+      const res = await fetch('/api/pagos/online/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ periodos }),
+        body: JSON.stringify({ payment_method_id: 'yape', phone: tel, periodos }),
       });
       const data = await res.json();
-      if (data.init_point) {
-        // Guardar periodos en sessionStorage para recuperarlos al volver
-        sessionStorage.setItem('yape_periodos', JSON.stringify(periodos));
-        sessionStorage.setItem('yape_total', total.toFixed(2));
-        window.location.href = data.init_point;
+      if (data.success) {
+        onExito(data);
+      } else if (data.pending && data.mp_id) {
+        setMpId(data.mp_id);
+        setEsperando(true);
+        iniciarPolling(data.mp_id);
       } else {
-        setErrLocal(data.error || 'No se pudo generar el enlace de pago. Intente de nuevo.');
-        setCreando(false);
+        const msg = data.error || 'No se pudo procesar el pago Yape.';
+        setErrLocal(msg);
+        onError(msg);
       }
     } catch {
       setErrLocal('Error de conexión. Intente de nuevo.');
-      setCreando(false);
+    } finally {
+      setEnviando(false);
     }
   };
 
+  // ── Pantalla de espera (usuario debe aprobar en su app Yape) ──────────────
+  if (esperando) {
+    return (
+      <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem' }}>
+        <div style={{ background: 'linear-gradient(135deg,#7C3AED,#6D28D9)', borderRadius: '14px', padding: '1.25rem', marginBottom: '1.5rem' }}>
+          <Smartphone size={32} color="white" style={{ margin: '0 auto 0.5rem', display: 'block' }} />
+          <p style={{ color: 'white', fontWeight: '800', fontSize: '1.05rem', marginBottom: '0.2rem' }}>Aprueba el pago en Yape</p>
+          <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.9rem' }}>S/ {total.toFixed(2)}</p>
+        </div>
+
+        <Loader2 size={40} className="spin" color="#7C3AED" style={{ margin: '0 auto 1rem', display: 'block' }} />
+
+        <p style={{ fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '0.4rem', fontSize: '1rem' }}>
+          Esperando tu confirmación…
+        </p>
+        <p style={{ fontSize: '0.83rem', color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+          Abre tu app <strong>Yape</strong>, revisa las notificaciones<br />
+          y acepta el cobro de <strong>S/ {total.toFixed(2)}</strong>
+        </p>
+
+        <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: '10px', padding: '0.75rem 1rem', marginBottom: '1.5rem', fontSize: '0.8rem', color: '#5B21B6', textAlign: 'left' }}>
+          <p>📱 Revisa las notificaciones push de tu app Yape</p>
+          <p style={{ marginTop: '0.35rem' }}>⏱️ La solicitud expira en aprox. 3 minutos</p>
+          <p style={{ marginTop: '0.35rem' }}>📲 Número enviado: <strong>+51 {telefono}</strong></p>
+        </div>
+
+        <button onClick={handleCancelar} style={{
+          background: 'none', border: '1px solid #CBD5E1', borderRadius: '8px',
+          padding: '0.6rem 1.5rem', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.875rem',
+        }}>
+          Cancelar y volver
+        </button>
+      </div>
+    );
+  }
+
+  // ── Formulario principal ──────────────────────────────────────────────────
   return (
     <div>
       <button onClick={onVolver} style={{ display:'flex', alignItems:'center', gap:'0.4rem', color:'var(--text-muted)', background:'none', border:'none', cursor:'pointer', marginBottom:'1.25rem', fontSize:'0.875rem' }}>
@@ -327,17 +416,48 @@ function StepYape({ total, periodos, onVolver, onExito }) {
       </div>
 
       {/* Cómo funciona */}
-      <div style={{ background:'#F5F3FF', border:'1.5px solid #DDD6FE', borderRadius:'12px', padding:'1rem 1.25rem', marginBottom:'1.25rem' }}>
-        <p style={{ fontWeight:'800', fontSize:'0.85rem', color:'#5B21B6', marginBottom:'0.6rem' }}>¿Cómo funciona?</p>
+      <div style={{ background:'#F5F3FF', border:'1.5px solid #DDD6FE', borderRadius:'12px', padding:'0.9rem 1.1rem', marginBottom:'1.25rem' }}>
+        <p style={{ fontWeight:'800', fontSize:'0.82rem', color:'#5B21B6', marginBottom:'0.5rem' }}>¿Cómo funciona?</p>
         {[
-          '1. Haz clic en "Pagar con Yape"',
-          '2. Se abre el checkout seguro de MercadoPago',
-          '3. Selecciona Yape y aprueba desde tu app',
-          '4. MercadoPago te devuelve al portal automáticamente',
-          '5. El pago queda registrado ✓',
+          '1. Ingresa tu número Yape (9 dígitos)',
+          '2. Haz clic en "Pagar con Yape"',
+          '3. Recibirás una notificación en tu app Yape',
+          '4. Acepta el cobro · el pago queda registrado ✓',
         ].map((s, i) => (
-          <p key={i} style={{ fontSize:'0.8rem', color:'#6D28D9', marginBottom:'0.2rem' }}>{s}</p>
+          <p key={i} style={{ fontSize:'0.78rem', color:'#6D28D9', marginBottom:'0.15rem' }}>{s}</p>
         ))}
+      </div>
+
+      {/* Input teléfono */}
+      <div style={{ marginBottom: '1.25rem' }}>
+        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '0.5rem' }}>
+          📱 Tu número de Yape
+        </label>
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: '#7C3AED', fontWeight: '700', fontSize: '0.9rem', pointerEvents: 'none' }}>
+            +51
+          </span>
+          <input
+            type="tel"
+            inputMode="numeric"
+            maxLength={9}
+            value={telefono}
+            onChange={e => { setTelefono(e.target.value.replace(/\D/g, '')); setErrLocal(''); }}
+            placeholder="999 888 777"
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              padding: '0.875rem 1rem 0.875rem 3.25rem',
+              border: '2px solid #DDD6FE', borderRadius: '10px', outline: 'none',
+              fontSize: '1.1rem', fontWeight: '700', letterSpacing: '1.5px',
+              background: '#FAFAFA', color: 'var(--text-main)', transition: 'border 0.15s',
+            }}
+            onFocus={e => { e.target.style.borderColor = '#7C3AED'; e.target.style.background = 'white'; }}
+            onBlur={e => { e.target.style.borderColor = '#DDD6FE'; e.target.style.background = '#FAFAFA'; }}
+          />
+        </div>
+        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+          El número de 9 dígitos registrado en tu app Yape
+        </p>
       </div>
 
       {/* Periodos */}
@@ -351,23 +471,27 @@ function StepYape({ total, periodos, onVolver, onExito }) {
         </div>
       )}
 
-      <button onClick={handlePagar} disabled={creando} style={{
-        width:'100%', padding:'1rem', border:'none', borderRadius:'10px',
-        background: creando ? '#C4B5FD' : 'linear-gradient(135deg,#7C3AED,#6D28D9)',
-        color:'white', fontWeight:'800', fontSize:'1.05rem',
-        display:'flex', alignItems:'center', justifyContent:'center', gap:'0.6rem',
-        cursor: creando ? 'not-allowed' : 'pointer',
-        boxShadow: creando ? 'none' : '0 4px 14px rgba(109,40,217,0.4)',
-        transition:'all 0.2s',
-      }}>
-        {creando
-          ? <><Loader2 size={18} className="spin" /> Preparando pago…</>
+      <button
+        onClick={handlePagar}
+        disabled={enviando || telefono.length < 9}
+        style={{
+          width:'100%', padding:'1rem', border:'none', borderRadius:'10px',
+          background: (enviando || telefono.length < 9) ? '#C4B5FD' : 'linear-gradient(135deg,#7C3AED,#6D28D9)',
+          color:'white', fontWeight:'800', fontSize:'1.05rem',
+          display:'flex', alignItems:'center', justifyContent:'center', gap:'0.6rem',
+          cursor: (enviando || telefono.length < 9) ? 'not-allowed' : 'pointer',
+          boxShadow: (enviando || telefono.length < 9) ? 'none' : '0 4px 14px rgba(109,40,217,0.4)',
+          transition:'all 0.2s',
+        }}
+      >
+        {enviando
+          ? <><Loader2 size={18} className="spin" /> Enviando solicitud…</>
           : <><Smartphone size={18} /> Pagar con Yape</>
         }
       </button>
 
       <p style={{ textAlign:'center', fontSize:'0.72rem', color:'var(--text-muted)', marginTop:'0.75rem', display:'flex', alignItems:'center', justifyContent:'center', gap:'0.3rem' }}>
-        <ShieldCheck size={12} /> Pago procesado por MercadoPago · Registro automático
+        <ShieldCheck size={12} /> Sin redirects · Sin cuenta MP · Registro automático
       </p>
     </div>
   );
@@ -711,20 +835,7 @@ export default function MisPagos() {
   const [errPago, setErrPago]             = useState('');
   const [resultadoPago, setResultadoPago] = useState(null);
 
-  useEffect(() => {
-    const params       = new URLSearchParams(window.location.search);
-    const mpStatus     = params.get('collection_status') || params.get('status');
-    const mpPaymentId  = params.get('collection_id')     || params.get('payment_id');
-    const mpExternalRef = params.get('external_reference');
-    if (mpStatus && mpPaymentId && mpExternalRef) {
-      // Llegamos de vuelta desde MercadoPago (Yape/Checkout Pro)
-      window.history.replaceState({}, '', '/portal/pagos');
-      verificarPagoMP(mpPaymentId, mpExternalRef, mpStatus);
-    } else {
-      cargarDatos();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { cargarDatos(); }, []);
 
   const cargarDatos = async () => {
     setCargando(true);
