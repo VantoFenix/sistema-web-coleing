@@ -11,76 +11,158 @@ const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
 ];
+const MESES_CORTO = [
+  'ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC',
+];
 const fmtPeriodo = (p) => {
   const [y, m] = p.split('-');
   return `${MESES[parseInt(m, 10) - 1]} ${y}`;
 };
+const fmtPeriodoCorto = (p) => MESES_CORTO[parseInt(p.split('-')[1], 10) - 1];
 const fmtFecha = (iso) => {
   if (!iso) return '—';
   const [y, m, d] = iso.split('-');
   return `${d}/${m}/${y}`;
 };
 
-// ── Paso: Selección de periodos ────────────────────────────────────────────
-function StepPeriodos({ pendientes, seleccionados, onToggle, onSelAll, onDeselAll, montoUnit, onContinuar }) {
+// ── Paso: Selección de periodos (calendario estilo admin) ─────────────────
+function StepPeriodos({ pendientes, historial, seleccionados, onToggle, onSelAll, onSelSoloDeuda, onDeselAll, montoUnit, onContinuar }) {
   const total = seleccionados.size * parseFloat(montoUnit);
 
-  if (pendientes.length === 0) {
+  // Construir lista completa de periodos (pendientes + mes actual + adelantos)
+  const hoy           = new Date();
+  const periodoActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+  const pagadosSet    = new Set((historial || []).map(h => h.periodo));
+  const pendientesSet = new Set(pendientes.map(p => p.periodo));
+
+  const allPeriodos = [];
+  pendientes.forEach(p => allPeriodos.push({ periodo: p.periodo, estado: 'PENDIENTE' }));
+  if (!pendientesSet.has(periodoActual) && !pagadosSet.has(periodoActual)) {
+    allPeriodos.push({ periodo: periodoActual, estado: 'MES_ACTUAL' });
+  }
+  for (let i = 1; i <= 5; i++) {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() + i, 1);
+    const per = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (!pendientesSet.has(per) && !pagadosSet.has(per))
+      allPeriodos.push({ periodo: per, estado: 'ADELANTO' });
+  }
+  allPeriodos.sort((a, b) => a.periodo.localeCompare(b.periodo));
+
+  if (allPeriodos.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <CheckCircle2 size={52} color="#16A34A" style={{ margin: '0 auto 1rem auto', display: 'block' }} />
+        <CheckCircle2 size={52} color="#16A34A" style={{ margin: '0 auto 1rem', display: 'block' }} />
         <h3 style={{ color: 'var(--cip-blue)', fontWeight: '800', marginBottom: '0.5rem' }}>¡Estás al día!</h3>
         <p style={{ color: 'var(--text-muted)' }}>No tienes cuotas pendientes de pago.</p>
       </div>
     );
   }
 
+  // Agrupar por año
+  const porAño = {};
+  allPeriodos.forEach(p => {
+    const año = p.periodo.split('-')[0];
+    if (!porAño[año]) porAño[año] = [];
+    porAño[año].push(p);
+  });
+  const años = Object.keys(porAño).sort();
+
   return (
     <div>
-      <p style={{ color: 'var(--text-muted)', marginBottom: '1.25rem', fontSize: '0.875rem' }}>
-        Selecciona los meses que deseas pagar. Puedes cubrir varios a la vez.
-      </p>
-
-      {/* Controles */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-        <span style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-          {pendientes.length} mes{pendientes.length !== 1 ? 'es' : ''} adeudado{pendientes.length !== 1 ? 's' : ''}
-        </span>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button onClick={onSelAll} style={{ fontSize: '0.75rem', color: 'var(--cip-blue)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+      {/* Cabecera con botones de selección rápida */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div>
+          <h3 style={{ fontSize: '0.92rem', fontWeight: '700', color: 'var(--cip-blue)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Calendar size={15} /> Periodos del Año {hoy.getFullYear()}
+          </h3>
+          {seleccionados.size > 0 && (
+            <p style={{ fontSize: '0.73rem', color: '#059669', fontWeight: '600', margin: '0.2rem 0 0' }}>
+              {seleccionados.size} mes{seleccionados.size !== 1 ? 'es' : ''} seleccionado{seleccionados.size !== 1 ? 's' : ''} · S/ {total.toFixed(2)}
+            </p>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+          {pendientes.length > 0 && (
+            <button onClick={onSelSoloDeuda} style={{ fontSize: '0.68rem', padding: '0.3rem 0.6rem', borderRadius: '6px', border: '1.5px solid #FCA5A5', background: '#FEF2F2', color: '#B91C1C', cursor: 'pointer', fontWeight: '700' }}>
+              Solo deudas
+            </button>
+          )}
+          <button onClick={() => onSelAll(new Set(allPeriodos.map(p => p.periodo)))} style={{ fontSize: '0.68rem', padding: '0.3rem 0.6rem', borderRadius: '6px', border: '1.5px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8', cursor: 'pointer', fontWeight: '700' }}>
             Todos
           </button>
-          <span style={{ color: '#CBD5E1' }}>|</span>
-          <button onClick={onDeselAll} style={{ fontSize: '0.75rem', color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+          <button onClick={onDeselAll} style={{ fontSize: '0.68rem', padding: '0.3rem 0.6rem', borderRadius: '6px', border: '1.5px solid #E2E8F0', background: '#F8FAFC', color: '#64748B', cursor: 'pointer', fontWeight: '700' }}>
             Ninguno
           </button>
         </div>
       </div>
 
-      {/* Grid periodos */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.5rem', maxHeight: '230px', overflowY: 'auto', marginBottom: '1.5rem' }}>
-        {pendientes.map(p => {
-          const sel = seleccionados.has(p.periodo);
-          return (
-            <label key={p.periodo} style={{
-              display: 'flex', alignItems: 'center', gap: '0.5rem',
-              padding: '0.55rem 0.75rem', borderRadius: '8px', cursor: 'pointer',
-              border: `1.5px solid ${sel ? 'var(--cip-blue)' : 'var(--border-color)'}`,
-              background: sel ? '#EFF6FF' : 'white', transition: 'all 0.15s',
-              fontSize: '0.82rem', fontWeight: sel ? '700' : '400',
-              color: sel ? 'var(--cip-blue)' : 'var(--text-main)', userSelect: 'none',
-            }}>
-              <input type="checkbox" checked={sel} onChange={() => onToggle(p.periodo)}
-                style={{ accentColor: 'var(--cip-blue)', width: 14, height: 14, flexShrink: 0 }} />
-              {fmtPeriodo(p.periodo)}
-            </label>
-          );
-        })}
+      {/* Grilla de meses agrupada por año */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', marginBottom: '1.25rem' }}>
+        {años.map(año => (
+          <div key={año}>
+            {/* Separador de año */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
+              <span style={{ background: 'var(--cip-blue)', color: 'white', fontSize: '0.7rem', fontWeight: '800', padding: '0.15rem 0.55rem', borderRadius: '5px', letterSpacing: '0.5px' }}>
+                {año}
+              </span>
+              <div style={{ flex: 1, height: '1px', background: '#E2E8F0' }} />
+            </div>
+
+            {/* Meses: 6 por fila */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.4rem' }}>
+              {porAño[año].map(p => {
+                const { estado } = p;
+                const sel = seleccionados.has(p.periodo);
+
+                const paleta =
+                  estado === 'PENDIENTE' ? {
+                    bg: sel ? '#FFF1F2' : '#FEF2F2', border: sel ? '#DC2626' : '#FCA5A5',
+                    txt: '#991B1B', accent: '#DC2626', tagBg: '#FEE2E2', tagTxt: '#991B1B', tag: 'PAGAR',
+                  } : estado === 'MES_ACTUAL' ? {
+                    bg: sel ? '#FFFBEB' : '#FFFDF5', border: sel ? '#F59E0B' : '#FCD34D',
+                    txt: '#78350F', accent: '#D97706', tagBg: '#FEF3C7', tagTxt: '#92400E', tag: 'MES ACT.',
+                  } : {
+                    bg: sel ? '#EFF6FF' : '#F8FAFF', border: sel ? '#3B82F6' : '#BFDBFE',
+                    txt: '#1E40AF', accent: '#2563EB', tagBg: '#DBEAFE', tagTxt: '#1D4ED8', tag: 'ADELANTO',
+                  };
+
+                return (
+                  <div
+                    key={p.periodo}
+                    onClick={() => onToggle(p.periodo)}
+                    style={{
+                      background: paleta.bg,
+                      border: `2px solid ${sel ? paleta.accent : paleta.border}`,
+                      borderRadius: '8px', padding: '0.5rem 0.25rem',
+                      cursor: 'pointer', transition: 'all 0.15s', userSelect: 'none',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.22rem',
+                      boxShadow: sel ? `0 0 0 2px ${paleta.accent}25` : 'none',
+                      transform: sel ? 'scale(1.05)' : 'scale(1)',
+                    }}
+                  >
+                    <p style={{ fontSize: '0.76rem', fontWeight: '800', color: paleta.txt, margin: 0, letterSpacing: '0.3px' }}>
+                      {fmtPeriodoCorto(p.periodo)}
+                    </p>
+                    <input type="checkbox" checked={sel} readOnly
+                      style={{ accentColor: paleta.accent, width: 12, height: 12, pointerEvents: 'none' }} />
+                    <span style={{
+                      fontSize: '0.5rem', fontWeight: '700', padding: '0.07rem 0.28rem',
+                      borderRadius: '999px', background: paleta.tagBg, color: paleta.tagTxt,
+                      textTransform: 'uppercase', letterSpacing: '0.2px', whiteSpace: 'nowrap',
+                    }}>
+                      {paleta.tag}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Resumen monto */}
       {seleccionados.size > 0 && (
-        <div style={{ background: '#F1F5F9', borderRadius: '10px', padding: '1rem 1.25rem', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ background: '#F1F5F9', borderRadius: '10px', padding: '0.875rem 1.25rem', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
             {seleccionados.size} mes{seleccionados.size !== 1 ? 'es' : ''} × S/ {parseFloat(montoUnit).toFixed(2)}
           </div>
@@ -1018,9 +1100,11 @@ export default function MisPagos() {
               {paso === 'periodos' && (
                 <StepPeriodos
                   pendientes={pendientes}
+                  historial={historial}
                   seleccionados={seleccionados}
                   onToggle={p => setSeleccionados(prev => { const s = new Set(prev); s.has(p) ? s.delete(p) : s.add(p); return s; })}
-                  onSelAll={() => setSeleccionados(new Set(pendientes.map(p => p.periodo)))}
+                  onSelAll={(set) => setSeleccionados(set)}
+                  onSelSoloDeuda={() => setSeleccionados(new Set(pendientes.map(p => p.periodo)))}
                   onDeselAll={() => setSeleccionados(new Set())}
                   montoUnit={montoUnit}
                   onContinuar={() => { setErrPago(''); setPaso('metodo'); }}
