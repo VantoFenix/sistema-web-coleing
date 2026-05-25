@@ -173,7 +173,7 @@ export default function AdminPagoPresencial() {
     setErrForm('');
     if (periodosSeleccionados.size === 0) { setErrForm('Seleccione al menos un periodo.'); return; }
     if (!metodo)  { setErrForm('Seleccione el método de pago.'); return; }
-if (!monto || isNaN(parseFloat(monto)) || parseFloat(monto) <= 0) {
+    if (!monto || isNaN(parseFloat(monto)) || parseFloat(monto) <= 0) {
       setErrForm('Ingrese un monto válido mayor a 0.'); return;
     }
     setEnviando(true);
@@ -190,13 +190,129 @@ if (!monto || isNaN(parseFloat(monto)) || parseFloat(monto) <= 0) {
         }),
       });
       const data = await res.json();
-      if (res.ok) setResultado({ ok: true, ...data });
-      else setErrForm(data.error || 'Error al registrar el pago.');
+      if (data.success) {
+        setResultado({ ok: true, ...data });
+      } else if (data.ya_pagados) {
+        // Periodos ya registrados — refrescar calendario para sincronizar
+        setErrForm('Estos períodos ya estaban pagados. Actualizando calendario...');
+        recargarDeuda();
+      } else {
+        setErrForm(data.error || 'Error al registrar el pago.');
+      }
     } catch {
       setErrForm('Error de conexión con el servidor.');
     } finally {
       setEnviando(false);
     }
+  };
+
+  const generarComprobante = () => {
+    const r = resultado;
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Comprobante ${r.boleta_numero || ''}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #111; background: #fff; padding: 40px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000; padding-bottom: 16px; margin-bottom: 20px; }
+    .org-name { font-weight: 800; font-size: 13px; max-width: 300px; line-height: 1.4; }
+    .org-detail { font-size: 12px; margin-top: 4px; color: #333; line-height: 1.5; }
+    .boleta-box { border: 2px solid #000; padding: 10px 18px; text-align: center; min-width: 200px; }
+    .boleta-box .tipo { font-weight: 800; font-size: 13px; line-height: 1.4; }
+    .boleta-box .numero { font-weight: 800; font-size: 14px; margin-top: 4px; }
+    .section { margin-bottom: 20px; }
+    .section-title { font-weight: 800; font-size: 13px; margin-bottom: 8px; }
+    .adquirente-row { font-size: 13px; margin-bottom: 4px; }
+    .meta-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    thead tr { background: #B91C1C; color: white; }
+    thead th { padding: 8px 12px; text-align: left; font-size: 13px; font-weight: 700; }
+    thead th:last-child, thead th:nth-child(3) { text-align: right; }
+    tbody tr { border-bottom: 1px solid #e5e7eb; }
+    tbody td { padding: 12px; font-size: 13px; vertical-align: top; }
+    tbody td:last-child, tbody td:nth-child(3) { text-align: right; }
+    .totales { display: flex; justify-content: flex-end; margin-bottom: 24px; }
+    .totales-table { min-width: 260px; }
+    .totales-table tr td { padding: 4px 0; font-size: 13px; }
+    .totales-table tr td:last-child { text-align: right; font-weight: 600; }
+    .totales-table tr.total-final td { font-weight: 800; font-size: 14px; border-top: 1px solid #000; padding-top: 8px; }
+    .footer { font-size: 11px; color: #666; margin-top: 20px; }
+    @media print {
+      body { padding: 20px; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="org-name">COLEGIO DE INGENIEROS DEL PERU CONSEJO NACIONAL</div>
+      <div class="org-detail">RUC 20138086438</div>
+      <div class="org-detail">AV. AREQUIPA URB. MIRAFLORES 4947 MIRAFLORES - LIMA - LIMA</div>
+    </div>
+    <div class="boleta-box">
+      <div class="tipo">BOLETA DE VENTA<br/>ELECTRONICA</div>
+      <div class="numero">${r.boleta_numero || 'B001-00000000'}</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">DATOS DEL ADQUIRENTE</div>
+    <div class="adquirente-row">DNI: ${r.colegiado_dni || ''}</div>
+    <div class="adquirente-row">Nombre: ${r.colegiado_nombres || r.colegiado || ''}</div>
+  </div>
+
+  <div class="meta-row">
+    <span>Emision: ${r.emision || r.fecha_pago || ''}</span>
+    <span>Moneda: PEN</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Cant.</th>
+        <th>Descripcion</th>
+        <th>P. Unit.</th>
+        <th>Importe</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>Pago de mensualidad CIP — ${r.periodos_label || ''} (${r.metodo || ''})</td>
+        <td>${parseFloat(r.monto_total || 0).toFixed(2)}</td>
+        <td>${parseFloat(r.monto_total || 0).toFixed(2)}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="totales">
+    <table class="totales-table">
+      <tr><td>Op. inafecta</td><td>S/ ${parseFloat(r.monto_total || 0).toFixed(2)}</td></tr>
+      <tr><td>IGV</td><td>S/ 0.00</td></tr>
+      <tr class="total-final"><td>Importe total</td><td>S/ ${parseFloat(r.monto_total || 0).toFixed(2)}</td></tr>
+    </table>
+  </div>
+
+  <div class="footer">Comprobante generado por el sistema de colegiacion digital.</div>
+
+  <div class="no-print" style="margin-top:30px; text-align:center;">
+    <button onclick="window.print()" style="padding:10px 28px;background:#1e3a5f;color:white;border:none;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;margin-right:10px;">
+      🖨️ Imprimir
+    </button>
+    <button onclick="window.close()" style="padding:10px 28px;background:#64748b;color:white;border:none;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">
+      Cerrar
+    </button>
+  </div>
+</body>
+</html>`;
+    const win = window.open('', '_blank', 'width=800,height=700');
+    win.document.write(html);
+    win.document.close();
+    // Auto-trigger print dialog after a short delay
+    setTimeout(() => win.print(), 600);
   };
 
 const handleNuevoPago = () => {
@@ -224,7 +340,6 @@ const handleNuevoPago = () => {
   if (resultado?.ok) {
     return (
       <div style={{ maxWidth: '680px', margin: '0 auto' }}>
-        {/* Cabecera */}
         <div style={{ marginBottom: '2rem' }}>
           <h1 style={{ fontSize: '1.75rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.25rem' }}>
             ✅ Pago Registrado
@@ -233,7 +348,8 @@ const handleNuevoPago = () => {
         </div>
 
         <div className="card" style={{ borderLeft: '4px solid #10B981', padding: '2rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.75rem' }}>
+          {/* Encabezado éxito */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
             <div style={{ background: '#D1FAE5', padding: '1rem', borderRadius: '50%', color: '#059669', flexShrink: 0 }}>
               <CheckCircle2 size={36} />
             </div>
@@ -241,21 +357,32 @@ const handleNuevoPago = () => {
               <h2 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#065F46' }}>Pago registrado con éxito</h2>
               <p style={{ color: '#047857', fontSize: '0.9rem', marginTop: '0.2rem' }}>
                 {resultado.total_registrado} periodo{resultado.total_registrado !== 1 ? 's' : ''} abonado{resultado.total_registrado !== 1 ? 's' : ''} para{' '}
-                <strong>{resultado.colegiado}</strong>
+                <strong>{resultado.colegiado_nombres || resultado.colegiado}</strong>
               </p>
             </div>
           </div>
 
-          <div style={{ marginBottom: '1.25rem' }}>
-            <p style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.6rem' }}>
-              Periodos pagados
-            </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-              {resultado.periodos_registrados.map(p => (
-                <span key={p} style={{ background: '#D1FAE5', color: '#065F46', padding: '0.3rem 0.75rem', borderRadius: '999px', fontSize: '0.82rem', fontWeight: '600' }}>
-                  {fmtPeriodo(p)}
-                </span>
-              ))}
+          {/* Resumen comprobante */}
+          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '1rem 1.25rem', marginBottom: '1.25rem', fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Boleta N°</span>
+              <strong style={{ fontFamily: 'monospace', color: 'var(--cip-blue)' }}>{resultado.boleta_numero || '—'}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+              <span style={{ color: 'var(--text-muted)' }}>DNI</span>
+              <strong>{resultado.colegiado_dni || '—'}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Periodos</span>
+              <strong style={{ textAlign: 'right', maxWidth: '60%' }}>{resultado.periodos_label || resultado.periodos_registrados?.join(', ')}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Método</span>
+              <strong>{resultado.metodo || '—'}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #E2E8F0', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Importe total</span>
+              <strong style={{ fontSize: '1.1rem', color: '#059669' }}>S/ {parseFloat(resultado.monto_total || 0).toFixed(2)}</strong>
             </div>
           </div>
 
@@ -266,16 +393,29 @@ const handleNuevoPago = () => {
             </div>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1rem', background: resultado.habilitado_nuevo ? '#D1FAE5' : '#FEF3C7', borderRadius: '8px', marginBottom: '1.75rem' }}>
+          {/* Estado habilitación */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1rem', background: resultado.habilitado_nuevo ? '#D1FAE5' : '#FEF3C7', borderRadius: '8px', marginBottom: '1.5rem' }}>
             {resultado.habilitado_nuevo ? <BadgeCheck size={20} color="#059669" /> : <AlertCircle size={20} color="#D97706" />}
             <span style={{ fontSize: '0.875rem', fontWeight: '600', color: resultado.habilitado_nuevo ? '#065F46' : '#92400E' }}>
-              {resultado.habilitado_nuevo
-                ? 'El colegiado ahora está HABILITADO'
-                : 'El colegiado aún tiene meses pendientes (sigue inhabilitado)'}
+              {resultado.habilitado_nuevo ? 'El colegiado ahora está HABILITADO' : 'El colegiado aún tiene meses pendientes (sigue inhabilitado)'}
             </span>
           </div>
 
-          <div style={{ display: 'flex', gap: '1rem' }}>
+          {/* Botones comprobante */}
+          <button
+            onClick={generarComprobante}
+            style={{
+              width: '100%', padding: '0.9rem', marginBottom: '0.75rem',
+              background: 'linear-gradient(135deg, #1e3a5f, #2563EB)',
+              color: 'white', border: 'none', borderRadius: '10px',
+              fontWeight: '800', fontSize: '1rem', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+            }}
+          >
+            <CreditCard size={18} /> Imprimir / Descargar Comprobante
+          </button>
+
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
             <button onClick={handleNuevoPago} className="btn btn-primary" style={{ flex: 1 }}>
               Registrar otro pago
             </button>

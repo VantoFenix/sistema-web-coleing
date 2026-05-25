@@ -846,9 +846,10 @@ class AdminRegistrarPagoPresencialView(APIView):
         # Monto proporcional por periodo
         monto_por_periodo = round(monto_total / len(periodos), 2)
 
-        registrados = []
-        ya_existian = []
-        errores     = []
+        registrados   = []
+        ya_existian   = []
+        errores       = []
+        pagos_creados = []
 
         for periodo_str in periodos:
             try:
@@ -870,6 +871,7 @@ class AdminRegistrarPagoPresencialView(APIView):
 
                 if created:
                     registrados.append(periodo_str)
+                    pagos_creados.append(pago)
                 else:
                     ya_existian.append(periodo_str)
 
@@ -878,19 +880,46 @@ class AdminRegistrarPagoPresencialView(APIView):
 
         if not registrados:
             return Response({
-                'error': 'No se registró ningún pago nuevo.',
+                'success': False,
+                'ya_pagados': True,
+                'error': 'Todos los períodos seleccionados ya tenían pago registrado.',
                 'ya_existian': ya_existian,
                 'errores': errores,
-            }, status=status.HTTP_400_BAD_REQUEST)
+            }, status=status.HTTP_200_OK)
+
+        # Número de boleta basado en el ID del primer pago creado
+        boleta_numero = f'B001-{str(pagos_creados[0].id).zfill(8)}'
+
+        # Etiqueta de periodos para el comprobante
+        MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                    'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+        def _fmt_p(p):
+            y, m = p.split('-')
+            return f"{MESES_ES[int(m)-1]} {y}"
+        periodos_label = ', '.join(_fmt_p(p) for p in sorted(registrados))
+
+        from datetime import datetime as _dt
+        emision = _dt.now().strftime('%d/%m/%Y, %I:%M %p')
 
         return Response({
             'success': True,
-            'colegiado': colegiado.nombres,
+            # datos comprobante
+            'boleta_numero':      boleta_numero,
+            'colegiado_nombres':  colegiado.nombres,
+            'colegiado_dni':      colegiado.dni,
+            'periodos_label':     periodos_label,
+            'monto_total':        round(monto_total, 2),
+            'metodo':             metodo,
+            'fecha_pago':         fecha_pago.strftime('%d/%m/%Y'),
+            'emision':            emision,
+            # datos operativos
             'periodos_registrados': registrados,
-            'ya_existian': ya_existian,
-            'errores': errores,
-            'habilitado_nuevo': _get_habilitado(colegiado.id),
-            'total_registrado': len(registrados),
+            'ya_existian':          ya_existian,
+            'errores':              errores,
+            'habilitado_nuevo':     _get_habilitado(colegiado.id),
+            'total_registrado':     len(registrados),
+            # alias de compatibilidad
+            'colegiado':            colegiado.nombres,
         })
 
 # ==============================================================================
