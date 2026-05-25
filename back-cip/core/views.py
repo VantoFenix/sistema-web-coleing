@@ -1527,6 +1527,7 @@ class AdminVoucherResolverView(APIView):
         monto_unit = round(float(voucher.monto) / max(len(periodos), 1), 2)
         registrados = []
         ya_existian = []
+        errores     = []
 
         for periodo_str in sorted(periodos):
             try:
@@ -1546,6 +1547,12 @@ class AdminVoucherResolverView(APIView):
                 (registrados if created else ya_existian).append(periodo_str)
             except Exception as ex:
                 print(f"[VOUCHER APROBAR] Error guardando {periodo_str}: {ex}", file=sys.stderr)
+                errores.append(f"{periodo_str}: {str(ex)}")
+
+        if errores and not registrados and not ya_existian:
+            return Response({
+                'error': f'No se pudo registrar ningún pago: {errores[0]}',
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         voucher.estado      = 'APROBADO'
         voucher.observacion = observacion
