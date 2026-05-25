@@ -26,8 +26,6 @@ export default function PublicHome() {
         newErrors.documento = 'El número de documento es obligatorio';
       } else if (tipoDocumento === 'DNI' && documentoVal.length !== 8) {
         newErrors.documento = 'El DNI debe tener exactamente 8 dígitos';
-      } else if (tipoDocumento === 'Reg. CIP' && documentoVal.length !== 5) {
-        newErrors.documento = 'El número CIP debe tener exactamente 5 dígitos';
       }
     } else {
       if (!nombresVal.trim()) {
@@ -45,8 +43,7 @@ export default function PublicHome() {
       try {
         let url = '';
         if (searchMethod === 'documento') {
-          if (tipoDocumento === 'DNI') url = `/api/public/padron/?dni=${documentoVal}`;
-          else url = `/api/public/padron/?cip=${documentoVal}`;
+          url = `/api/public/padron/?dni=${documentoVal}`;
         } else {
           url = `/api/public/padron/?nombres=${nombresVal}`;
         }
@@ -185,35 +182,21 @@ export default function PublicHome() {
             </div>
 
             {searchMethod === 'documento' ? (
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Tipo de Documento</label>
-                  <select 
-                    className="form-select"
-                    value={tipoDocumento}
-                    onChange={(e) => setTipoDocumento(e.target.value)}
-                  >
-                    <option value="DNI">DNI</option>
-                    <option value="Reg. CIP">Reg. CIP</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Número de Documento</label>
-                  <input
-                    type="text"
-                    className={`form-input ${errors.documento ? 'error' : ''}`}
-                    placeholder={tipoDocumento === 'DNI' ? '8 dígitos' : '5 dígitos'}
-                    value={documentoVal}
-                    maxLength={tipoDocumento === 'DNI' ? 8 : 5}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '');
-                      setDocumentoVal(val);
-                      setErrors({});
-                    }}
-                  />
-                  {errors.documento && <span className="error-text">{errors.documento}</span>}
-                </div>
+              <div className="form-group">
+                <label className="form-label">DNI</label>
+                <input
+                  type="text"
+                  className={`form-input ${errors.documento ? 'error' : ''}`}
+                  placeholder="8 dígitos"
+                  value={documentoVal}
+                  maxLength={8}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    setDocumentoVal(val);
+                    setErrors({});
+                  }}
+                />
+                {errors.documento && <span className="error-text">{errors.documento}</span>}
               </div>
             ) : (
               <div className="form-group">
