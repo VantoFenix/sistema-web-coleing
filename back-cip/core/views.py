@@ -1147,8 +1147,6 @@ class PagoOnlineView(APIView):
                 "transaction_amount": float(monto_total),
                 "description":        f"CIP - {len(periodos)} cuota(s) mensual(es)",
                 "payment_method_id":  "yape",
-                "currency_id":        "PEN",
-                "installments":       1,
                 "payer": {
                     "email":      email_payer,
                     "first_name": first_name,
