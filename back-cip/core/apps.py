@@ -120,8 +120,7 @@ def do_seed_catalogos(sender, **kwargs):
             
             if c['carrera'] and c['sede'] and not Colegiado.objects.filter(dni=c['dni']).exists():
                 Colegiado.objects.create(
-                    dni=c['dni'], nombres=c['nombres'], correo=c['correo'],
-                    celular=c['celular'], password_hash=make_password(c['password']),
+                    dni=c['dni'], nombres=c['nombres'],
                     foto_url='', carrera=c['carrera'], sede=c['sede'],
                     nro_colegiado=c['nro_colegiado'], colegiado_desde=fecha_col, activo=True,
                 )

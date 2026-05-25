@@ -63,11 +63,8 @@ class Solicitud(models.Model):
         db_table = 'solicitud'
 
 class Colegiado(models.Model):
-    correo = models.EmailField(max_length=160, null=True, blank=True)
-    password_hash = models.CharField(max_length=255)
     dni = models.CharField(max_length=8, unique=True)
     nombres = models.CharField(max_length=160)
-    celular = models.CharField(max_length=15, null=True, blank=True)
     foto_url = models.CharField(max_length=500)
     
     carrera = models.ForeignKey(Carrera, on_delete=models.DO_NOTHING)

@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from django.contrib.auth.hashers import make_password, check_password
+from django.contrib.auth.hashers import check_password
 from django.db import connection, transaction, IntegrityError
 from django.http import HttpResponse
 from django.core.files.storage import default_storage
@@ -33,16 +33,19 @@ class AuthLoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        username = request.data.get('username') # puede ser DNI o Correo
+        username = request.data.get('username')
         password = request.data.get('password')
-        role = request.data.get('role', 'COLEGIADO') # 'ADMIN' or 'COLEGIADO'
+        role = request.data.get('role', 'COLEGIADO')  # 'ADMIN' o 'COLEGIADO'
 
-        if not username or not password:
+        if not username:
             return Response({'error': 'Credenciales requeridas'}, status=status.HTTP_400_BAD_REQUEST)
 
         if role == 'ADMIN':
-            # Buscar en Administrador (por correo o usuario)
-            admin = Administrador.objects.filter(correo=username).first() or Administrador.objects.filter(usuario=username).first()
+            # Admin: verifica usuario/correo + contraseña con hash
+            if not password:
+                return Response({'error': 'Credenciales requeridas'}, status=status.HTTP_400_BAD_REQUEST)
+            admin = (Administrador.objects.filter(correo=username).first()
+                     or Administrador.objects.filter(usuario=username).first())
             if admin and check_password(password, admin.password_hash):
                 token = generate_jwt(admin.id, 'ADMIN')
                 return Response({
@@ -51,18 +54,18 @@ class AuthLoginView(APIView):
                     'role': 'ADMIN'
                 })
             return Response({'error': 'Credenciales inválidas'}, status=status.HTTP_401_UNAUTHORIZED)
-            
+
         else:
-            # Buscar en Colegiado (solo por DNI)
-            col = Colegiado.objects.filter(dni=username).first()
-            if col and check_password(password, col.password_hash):
+            # Colegiado: solo verifica que el DNI exista en la BD (portal público)
+            col = Colegiado.objects.filter(dni=username, activo=True).first()
+            if col:
                 token = generate_jwt(col.id, 'COLEGIADO')
                 return Response({
                     'token': token,
                     'user': ColegiadoSerializer(col).data,
                     'role': 'COLEGIADO'
                 })
-            return Response({'error': 'Credenciales inválidas'}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({'error': 'DNI no encontrado. Verifique su número de colegiado.'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 class ReniecConsultaView(APIView):
@@ -390,8 +393,6 @@ class AdminResolverSolicitudView(APIView):
                         siguiente_nro = str((row[0] or 0) + 1).zfill(5)
 
                     Colegiado.objects.create(
-                        correo=solicitud.correo,
-                        password_hash=make_password(solicitud.dni),
                         dni=solicitud.dni,
                         nombres=solicitud.nombres,
                         foto_url=solicitud.foto_url,
@@ -723,20 +724,6 @@ class AdminBuscarColegiadoView(APIView):
         return Response(resultados)
 
 
-class AdminResetPasswordColegiadoView(APIView):
-    """Resetea la contraseña de un colegiado a su DNI (para casos donde el hash es incorrecto)."""
-    authentication_classes = []
-    permission_classes = [AllowAny]
-
-    def post(self, request, pk):
-        col = Colegiado.objects.filter(pk=pk).first()
-        if not col:
-            return Response({'error': 'Colegiado no encontrado.'}, status=404)
-        col.password_hash = make_password(col.dni)
-        col.save(update_fields=['password_hash'])
-        return Response({'success': True, 'mensaje': 'Contraseña restablecida al DNI del colegiado.'})
-
-
 class AdminDeudaColegiadoView(APIView):
     """Devuelve todos los periodos del año actual + deudas previas de un colegiado.
     Cada periodo tiene estado: PAGADO | PENDIENTE | ADELANTO.
@@ -961,7 +948,7 @@ class PagoPreferenciaView(APIView):
                 "currency_id": "PEN",
             }],
             "payer": {
-                "email": getattr(colegiado, 'correo', 'pagador@cip.org.pe'),
+                "email": "pagador@cip.org.pe",
             },
             "back_urls": {
                 "success": success_url,

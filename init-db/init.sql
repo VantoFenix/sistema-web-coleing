@@ -76,11 +76,8 @@ CREATE INDEX idx_solicitud_dni ON solicitud (dni);
 
 CREATE TABLE colegiado (
     id SERIAL PRIMARY KEY,
-    dni CHAR(8) NOT NULL UNIQUE,
+    dni CHAR(8) NOT NULL UNIQUE,            -- clave de acceso al portal (no requiere contraseña)
     nombres VARCHAR(160) NOT NULL,
-    correo VARCHAR(160),                    -- puede ser nulo
-    celular VARCHAR(15),
-    password_hash VARCHAR(255) NOT NULL DEFAULT '',  -- hash Django del DNI; se genera al aprobar solicitud
     foto_url VARCHAR(500) NOT NULL DEFAULT '',
     carrera_id INTEGER NOT NULL REFERENCES carrera(id),
     nro_colegiado CHAR(5) NOT NULL,
