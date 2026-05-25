@@ -15,8 +15,6 @@ const MESES_CORTO = [
   'JUL','AGO','SEP','OCT','NOV','DIC',
 ];
 
-const MONTO_MENSUAL = 20.00;
-
 function fmtPeriodo(p) {
   const [año, mes] = p.split('-');
   return `${MESES[parseInt(mes, 10) - 1]} ${año}`;
@@ -72,17 +70,26 @@ export default function AdminPagoPresencial() {
 
   const [enviando, setEnviando]     = useState(false);
   const [resultado, setResultado]   = useState(null);
+  const [montoMensual, setMontoMensual] = useState(20.00);
 
   const searchRef = useRef(null);
+
+  // Cargar precio configurado
+  useEffect(() => {
+    fetch('/api/admin/configuracion/')
+      .then(r => r.json())
+      .then(d => { if (d.monto_mensualidad) setMontoMensual(parseFloat(d.monto_mensualidad)); })
+      .catch(() => {});
+  }, []);
 
   // Auto-calcular monto
   useEffect(() => {
     if (periodosSeleccionados.size > 0) {
-      setMonto((periodosSeleccionados.size * MONTO_MENSUAL).toFixed(2));
+      setMonto((periodosSeleccionados.size * montoMensual).toFixed(2));
     } else {
       setMonto('');
     }
-  }, [periodosSeleccionados]);
+  }, [periodosSeleccionados, montoMensual]);
 
   const handleBuscar = async () => {
     const q = query.trim();
@@ -439,7 +446,7 @@ export default function AdminPagoPresencial() {
           )}
           {deuda && deuda.total_deuda > 0 && (
             <div style={{ textAlign: 'center' }}>
-              <p style={{ color: '#F87171', fontSize: '1.5rem', fontWeight: '800', margin: 0, lineHeight: 1 }}>S/ {(deuda.total_deuda * MONTO_MENSUAL).toFixed(0)}</p>
+              <p style={{ color: '#F87171', fontSize: '1.5rem', fontWeight: '800', margin: 0, lineHeight: 1 }}>S/ {(deuda.total_deuda * montoMensual).toFixed(0)}</p>
               <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.72rem', margin: 0, marginTop: '0.15rem' }}>total adeudado</p>
             </div>
           )}
@@ -467,7 +474,7 @@ export default function AdminPagoPresencial() {
               </h3>
               {periodosSeleccionados.size > 0 && (
                 <p style={{ fontSize: '0.78rem', color: '#059669', fontWeight: '600', marginTop: '0.25rem', margin: '0.25rem 0 0 0' }}>
-                  {periodosSeleccionados.size} periodo{periodosSeleccionados.size !== 1 ? 's' : ''} seleccionado{periodosSeleccionados.size !== 1 ? 's' : ''} · S/ {(periodosSeleccionados.size * MONTO_MENSUAL).toFixed(2)}
+                  {periodosSeleccionados.size} periodo{periodosSeleccionados.size !== 1 ? 's' : ''} seleccionado{periodosSeleccionados.size !== 1 ? 's' : ''} · S/ {(periodosSeleccionados.size * montoMensual).toFixed(2)}
                 </p>
               )}
             </div>
@@ -654,8 +661,8 @@ export default function AdminPagoPresencial() {
               {periodosSeleccionados.size > 0 ? (
                 <div style={{ background: 'linear-gradient(135deg, #059669, #10B981)', borderRadius: '10px', padding: '1rem 1.25rem', marginBottom: '1.25rem', color: 'white' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                    <span style={{ fontSize: '0.82rem', opacity: 0.9 }}>{periodosSeleccionados.size} mes{periodosSeleccionados.size !== 1 ? 'es' : ''} × S/ {MONTO_MENSUAL.toFixed(2)}</span>
-                    <strong style={{ fontSize: '1.4rem', fontWeight: '800' }}>S/ {(periodosSeleccionados.size * MONTO_MENSUAL).toFixed(2)}</strong>
+                    <span style={{ fontSize: '0.82rem', opacity: 0.9 }}>{periodosSeleccionados.size} mes{periodosSeleccionados.size !== 1 ? 'es' : ''} × S/ {montoMensual.toFixed(2)}</span>
+                    <strong style={{ fontSize: '1.4rem', fontWeight: '800' }}>S/ {(periodosSeleccionados.size * montoMensual).toFixed(2)}</strong>
                   </div>
                   <p style={{ fontSize: '0.72rem', opacity: 0.75, margin: 0 }}>Total calculado automáticamente</p>
                 </div>
