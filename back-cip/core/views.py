@@ -255,13 +255,11 @@ class PublicPostulacionView(APIView):
             solicitud = Solicitud.objects.create(
                 dni=dni,
                 nombres=nombres,
-                correo=f"sin-correo-{dni}@cip.sistema",
                 carrera=carrera,
                 sede=sede,
                 foto_url=f"/media/{foto_name}",
                 titulo_pdf_url=f"/media/{titulo_name}",
                 recibo_pago_url=f"/media/{recibo_name}",
-                firma_url='',
                 estado='EN_REVISION'
             )
         except Exception as e:
