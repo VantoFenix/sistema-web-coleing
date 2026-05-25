@@ -1333,6 +1333,163 @@ class AdminPagoTarjetaView(APIView):
         })
 
 
+class AdminMPPreferenciaView(APIView):
+    """
+    Crea una preferencia de Checkout Pro (QR / init_point) para cobro presencial
+    con tarjeta o Yape escaneando QR.  Canal = CAJA.
+    """
+    authentication_classes = []
+    permission_classes     = [AllowAny]
+
+    def post(self, request):
+        import mercadopago, sys
+
+        colegiado_id = request.data.get('colegiado_id')
+        periodos     = request.data.get('periodos', [])
+        monto        = request.data.get('monto')
+
+        if not all([colegiado_id, periodos, monto]):
+            return Response({'error': 'Faltan datos requeridos (colegiado_id, periodos, monto).'}, status=400)
+
+        colegiado = Colegiado.objects.filter(pk=colegiado_id).first()
+        if not colegiado:
+            return Response({'error': 'Colegiado no encontrado.'}, status=404)
+
+        monto_total  = round(float(monto), 2)
+        external_ref = 'admin-{}~{}'.format(colegiado_id, '~'.join(sorted(periodos)))
+        sdk          = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
+
+        site_url = getattr(settings, 'SITE_URL', '').rstrip('/')
+        if not site_url:
+            site_url = request.scheme + '://' + request.get_host()
+
+        preference_data = {
+            "items": [{
+                "title":       "CIP - {} cuota(s) — Pago Presencial".format(len(periodos)),
+                "quantity":    1,
+                "unit_price":  float(monto_total),
+                "currency_id": "PEN",
+            }],
+            "payer": {
+                "email": getattr(colegiado, 'correo', None) or 'pagador@cip.org.pe',
+            },
+            "back_urls": {
+                "success": '{}/admin/pagos'.format(site_url),
+                "failure": '{}/admin/pagos'.format(site_url),
+                "pending": '{}/admin/pagos'.format(site_url),
+            },
+            "external_reference": external_ref,
+        }
+
+        print("[ADMIN MP PREF] Creando preferencia: {} monto={}".format(external_ref, monto_total), file=sys.stderr)
+        result   = sdk.preference().create(preference_data)
+        response = result.get("response", {})
+        pref_id  = response.get("id")
+        init_pt  = response.get("init_point")
+
+        print("[ADMIN MP PREF] Respuesta: {}".format(response), file=sys.stderr)
+
+        if not pref_id or not init_pt:
+            err = response.get("message") or response.get("error") or "Error desconocido"
+            return Response({'error': 'No se pudo crear el enlace de pago: {}'.format(err)}, status=500)
+
+        return Response({
+            'preference_id': pref_id,
+            'init_point':    init_pt,
+            'external_ref':  external_ref,
+            'monto':         monto_total,
+            'colegiado':     colegiado.nombres,
+        })
+
+
+class AdminMPVerificarView(APIView):
+    """
+    Verifica si el pago de la preferencia QR ya fue aprobado.
+    Recibe external_ref, busca en MP y, si está aprobado, registra los pagos.
+    """
+    authentication_classes = []
+    permission_classes     = [AllowAny]
+
+    def post(self, request):
+        import mercadopago, sys
+
+        external_ref = request.data.get('external_ref', '')
+        if not external_ref:
+            return Response({'error': 'external_ref requerido.'}, status=400)
+
+        sdk    = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
+        result = sdk.payment().search({"external_reference": external_ref})
+        data   = result.get("response", {})
+        pagos  = (data.get("results") or [])
+
+        print("[ADMIN MP VERIF] external_ref={} encontrados={}".format(external_ref, len(pagos)), file=sys.stderr)
+
+        # Buscar el pago aprobado más reciente
+        pago_aprobado = next(
+            (p for p in reversed(pagos) if p.get("status") == "approved"),
+            None
+        )
+
+        if not pago_aprobado:
+            # Ver si hay alguno pendiente
+            pago_pendiente = next((p for p in pagos if p.get("status") in ("pending", "in_process")), None)
+            if pago_pendiente:
+                return Response({'estado': 'PENDIENTE', 'mensaje': 'Pago en proceso, espere un momento…'})
+            return Response({'estado': 'SIN_PAGO', 'mensaje': 'Esperando que el cliente complete el pago…'})
+
+        # Pago aprobado — decodificar external_ref
+        # formato: "admin-{colegiado_id}~{p1}~{p2}"
+        try:
+            partes       = external_ref.split('~')
+            col_id_str   = partes[0].replace('admin-', '')
+            periodos     = partes[1:]
+            colegiado_id = int(col_id_str)
+        except Exception as ex:
+            print("[ADMIN MP VERIF] external_ref inválido: {} → {}".format(external_ref, ex), file=sys.stderr)
+            return Response({'error': 'Referencia de pago inválida.'}, status=400)
+
+        colegiado = Colegiado.objects.filter(pk=colegiado_id).first()
+        if not colegiado:
+            return Response({'error': 'Colegiado no encontrado.'}, status=404)
+
+        payment_id  = str(pago_aprobado.get("id", ""))
+        monto_total = float(pago_aprobado.get("transaction_amount", 0))
+        hoy         = date.today()
+        monto_unit  = round(monto_total / max(len(periodos), 1), 2)
+        registrados = []
+        ya_existian = []
+
+        for periodo_str in sorted(periodos):
+            try:
+                año, mes = map(int, periodo_str.split('-'))
+                _, created = Pago.objects.get_or_create(
+                    colegiado=colegiado,
+                    periodo=date(año, mes, 1),
+                    defaults={
+                        'tipo':          'MENSUALIDAD',
+                        'monto':         monto_unit,
+                        'canal':         'CAJA',
+                        'metodo':        'TARJETA',
+                        'nro_operacion': payment_id,
+                        'fecha_pago':    hoy,
+                    }
+                )
+                (registrados if created else ya_existian).append(periodo_str)
+            except Exception as ex:
+                print("[ADMIN MP VERIF] Error guardando {}: {}".format(periodo_str, ex), file=sys.stderr)
+
+        return Response({
+            'success':              True,
+            'estado':               'APROBADO',
+            'colegiado':            colegiado.nombres,
+            'nro_operacion':        payment_id,
+            'periodos_registrados': registrados,
+            'ya_existian':          ya_existian,
+            'total_registrado':     len(registrados),
+            'habilitado_nuevo':     _get_habilitado(colegiado.id),
+        })
+
+
 class PagoOnlineStatusView(APIView):
     """Consulta el estado de un pago MP pendiente (polling para Yape)."""
     permission_classes = [IsAuthenticated]
