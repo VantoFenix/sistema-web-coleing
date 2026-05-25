@@ -1147,11 +1147,12 @@ class PagoOnlineView(APIView):
                 "transaction_amount": float(monto_total),
                 "description":        f"CIP - {len(periodos)} cuota(s) mensual(es)",
                 "payment_method_id":  "yape",
+                "currency_id":        "PEN",
+                "installments":       1,
                 "payer": {
                     "email":      email_payer,
                     "first_name": first_name,
                     "last_name":  last_name,
-                    # area_code debe ser "51" sin el símbolo "+"
                     "phone":      {"area_code": "51", "number": str(phone_number)},
                 },
             }
@@ -1234,8 +1235,9 @@ class PagoOnlineView(APIView):
         else:
             detalle   = response.get("status_detail", "")
             error_mp  = response.get("error", "")
+            mp_msg    = response.get("message", "")
             causa_mp  = response.get("cause", [])
-            print(f"[MP] RECHAZADO — status_detail={detalle} error={error_mp} cause={causa_mp}", file=sys.stderr)
+            print(f"[MP] RECHAZADO — status={mp_status} status_detail={detalle} error={error_mp} message={mp_msg} cause={causa_mp}", file=sys.stderr)
 
             msgs = {
                 # Tarjeta
@@ -1256,14 +1258,22 @@ class PagoOnlineView(APIView):
 
             if detalle in msgs:
                 mensaje = msgs[detalle]
+            elif mp_msg:
+                # Mostrar el mensaje real de MP para diagnóstico
+                mensaje = f"Error MP: {mp_msg}"
+                if causa_mp:
+                    first_cause = causa_mp[0] if isinstance(causa_mp, list) else causa_mp
+                    cause_desc = first_cause.get("description", "") if isinstance(first_cause, dict) else str(first_cause)
+                    if cause_desc:
+                        mensaje += f" ({cause_desc})"
             elif error_mp:
-                mensaje = f"Error MP: {error_mp} — {detalle or 'sin detalle'}"
+                mensaje = f"Error MP: {error_mp}" + (f" — {detalle}" if detalle else "")
             elif detalle:
                 mensaje = f"Pago rechazado: {detalle}"
             else:
                 mensaje = f"Pago rechazado por MercadoPago (status: {mp_status})."
 
-            return Response({'error': mensaje, 'mp_detail': detalle}, status=402)
+            return Response({'error': mensaje, 'mp_detail': detalle, 'mp_error': error_mp}, status=402)
 
 
 class PagoOnlineStatusView(APIView):
