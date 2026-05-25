@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from django.contrib.auth.hashers import make_password, check_password
+from django.contrib.auth.hashers import check_password
 from django.db import connection, transaction, IntegrityError
 from django.http import HttpResponse
 from django.core.files.storage import default_storage
@@ -33,16 +33,19 @@ class AuthLoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        username = request.data.get('username') # puede ser DNI o Correo
+        username = request.data.get('username')
         password = request.data.get('password')
-        role = request.data.get('role', 'COLEGIADO') # 'ADMIN' or 'COLEGIADO'
+        role = request.data.get('role', 'COLEGIADO')  # 'ADMIN' o 'COLEGIADO'
 
-        if not username or not password:
+        if not username:
             return Response({'error': 'Credenciales requeridas'}, status=status.HTTP_400_BAD_REQUEST)
 
         if role == 'ADMIN':
-            # Buscar en Administrador (por correo o usuario)
-            admin = Administrador.objects.filter(correo=username).first() or Administrador.objects.filter(usuario=username).first()
+            # Admin: verifica usuario/correo + contraseña con hash
+            if not password:
+                return Response({'error': 'Credenciales requeridas'}, status=status.HTTP_400_BAD_REQUEST)
+            admin = (Administrador.objects.filter(correo=username).first()
+                     or Administrador.objects.filter(usuario=username).first())
             if admin and check_password(password, admin.password_hash):
                 token = generate_jwt(admin.id, 'ADMIN')
                 return Response({
@@ -51,18 +54,18 @@ class AuthLoginView(APIView):
                     'role': 'ADMIN'
                 })
             return Response({'error': 'Credenciales inválidas'}, status=status.HTTP_401_UNAUTHORIZED)
-            
+
         else:
-            # Buscar en Colegiado (solo por DNI)
-            col = Colegiado.objects.filter(dni=username).first()
-            if col and check_password(password, col.password_hash):
+            # Colegiado: solo verifica que el DNI exista en la BD (portal público)
+            col = Colegiado.objects.filter(dni=username, activo=True).first()
+            if col:
                 token = generate_jwt(col.id, 'COLEGIADO')
                 return Response({
                     'token': token,
                     'user': ColegiadoSerializer(col).data,
                     'role': 'COLEGIADO'
                 })
-            return Response({'error': 'Credenciales inválidas'}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({'error': 'DNI no encontrado. Verifique su número de colegiado.'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 class ReniecConsultaView(APIView):
@@ -252,13 +255,11 @@ class PublicPostulacionView(APIView):
             solicitud = Solicitud.objects.create(
                 dni=dni,
                 nombres=nombres,
-                correo=f"sin-correo-{dni}@cip.sistema",
                 carrera=carrera,
                 sede=sede,
                 foto_url=f"/media/{foto_name}",
                 titulo_pdf_url=f"/media/{titulo_name}",
                 recibo_pago_url=f"/media/{recibo_name}",
-                firma_url='',
                 estado='EN_REVISION'
             )
         except Exception as e:
@@ -390,8 +391,6 @@ class AdminResolverSolicitudView(APIView):
                         siguiente_nro = str((row[0] or 0) + 1).zfill(5)
 
                     Colegiado.objects.create(
-                        correo=solicitud.correo,
-                        password_hash=make_password(solicitud.dni),
                         dni=solicitud.dni,
                         nombres=solicitud.nombres,
                         foto_url=solicitud.foto_url,
@@ -947,7 +946,7 @@ class PagoPreferenciaView(APIView):
                 "currency_id": "PEN",
             }],
             "payer": {
-                "email": getattr(colegiado, 'correo', 'pagador@cip.org.pe'),
+                "email": "pagador@cip.org.pe",
             },
             "back_urls": {
                 "success": success_url,
@@ -1331,387 +1330,6 @@ class AdminPagoTarjetaView(APIView):
             'total_registrado':   len(registrados),
             'habilitado_nuevo':   _get_habilitado(colegiado.id),
         })
-
-
-def _get_or_create_mp_pos():
-    """
-    Obtiene o crea el store+POS de MercadoPago para QR presencial (Yape/Plin).
-    Retorna (user_id_str, external_pos_id).
-    Los IDs se cachean en la tabla Configuracion para no recrearlos.
-    """
-    import requests as http, sys
-
-    EXTERNAL_POS_ID = 'cip-caja-001'
-    access_token    = settings.MP_ACCESS_TOKEN
-    hdr = {'Authorization': 'Bearer {}'.format(access_token), 'Content-Type': 'application/json'}
-
-    # Obtener user_id del collector
-    r = http.get('https://api.mercadopago.com/users/me', headers=hdr, timeout=10)
-    user_id = str(r.json().get('id', ''))
-    if not user_id:
-        raise ValueError('No se pudo obtener el user_id de MercadoPago.')
-
-    # Si el POS ya fue creado antes, retornar directo
-    if Configuracion.objects.filter(clave='mp_pos_ready', valor='1').exists():
-        return user_id, EXTERNAL_POS_ID
-
-    # ── Crear Store ──────────────────────────────────────────────────────────
-    r_store = http.post(
-        'https://api.mercadopago.com/users/{}/stores'.format(user_id),
-        json={
-            'name':        'CIP Colegio de Ingenieros',
-            'external_id': 'cip-store-001',
-            'location': {
-                'street_name':   'Av. Arequipa',
-                'street_number': '4947',
-                'city_name':     'Lima',
-                'state_name':    'Lima',
-                'country_code':  'PE',
-                'latitude':      -12.0464,
-                'longitude':     -77.0428,
-            },
-        },
-        headers={**hdr, 'x-idempotency-key': 'cip-store-v2'},
-        timeout=10,
-    )
-    store_data = r_store.json()
-    store_id   = store_data.get('id')
-    print('[MP POS SETUP] store create → status={} data={}'.format(r_store.status_code, store_data), file=sys.stderr)
-
-    # Si ya existía (conflict), buscarlo por external_id
-    if not store_id:
-        r2      = http.get(
-            'https://api.mercadopago.com/users/{}/stores/search?external_id=cip-store-001'.format(user_id),
-            headers=hdr, timeout=10,
-        )
-        rs      = r2.json()
-        results = rs.get('data', {}).get('results', rs.get('results', []))
-        if results:
-            store_id = results[0].get('id')
-        print('[MP POS SETUP] store search → id={} raw={}'.format(store_id, rs), file=sys.stderr)
-
-    if not store_id:
-        raise ValueError('No se pudo crear/encontrar el store de MP: {}'.format(store_data))
-
-    # ── Crear POS ────────────────────────────────────────────────────────────
-    r_pos    = http.post(
-        'https://api.mercadopago.com/pos',
-        json={
-            'name':         'Caja CIP',
-            'fixed_amount': False,
-            'store_id':     store_id,
-            'external_id':  EXTERNAL_POS_ID,
-        },
-        headers={**hdr, 'x-idempotency-key': 'cip-pos-v1'},
-        timeout=10,
-    )
-    pos_resp = r_pos.json()
-    print('[MP POS SETUP] pos → {}'.format(pos_resp), file=sys.stderr)
-
-    # Verificar que el POS existe (creado o ya existía)
-    pos_id = pos_resp.get('id')
-    if not pos_id:
-        # Intentar obtener el POS por external_id si ya existía
-        r_get = http.get('https://api.mercadopago.com/pos?external_id={}'.format(EXTERNAL_POS_ID),
-                         headers=hdr, timeout=10)
-        results = r_get.json().get('results', [])
-        if results:
-            pos_id = results[0].get('id')
-        if not pos_id:
-            raise ValueError('No se pudo crear/obtener el POS de MP: {}'.format(pos_resp))
-
-    # Guardar flag en caché solo si el POS está confirmado
-    Configuracion.objects.update_or_create(
-        clave='mp_pos_ready',
-        defaults={'valor': '1', 'descripcion': 'MP POS {} listo'.format(EXTERNAL_POS_ID)}
-    )
-    return user_id, EXTERNAL_POS_ID
-
-
-class AdminMPPreferenciaView(APIView):
-    """
-    Genera el QR de cobro presencial:
-    - YAPE  → QR Punto de Venta (in-store, EMVCo — Yape lo escanea directo)
-    - otros → Checkout Pro (init_point URL — cliente abre en browser)
-    Canal = CAJA.
-    """
-    authentication_classes = []
-    permission_classes     = [AllowAny]
-
-    def post(self, request):
-        import mercadopago, sys, uuid
-
-        colegiado_id = request.data.get('colegiado_id')
-        periodos     = request.data.get('periodos', [])
-        monto        = request.data.get('monto')
-        metodo       = (request.data.get('metodo') or 'TARJETA').upper()
-
-        if not all([colegiado_id, periodos]):
-            return Response({'error': 'Faltan datos requeridos (colegiado_id, periodos).'}, status=400)
-
-        colegiado = Colegiado.objects.filter(pk=colegiado_id).first()
-        if not colegiado:
-            return Response({'error': 'Colegiado no encontrado.'}, status=404)
-
-        monto_total = round(float(monto), 2) if monto else round(len(periodos) * _get_monto_mensualidad(), 2)
-
-        # ════════════════════════════════════════════════════════════════════
-        # YAPE — QR Punto de Venta (EMVCo, Yape lo escanea directamente)
-        # ════════════════════════════════════════════════════════════════════
-        if metodo == 'YAPE':
-            import requests as http
-
-            # Nonce para external_ref único — evita colisiones con pagos viejos
-            nonce        = uuid.uuid4().hex[:8]
-            external_ref = 'admin-{}-{}~{}'.format(colegiado_id, nonce, '~'.join(sorted(periodos)))
-
-            try:
-                user_id, external_pos_id = _get_or_create_mp_pos()
-            except Exception as exc:
-                print('[ADMIN YAPE QR] Error POS setup: {}'.format(exc), file=sys.stderr)
-                return Response({'error': 'Error configurando POS de MercadoPago: {}'.format(exc)}, status=500)
-
-            hdr = {
-                'Authorization': 'Bearer {}'.format(settings.MP_ACCESS_TOKEN),
-                'Content-Type':  'application/json',
-            }
-            order_data = {
-                'external_reference': external_ref,
-                'title':              'CIP - {} cuota(s)'.format(len(periodos)),
-                'total_amount':       float(monto_total),
-                'items': [{
-                    'sku_number':   'mensualidad-cip',
-                    'category':     'services',
-                    'title':        'CIP Mensualidad x{}'.format(len(periodos)),
-                    'description':  'Colegiado: {}'.format(colegiado.nombres),
-                    'unit_price':   float(monto_total),
-                    'quantity':     1,
-                    'unit_measure': 'unit',
-                    'total_amount': float(monto_total),
-                }],
-                'cash_out': {'amount': 0},
-            }
-            url = 'https://api.mercadopago.com/instore/orders/qr/seller/collectors/{}/pos/{}/qrs'.format(
-                user_id, external_pos_id)
-            print('[ADMIN YAPE QR] PUT {} monto={}'.format(external_ref, monto_total), file=sys.stderr)
-            r    = http.put(url, json=order_data, headers=hdr, timeout=15)
-            rdata = r.json()
-            print('[ADMIN YAPE QR] respuesta: {}'.format(rdata), file=sys.stderr)
-
-            qr_data = rdata.get('qr_data')
-            if not qr_data:
-                err = rdata.get('message') or rdata.get('error') or str(rdata)
-                return Response({'error': 'No se pudo generar QR Yape: {}'.format(err)}, status=500)
-
-            return Response({
-                'qr_data':      qr_data,      # string EMVCo → renderizar como QR
-                'qr_type':      'instore',
-                'external_ref': external_ref,
-                'monto':        monto_total,
-                'colegiado':    colegiado.nombres,
-            })
-
-        # ════════════════════════════════════════════════════════════════════
-        # TARJETA / otros — Checkout Pro (URL QR, abre en browser)
-        # ════════════════════════════════════════════════════════════════════
-        external_ref = 'admin-{}~{}'.format(colegiado_id, '~'.join(sorted(periodos)))
-        sdk          = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
-
-        site_url = getattr(settings, 'SITE_URL', '').rstrip('/')
-        if not site_url:
-            site_url = request.scheme + '://' + request.get_host()
-
-        preference_data = {
-            "items": [{
-                "title":       "CIP - {} cuota(s) — Pago Presencial".format(len(periodos)),
-                "quantity":    1,
-                "unit_price":  float(monto_total),
-                "currency_id": "PEN",
-            }],
-            "payer": {
-                "email": getattr(colegiado, 'correo', None) or 'pagador@cip.org.pe',
-            },
-            "back_urls": {
-                "success": '{}/admin/pagos'.format(site_url),
-                "failure": '{}/admin/pagos'.format(site_url),
-                "pending": '{}/admin/pagos'.format(site_url),
-            },
-            "external_reference": external_ref,
-        }
-
-        print("[ADMIN MP PREF] Creando preferencia: {} monto={}".format(external_ref, monto_total), file=sys.stderr)
-        result   = sdk.preference().create(preference_data)
-        response = result.get("response", {})
-        pref_id  = response.get("id")
-        init_pt  = response.get("init_point")
-        print("[ADMIN MP PREF] Respuesta: {}".format(response), file=sys.stderr)
-
-        if not pref_id or not init_pt:
-            err = response.get("message") or response.get("error") or "Error desconocido"
-            return Response({'error': 'No se pudo crear el enlace de pago: {}'.format(err)}, status=500)
-
-        return Response({
-            'preference_id': pref_id,
-            'init_point':    init_pt,
-            'qr_type':       'checkout',
-            'external_ref':  external_ref,
-            'monto':         monto_total,
-            'colegiado':     colegiado.nombres,
-        })
-
-
-class AdminMPVerificarView(APIView):
-    """
-    Verifica si el pago de la preferencia QR ya fue aprobado.
-    Recibe external_ref, busca en MP y, si está aprobado, registra los pagos.
-    """
-    authentication_classes = []
-    permission_classes     = [AllowAny]
-
-    def post(self, request):
-        import mercadopago, sys
-
-        external_ref  = request.data.get('external_ref', '')
-        preference_id = request.data.get('preference_id', '')
-
-        if not external_ref and not preference_id:
-            return Response({'error': 'external_ref o preference_id requerido.'}, status=400)
-
-        sdk = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
-
-        # Buscar por preference_id primero (único por QR generado, evita falsos positivos
-        # de pagos anteriores con el mismo external_ref).
-        if preference_id:
-            result = sdk.payment().search({"preference_id": preference_id})
-            print("[ADMIN MP VERIF] preference_id={} → buscando por preferencia".format(preference_id), file=sys.stderr)
-        else:
-            result = sdk.payment().search({"external_reference": external_ref})
-            print("[ADMIN MP VERIF] external_ref={} → buscando por referencia".format(external_ref), file=sys.stderr)
-
-        data   = result.get("response", {})
-        pagos  = (data.get("results") or [])
-
-        print("[ADMIN MP VERIF] encontrados={}".format(len(pagos)), file=sys.stderr)
-
-        # Buscar el pago aprobado más reciente
-        pago_aprobado = next(
-            (p for p in reversed(pagos) if p.get("status") == "approved"),
-            None
-        )
-
-        if not pago_aprobado:
-            # Ver si hay alguno pendiente
-            pago_pendiente = next((p for p in pagos if p.get("status") in ("pending", "in_process")), None)
-            if pago_pendiente:
-                return Response({'estado': 'PENDIENTE', 'mensaje': 'Pago en proceso, espere un momento…'})
-            return Response({'estado': 'SIN_PAGO', 'mensaje': 'Esperando que el cliente complete el pago…'})
-
-        # Pago aprobado — decodificar external_ref
-        # formato viejo:  "admin-{id}~{p1}~{p2}"
-        # formato nuevo:  "admin-{id}-{nonce}~{p1}~{p2}"  (in-store, nonce es hex 8 chars)
-        # El external_ref puede venir del pago aprobado o del request
-        actual_ref = external_ref or (pago_aprobado.get('external_reference') or '')
-        try:
-            partes       = actual_ref.split('~')
-            # primer segmento: "admin-123" o "admin-123-abc12345"
-            sub          = partes[0].split('-')   # ['admin', '123'] o ['admin', '123', 'abc12345']
-            colegiado_id = int(sub[1])
-            periodos     = partes[1:]
-        except Exception as ex:
-            print("[ADMIN MP VERIF] external_ref inválido: {} → {}".format(actual_ref, ex), file=sys.stderr)
-            return Response({'error': 'Referencia de pago inválida.'}, status=400)
-
-        colegiado = Colegiado.objects.filter(pk=colegiado_id).first()
-        if not colegiado:
-            return Response({'error': 'Colegiado no encontrado.'}, status=404)
-
-        payment_id  = str(pago_aprobado.get("id", ""))
-        monto_total = float(pago_aprobado.get("transaction_amount", 0))
-        hoy         = date.today()
-        monto_unit  = round(monto_total / max(len(periodos), 1), 2)
-        registrados = []
-        ya_existian = []
-
-        # Detectar método real desde la respuesta de MP
-        mp_pm = (pago_aprobado.get('payment_method_id') or '').lower()
-        if mp_pm == 'yape':
-            metodo_pago = 'YAPE'
-        else:
-            metodo_pago = 'TARJETA'   # visa, master, amex, débito, etc.
-
-        for periodo_str in sorted(periodos):
-            try:
-                año, mes = map(int, periodo_str.split('-'))
-                _, created = Pago.objects.get_or_create(
-                    colegiado=colegiado,
-                    periodo=date(año, mes, 1),
-                    defaults={
-                        'tipo':          'MENSUALIDAD',
-                        'monto':         monto_unit,
-                        'canal':         'CAJA',
-                        'metodo':        metodo_pago,
-                        'nro_operacion': payment_id,
-                        'fecha_pago':    hoy,
-                    }
-                )
-                (registrados if created else ya_existian).append(periodo_str)
-            except Exception as ex:
-                print("[ADMIN MP VERIF] Error guardando {}: {}".format(periodo_str, ex), file=sys.stderr)
-
-        return Response({
-            'success':              True,
-            'estado':               'APROBADO',
-            'colegiado':            colegiado.nombres,
-            'nro_operacion':        payment_id,
-            'periodos_registrados': registrados,
-            'ya_existian':          ya_existian,
-            'total_registrado':     len(registrados),
-            'habilitado_nuevo':     _get_habilitado(colegiado.id),
-        })
-
-
-class AdminMPDiagnosticoView(APIView):
-    """Diagnóstico del setup de MercadoPago in-store QR (stores, POS, última respuesta)."""
-    authentication_classes = []
-    permission_classes     = [AllowAny]
-
-    def get(self, request):
-        import requests as http, sys
-
-        access_token = settings.MP_ACCESS_TOKEN
-        hdr  = {'Authorization': 'Bearer {}'.format(access_token), 'Content-Type': 'application/json'}
-        info = {'token_tipo': 'TEST' if access_token.startswith('TEST-') else 'PRODUCCION'}
-
-        # 1. Usuario / collector
-        r_user = http.get('https://api.mercadopago.com/users/me', headers=hdr, timeout=10)
-        ud     = r_user.json()
-        user_id = str(ud.get('id', ''))
-        info['user_id']    = user_id
-        info['user_email'] = ud.get('email')
-        info['user_site']  = ud.get('site_id')
-        info['user_tags']  = ud.get('tags', [])
-
-        # 2. Stores
-        r_st    = http.get('https://api.mercadopago.com/users/{}/stores/search'.format(user_id), headers=hdr, timeout=10)
-        st_data = r_st.json()
-        info['stores_status'] = r_st.status_code
-        info['stores']        = st_data.get('data', {}).get('results', st_data)
-
-        # 3. POS
-        r_pos    = http.get('https://api.mercadopago.com/pos', headers=hdr, timeout=10)
-        pos_data = r_pos.json()
-        info['pos_status'] = r_pos.status_code
-        info['pos_list']   = pos_data.get('results', pos_data)
-
-        # 4. Cache en BD
-        info['mp_pos_ready_cache'] = Configuracion.objects.filter(clave='mp_pos_ready').values('valor').first()
-
-        return Response(info)
-
-    def delete(self, request):
-        """Limpia el caché del POS para forzar re-creación."""
-        deleted, _ = Configuracion.objects.filter(clave__in=['mp_pos_ready', 'mp_user_id']).delete()
-        return Response({'ok': True, 'eliminados': deleted})
 
 
 class PagoOnlineStatusView(APIView):
