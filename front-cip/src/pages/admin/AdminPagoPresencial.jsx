@@ -93,14 +93,16 @@ export default function AdminPagoPresencial() {
   // Auto-polling cada 5s mientras hay un QR activo
   useEffect(() => {
     if (!mpData) return;
-    const ref   = mpData.external_ref;
-    const prefId = mpData.preference_id;
+    const ref    = mpData.external_ref;
+    const prefId = mpData.qr_type === 'instore' ? undefined : mpData.preference_id;
     const intervalo = setInterval(async () => {
       try {
+        const body = { external_ref: ref };
+        if (prefId) body.preference_id = prefId;
         const res = await fetch('/api/admin/mp/verificar/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ external_ref: ref, preference_id: prefId }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
         if (data.success) {
@@ -218,6 +220,7 @@ export default function AdminPagoPresencial() {
             colegiado_id: colegiado.id,
             periodos: [...periodosSeleccionados].sort(),
             monto: parseFloat((periodosSeleccionados.size * montoMensual).toFixed(2)),
+            metodo,
           }),
         });
         const data = await res.json();
@@ -266,10 +269,12 @@ export default function AdminPagoPresencial() {
     if (!mpData) return;
     setMpVerificando(true);
     try {
+      const vBody = { external_ref: mpData.external_ref };
+      if (mpData.qr_type !== 'instore') vBody.preference_id = mpData.preference_id;
       const res = await fetch('/api/admin/mp/verificar/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ external_ref: mpData.external_ref, preference_id: mpData.preference_id }),
+        body: JSON.stringify(vBody),
       });
       const data = await res.json();
       if (data.success) {
@@ -761,36 +766,30 @@ export default function AdminPagoPresencial() {
                 <strong style={{ fontSize: '1.4rem', fontWeight: '800' }}>S/ {mpData.monto?.toFixed(2) || monto}</strong>
               </div>
 
-              {/* Aviso Yape */}
-              {metodo === 'YAPE' && (
-                <div style={{ background: '#FEF3C7', border: '1.5px solid #F59E0B', borderRadius: '8px', padding: '0.65rem 0.85rem', marginBottom: '0.9rem', fontSize: '0.78rem', color: '#92400E', fontWeight: '600' }}>
-                  ⚠️ <strong>Escanear con la CÁMARA del teléfono</strong>, no desde la app Yape.<br />
-                  <span style={{ fontWeight: '400' }}>La app Yape no acepta este tipo de QR. En la página que abre, el cliente elige Yape.</span>
-                </div>
-              )}
-
               {/* QR Code */}
-              <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-                <div style={{ display: 'inline-block', padding: '10px', background: 'white', border: '3px solid #2563EB', borderRadius: '12px' }}>
+              <div style={{ textAlign: 'center', marginBottom: '0.75rem' }}>
+                <div style={{
+                  display: 'inline-block', padding: '10px', background: 'white',
+                  border: `3px solid ${metodo === 'YAPE' ? '#7C3AED' : '#2563EB'}`,
+                  borderRadius: '12px',
+                }}>
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(mpData.init_point)}`}
-                    alt="QR MercadoPago"
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${
+                      encodeURIComponent(mpData.qr_type === 'instore' ? mpData.qr_data : mpData.init_point)
+                    }`}
+                    alt="QR de pago"
                     style={{ width: 200, height: 200, display: 'block' }}
                   />
                 </div>
               </div>
 
-              {/* Pasos */}
-              {metodo === 'YAPE' ? (
-                <ol style={{ fontSize: '0.76rem', color: '#374151', paddingLeft: '1.2rem', margin: '0 0 1rem 0', lineHeight: '1.7' }}>
-                  <li>Abrir la <strong>cámara</strong> del celular</li>
-                  <li>Apuntar al QR de arriba</li>
-                  <li>Tocar la notificación que aparece</li>
-                  <li>En la página de MercadoPago, elegir <strong>Yape</strong></li>
-                  <li>Autorizar en la app Yape</li>
-                </ol>
+              {/* Instrucciones */}
+              {mpData.qr_type === 'instore' ? (
+                <div style={{ background: '#F5F3FF', border: '1.5px solid #7C3AED', borderRadius: '8px', padding: '0.65rem 0.85rem', marginBottom: '0.9rem', fontSize: '0.78rem', color: '#4C1D95' }}>
+                  📲 <strong>El cliente abre Yape</strong> → toca el ícono QR → escanea este código → confirma el pago.
+                </div>
               ) : (
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '1rem', textAlign: 'center' }}>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.75rem', textAlign: 'center' }}>
                   Compatible con Visa, Mastercard, Amex, débito
                 </p>
               )}
@@ -811,22 +810,26 @@ export default function AdminPagoPresencial() {
                   {mpVerificando ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
                   Verificar ahora
                 </button>
-                <button
-                  onClick={copiarEnlace}
-                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.6rem', borderRadius: '8px', border: '1.5px solid #E2E8F0', background: 'white', color: copiado ? '#059669' : 'var(--text-main)', fontWeight: '700', fontSize: '0.78rem', cursor: 'pointer' }}
-                >
-                  <Copy size={14} />
-                  {copiado ? '¡Copiado!' : 'Copiar enlace'}
-                </button>
+                {mpData.qr_type !== 'instore' && (
+                  <button
+                    onClick={copiarEnlace}
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.6rem', borderRadius: '8px', border: '1.5px solid #E2E8F0', background: 'white', color: copiado ? '#059669' : 'var(--text-main)', fontWeight: '700', fontSize: '0.78rem', cursor: 'pointer' }}
+                  >
+                    <Copy size={14} />
+                    {copiado ? '¡Copiado!' : 'Copiar enlace'}
+                  </button>
+                )}
               </div>
-              <a
-                href={mpData.init_point}
-                target="_blank"
-                rel="noreferrer"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.5rem', borderRadius: '8px', background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#64748B', fontSize: '0.75rem', textDecoration: 'none', marginBottom: '0.75rem' }}
-              >
-                <ExternalLink size={13} /> Abrir en nueva pestaña
-              </a>
+              {mpData.qr_type !== 'instore' && (
+                <a
+                  href={mpData.init_point}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.5rem', borderRadius: '8px', background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#64748B', fontSize: '0.75rem', textDecoration: 'none', marginBottom: '0.75rem' }}
+                >
+                  <ExternalLink size={13} /> Abrir en nueva pestaña
+                </a>
+              )}
               <button
                 onClick={() => { setMpData(null); setMpMsg(''); setErrForm(''); }}
                 style={{ width: '100%', padding: '0.55rem', borderRadius: '8px', border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#B91C1C', fontWeight: '600', fontSize: '0.78rem', cursor: 'pointer' }}
