@@ -1405,6 +1405,8 @@ class PortalPagoVoucherView(APIView):
 # ==============================================================================
 class AdminVouchersListView(APIView):
     """Lista todos los vouchers pendientes de verificación (estado=PENDIENTE)."""
+    authentication_classes = []
+    permission_classes     = [AllowAny]
 
     def get(self, request):
         import json as _json
@@ -1438,6 +1440,8 @@ class AdminVouchersListView(APIView):
 
 class AdminVoucherResolverView(APIView):
     """Aprueba o rechaza un voucher pendiente. Acción: APROBAR | RECHAZAR."""
+    authentication_classes = []
+    permission_classes     = [AllowAny]
 
     def post(self, request, pk):
         import json as _json, sys
