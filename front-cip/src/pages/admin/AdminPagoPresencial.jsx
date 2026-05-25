@@ -761,11 +761,16 @@ export default function AdminPagoPresencial() {
                 <strong style={{ fontSize: '1.4rem', fontWeight: '800' }}>S/ {mpData.monto?.toFixed(2) || monto}</strong>
               </div>
 
+              {/* Aviso Yape */}
+              {metodo === 'YAPE' && (
+                <div style={{ background: '#FEF3C7', border: '1.5px solid #F59E0B', borderRadius: '8px', padding: '0.65rem 0.85rem', marginBottom: '0.9rem', fontSize: '0.78rem', color: '#92400E', fontWeight: '600' }}>
+                  ⚠️ <strong>Escanear con la CÁMARA del teléfono</strong>, no desde la app Yape.<br />
+                  <span style={{ fontWeight: '400' }}>La app Yape no acepta este tipo de QR. En la página que abre, el cliente elige Yape.</span>
+                </div>
+              )}
+
               {/* QR Code */}
               <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.6rem', fontWeight: '600' }}>
-                  El cliente escanea este QR con su teléfono para pagar:
-                </p>
                 <div style={{ display: 'inline-block', padding: '10px', background: 'white', border: '3px solid #2563EB', borderRadius: '12px' }}>
                   <img
                     src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(mpData.init_point)}`}
@@ -773,12 +778,22 @@ export default function AdminPagoPresencial() {
                     style={{ width: 200, height: 200, display: 'block' }}
                   />
                 </div>
-                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                  {metodo === 'YAPE'
-                    ? 'El cliente escanea con su teléfono y paga con Yape'
-                    : 'Compatible con Visa, Mastercard, Amex, débito'}
-                </p>
               </div>
+
+              {/* Pasos */}
+              {metodo === 'YAPE' ? (
+                <ol style={{ fontSize: '0.76rem', color: '#374151', paddingLeft: '1.2rem', margin: '0 0 1rem 0', lineHeight: '1.7' }}>
+                  <li>Abrir la <strong>cámara</strong> del celular</li>
+                  <li>Apuntar al QR de arriba</li>
+                  <li>Tocar la notificación que aparece</li>
+                  <li>En la página de MercadoPago, elegir <strong>Yape</strong></li>
+                  <li>Autorizar en la app Yape</li>
+                </ol>
+              ) : (
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '1rem', textAlign: 'center' }}>
+                  Compatible con Visa, Mastercard, Amex, débito
+                </p>
+              )}
 
               {/* Estado polling */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.65rem 0.85rem', background: '#EFF6FF', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #BFDBFE' }}>
