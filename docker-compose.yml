@@ -23,3 +23,6 @@ services:
       - "5173:5173"
     environment:
       - CHOKIDAR_USEPOLLING=true
+      - API_TARGET=http://backend:8000
+    depends_on:
+      - backend
