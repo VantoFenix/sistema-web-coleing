@@ -100,34 +100,16 @@ export default function Postular() {
     const file = e.target.files?.[0];
     if (!file) return;
     setFotoInfo('');
-    setFoto(null);
     setSubmitError('');
 
-    if (file.type !== 'image/jpeg') {
-      setFotoInfo('Solo se aceptan imágenes JPG.');
-      return;
-    }
     if (file.size > 2 * 1024 * 1024) {
       setFotoInfo('La imagen supera el límite de 2 MB.');
+      setFoto(null);
       return;
     }
 
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      if (img.width !== 413 || img.height !== 531) {
-        setFotoInfo(`Dimensiones incorrectas (${img.width}×${img.height} px). Debe ser exactamente 413×531 px.`);
-      } else {
-        setFoto(file);
-        setFotoInfo(`✓ 413×531 px · ${(file.size / 1024).toFixed(0)} KB`);
-      }
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      setFotoInfo('No se pudo leer la imagen.');
-    };
-    img.src = url;
+    setFoto(file);
+    setFotoInfo(`✓ ${file.name} · ${(file.size / 1024).toFixed(0)} KB`);
   };
 
   const handleSubmit = async (e) => {
@@ -148,10 +130,6 @@ export default function Postular() {
     }
     if (!foto || !titulo || !recibo) {
       setSubmitError("Debe adjuntar todos los documentos requeridos: Foto, Título Profesional y Recibo de Pago.");
-      return;
-    }
-    if (foto.type !== 'image/jpeg') {
-      setSubmitError("La foto debe ser un archivo JPG.");
       return;
     }
     if (titulo.type !== 'application/pdf') {
@@ -276,16 +254,16 @@ export default function Postular() {
                 <label className="form-label">1. Fotografía Tamaño Pasaporte</label>
                 <div className="upload-box">
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={fileNameStyle}>{foto ? foto.name : 'Solo JPG · 413×531 px'}</p>
+                  <p style={fileNameStyle}>{foto ? foto.name : 'Seleccione su foto (máx. 2 MB)'}</p>
                   <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                    Exactamente 413×531 px · máx. 2 MB
+                    Imagen de identificación · máx. 2 MB
                   </p>
                   {fotoInfo && (
                     <p style={{ fontSize: '0.72rem', color: fotoInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
                       {fotoInfo}
                     </p>
                   )}
-                  <input type="file" accept=".jpg,.jpeg" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-foto" onChange={handleFotoChange} />
+                  <input type="file" accept="image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-foto" onChange={handleFotoChange} />
                   <label htmlFor="file-foto" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
                 </div>
               </div>
