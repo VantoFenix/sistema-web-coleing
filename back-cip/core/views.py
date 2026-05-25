@@ -1401,6 +1401,106 @@ class PortalPagoVoucherView(APIView):
 
 
 # ==============================================================================
+# ADMIN — Verificación de Vouchers (HU15)
+# ==============================================================================
+class AdminVouchersListView(APIView):
+    """Lista todos los vouchers pendientes de verificación (estado=PENDIENTE)."""
+
+    def get(self, request):
+        import json as _json
+        vouchers = (
+            PagoVoucherPendiente.objects
+            .filter(estado='PENDIENTE')
+            .select_related('colegiado')
+            .order_by('creado_en')
+        )
+        data = []
+        for v in vouchers:
+            try:
+                periodos = _json.loads(v.periodos_json)
+            except Exception:
+                periodos = []
+            data.append({
+                'id':               v.id,
+                'colegiado_id':     v.colegiado.id,
+                'colegiado_nombre': v.colegiado.nombres,
+                'colegiado_dni':    v.colegiado.dni,
+                'colegiado_nro':    str(v.colegiado.nro_colegiado),
+                'metodo':           v.metodo,
+                'monto':            str(v.monto),
+                'periodos':         periodos,
+                'nro_referencia':   v.nro_referencia,
+                'voucher_url':      request.build_absolute_uri(v.voucher.url) if v.voucher else None,
+                'creado_en':        v.creado_en.isoformat(),
+            })
+        return Response(data)
+
+
+class AdminVoucherResolverView(APIView):
+    """Aprueba o rechaza un voucher pendiente. Acción: APROBAR | RECHAZAR."""
+
+    def post(self, request, pk):
+        import json as _json, sys
+
+        accion      = (request.data.get('accion') or '').upper()
+        observacion = request.data.get('observacion', '')
+
+        if accion not in ('APROBAR', 'RECHAZAR'):
+            return Response({'error': 'Acción inválida. Use APROBAR o RECHAZAR.'}, status=400)
+
+        voucher = PagoVoucherPendiente.objects.filter(pk=pk, estado='PENDIENTE').first()
+        if not voucher:
+            return Response({'error': 'Voucher no encontrado o ya fue procesado.'}, status=404)
+
+        if accion == 'RECHAZAR':
+            voucher.estado      = 'RECHAZADO'
+            voucher.observacion = observacion
+            voucher.save()
+            return Response({'success': True, 'accion': 'RECHAZADO'})
+
+        # ── APROBAR → registrar pagos en tabla pago ──────────────────────────
+        periodos   = _json.loads(voucher.periodos_json)
+        colegiado  = voucher.colegiado
+        hoy        = date.today()
+        monto_unit = round(float(voucher.monto) / max(len(periodos), 1), 2)
+        registrados = []
+        ya_existian = []
+
+        for periodo_str in sorted(periodos):
+            try:
+                año, mes = map(int, periodo_str.split('-'))
+                _, created = Pago.objects.get_or_create(
+                    colegiado=colegiado,
+                    periodo=date(año, mes, 1),
+                    defaults={
+                        'tipo':          'MENSUALIDAD',
+                        'monto':         monto_unit,
+                        'canal':         'PORTAL',
+                        'metodo':        voucher.metodo,
+                        'nro_operacion': voucher.nro_referencia,
+                        'fecha_pago':    hoy,
+                    }
+                )
+                (registrados if created else ya_existian).append(periodo_str)
+            except Exception as ex:
+                print(f"[VOUCHER APROBAR] Error guardando {periodo_str}: {ex}", file=sys.stderr)
+
+        voucher.estado      = 'APROBADO'
+        voucher.observacion = observacion
+        voucher.save()
+
+        return Response({
+            'success':              True,
+            'accion':               'APROBADO',
+            'periodos_registrados': registrados,
+            'ya_existian':          ya_existian,
+            'habilitado_nuevo':     _get_habilitado(colegiado.id),
+            'colegiado':            colegiado.nombres,
+            'total_registrado':     len(registrados),
+        })
+
+
+# ==============================================================================
 # ADMIN — Configuración del sistema (precio mensualidad, etc.)
 # ==============================================================================
 class AdminConfiguracionView(APIView):
