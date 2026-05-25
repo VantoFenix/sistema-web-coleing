@@ -42,15 +42,15 @@ class Solicitud(models.Model):
     ]
     dni = models.CharField(max_length=8)
     nombres = models.CharField(max_length=160)
-    correo = models.EmailField(max_length=160)
+    correo = models.EmailField(max_length=160, null=True, blank=True)
     celular = models.CharField(max_length=15, null=True, blank=True)
     carrera = models.ForeignKey(Carrera, on_delete=models.DO_NOTHING)
     sede = models.ForeignKey(Sede, on_delete=models.DO_NOTHING, null=True, blank=True)
-    
+
     foto_url = models.CharField(max_length=500)
     titulo_pdf_url = models.CharField(max_length=500)
     recibo_pago_url = models.CharField(max_length=500)
-    firma_url = models.CharField(max_length=500)
+    firma_url = models.CharField(max_length=500, null=True, blank=True)
     
     estado = models.CharField(max_length=20, choices=ESTADOS, default='EN_REVISION')
     motivo_rechazo = models.TextField(null=True, blank=True)
@@ -63,7 +63,7 @@ class Solicitud(models.Model):
         db_table = 'solicitud'
 
 class Colegiado(models.Model):
-    correo = models.EmailField(max_length=160, unique=True)
+    correo = models.EmailField(max_length=160, null=True, blank=True)
     password_hash = models.CharField(max_length=255)
     dni = models.CharField(max_length=8, unique=True)
     nombres = models.CharField(max_length=160)

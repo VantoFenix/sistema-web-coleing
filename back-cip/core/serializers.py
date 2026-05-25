@@ -18,7 +18,7 @@ class ColegiadoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Colegiado
-        fields = ['id', 'dni', 'nombres', 'correo', 'celular', 'carrera', 'nro_colegiado',
+        fields = ['id', 'dni', 'nombres', 'carrera', 'nro_colegiado',
                   'sede', 'foto_url', 'activo', 'colegiado_desde', 'firma_url']
 
     def get_firma_url(self, obj):

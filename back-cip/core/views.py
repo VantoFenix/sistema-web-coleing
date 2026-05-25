@@ -13,7 +13,6 @@ from django.core.files.storage import default_storage
 import os
 import uuid
 from datetime import datetime, date
-from django.core.mail import send_mail
 from django.conf import settings
 
 from .models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago, PagoVoucherPendiente, Configuracion
@@ -196,17 +195,14 @@ class PublicPostulacionView(APIView):
     def post(self, request):
         dni = request.data.get('dni')
         nombres = request.data.get('nombres')
-        celular = request.data.get('celular')
-        correo = request.data.get('correo')
         carrera_nombre = request.data.get('carrera')
         sede_nombre = request.data.get('sede')
-        
+
         foto = request.FILES.get('foto')
         titulo = request.FILES.get('titulo')
         recibo = request.FILES.get('recibo')
-        firma = request.FILES.get('firma')
 
-        if not all([dni, nombres, correo, carrera_nombre, sede_nombre, foto, titulo, recibo, firma]):
+        if not all([dni, nombres, carrera_nombre, sede_nombre, foto, titulo, recibo]):
             return Response({'error': 'Faltan campos o documentos requeridos'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validacion de formatos de archivo
@@ -216,30 +212,18 @@ class PublicPostulacionView(APIView):
             return Response({'error': 'El Título Profesional debe ser un archivo PDF.'}, status=status.HTTP_400_BAD_REQUEST)
         if not (recibo.content_type.startswith('image/') or recibo.content_type == 'application/pdf'):
             return Response({'error': 'El Recibo de Caja debe ser un PDF o una imagen.'}, status=status.HTTP_400_BAD_REQUEST)
-        if not firma.content_type.startswith('image/'):
-            return Response({'error': 'La firma debe ser una imagen (JPG, PNG).'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Verificar que el correo y DNI no pertenezcan a un colegiado ya registrado
-        if Colegiado.objects.filter(correo=correo).exists():
-            return Response(
-                {'error': 'El correo electrónico ya está registrado en el sistema. Si ya es colegiado, ingrese a su portal.'},
-                status=status.HTTP_409_CONFLICT
-            )
+        # Verificar que el DNI no pertenezca a un colegiado ya registrado
         if Colegiado.objects.filter(dni=dni).exists():
             return Response(
                 {'error': 'El DNI ya está registrado como colegiado. Si ya es colegiado, ingrese a su portal.'},
                 status=status.HTTP_409_CONFLICT
             )
 
-        # Verificar que no exista ya una solicitud activa (pendiente o aprobada) para ese DNI o correo
+        # Verificar que no exista ya una solicitud activa para ese DNI
         if Solicitud.objects.filter(dni=dni, estado__in=['EN_REVISION', 'APROBADA']).exists():
             return Response(
                 {'error': 'Ya existe una solicitud activa para este DNI. Puede consultar su estado en la página principal.'},
-                status=status.HTTP_409_CONFLICT
-            )
-        if Solicitud.objects.filter(correo=correo, estado__in=['EN_REVISION', 'APROBADA']).exists():
-            return Response(
-                {'error': 'Ya existe una solicitud activa con este correo electrónico.'},
                 status=status.HTTP_409_CONFLICT
             )
 
@@ -249,18 +233,16 @@ class PublicPostulacionView(APIView):
         if not carrera or not sede:
             return Response({'error': 'Carrera o Sede no válida'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Guardar archivos (Usando el sistema local temporal)
+        # Guardar archivos
         base_path = 'postulaciones/'
         foto_name = f"{base_path}{uuid.uuid4()}_{foto.name}"
         titulo_name = f"{base_path}{uuid.uuid4()}_{titulo.name}"
         recibo_name = f"{base_path}{uuid.uuid4()}_{recibo.name}"
-        firma_name = f"{base_path}{uuid.uuid4()}_{firma.name}"
 
         try:
             default_storage.save(foto_name, foto)
             default_storage.save(titulo_name, titulo)
             default_storage.save(recibo_name, recibo)
-            default_storage.save(firma_name, firma)
         except Exception as e:
             import sys
             print(f"[ERROR] Fallo al guardar archivos: {e}", file=sys.stderr)
@@ -270,14 +252,13 @@ class PublicPostulacionView(APIView):
             solicitud = Solicitud.objects.create(
                 dni=dni,
                 nombres=nombres,
-                correo=correo,
-                celular=celular,
+                correo=f"sin-correo-{dni}@cip.sistema",
                 carrera=carrera,
                 sede=sede,
                 foto_url=f"/media/{foto_name}",
                 titulo_pdf_url=f"/media/{titulo_name}",
                 recibo_pago_url=f"/media/{recibo_name}",
-                firma_url=f"/media/{firma_name}",
+                firma_url='',
                 estado='EN_REVISION'
             )
         except Exception as e:
@@ -413,7 +394,6 @@ class AdminResolverSolicitudView(APIView):
                         password_hash=make_password(solicitud.dni),
                         dni=solicitud.dni,
                         nombres=solicitud.nombres,
-                        celular=solicitud.celular,
                         foto_url=solicitud.foto_url,
                         carrera=solicitud.carrera,
                         sede=solicitud.sede,
@@ -424,9 +404,7 @@ class AdminResolverSolicitudView(APIView):
 
             except IntegrityError as e:
                 msg = str(e)
-                if 'correo' in msg:
-                    detalle = f"El correo '{solicitud.correo}' ya pertenece a otro colegiado."
-                elif 'dni' in msg:
+                if 'dni' in msg:
                     detalle = f"El DNI '{solicitud.dni}' ya pertenece a otro colegiado."
                 else:
                     detalle = f"Conflicto de datos únicos: {msg}"
@@ -438,32 +416,6 @@ class AdminResolverSolicitudView(APIView):
                     {'error': f'Error al crear la cuenta: {str(e)}'},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
-
-            # Correo de bienvenida (fuera del atomic para no bloquear el commit)
-            try:
-                send_mail(
-                    "¡Bienvenido al Colegio de Ingenieros del Perú!",
-                    f"""Estimado(a) {solicitud.nombres},
-
-Su solicitud de colegiatura ha sido APROBADA satisfactoriamente.
-
-Sus credenciales de acceso al Portal del Colegiado son:
-- Número de Colegiatura (CIP): {siguiente_nro}
-- DNI: {solicitud.dni}
-- Contraseña temporal: {solicitud.dni}
-
-Puede ingresar a su portal aquí:
-https://tu-dominio.com/login
-
-Atentamente,
-Colegio de Ingenieros del Perú
-""",
-                    settings.DEFAULT_FROM_EMAIL,
-                    [solicitud.correo],
-                    fail_silently=True,
-                )
-            except Exception as e:
-                print(f"[MAIL WARNING] No se pudo enviar el correo: {e}", file=sys.stderr)
 
             return Response({'success': True, 'estado': 'APROBADA'})
 
