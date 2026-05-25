@@ -206,8 +206,8 @@ export default function AdminPagoPresencial() {
     if (periodosSeleccionados.size === 0) { setErrForm('Seleccione al menos un periodo.'); return; }
     if (!metodo) { setErrForm('Seleccione el método de pago.'); return; }
 
-    // ── TARJETA: genera QR vía Checkout Pro ──────────────────────────────────
-    if (metodo === 'TARJETA') {
+    // ── TARJETA / YAPE: genera QR vía Checkout Pro ──────────────────────────
+    if (metodo === 'TARJETA' || metodo === 'YAPE') {
       setEnviando(true);
       try {
         const res = await fetch('/api/admin/mp/preferencia/', {
@@ -216,12 +216,13 @@ export default function AdminPagoPresencial() {
           body: JSON.stringify({
             colegiado_id: colegiado.id,
             periodos: [...periodosSeleccionados].sort(),
+            monto: parseFloat((periodosSeleccionados.size * montoMensual).toFixed(2)),
           }),
         });
         const data = await res.json();
         if (res.ok) {
           setMpData(data);
-          setMpMsg('Esperando que el cliente escanee el QR…');
+          setMpMsg(metodo === 'YAPE' ? 'Esperando que el cliente pague con Yape…' : 'Esperando que el cliente escanee el QR…');
         } else {
           setErrForm(data.error || 'Error al generar el QR de pago.');
         }
@@ -750,7 +751,7 @@ export default function AdminPagoPresencial() {
           ) : mpData ? (
             <div className="card" style={{ padding: '1.5rem' }}>
               <h3 style={{ fontSize: '1rem', fontWeight: '700', color: '#1D4ED8', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.45rem', borderBottom: '2px solid #3B82F6', paddingBottom: '0.5rem' }}>
-                <CreditCard size={18} /> Cobro con Tarjeta — MercadoPago
+                <Smartphone size={18} /> Cobro con {metodo === 'YAPE' ? 'Yape' : 'Tarjeta'} — MercadoPago
               </h3>
 
               {/* Monto */}
@@ -772,7 +773,9 @@ export default function AdminPagoPresencial() {
                   />
                 </div>
                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                  Compatible con Visa, Mastercard, Amex, débito
+                  {metodo === 'YAPE'
+                    ? 'El cliente escanea con su teléfono y paga con Yape'
+                    : 'Compatible con Visa, Mastercard, Amex, débito'}
                 </p>
               </div>
 
@@ -862,15 +865,17 @@ export default function AdminPagoPresencial() {
                     </button>
                   ))}
                 </div>
-                {metodo === 'TARJETA' && (
+                {(metodo === 'TARJETA' || metodo === 'YAPE') && (
                   <p style={{ fontSize: '0.68rem', color: '#2563EB', marginTop: '0.35rem', fontWeight: '600' }}>
-                    💳 Genera un QR que el cliente escanea con su teléfono
+                    {metodo === 'YAPE'
+                      ? '📲 Genera un QR que el cliente escanea y paga con Yape'
+                      : '💳 Genera un QR que el cliente escanea con su teléfono'}
                   </p>
                 )}
               </div>
 
-              {/* Monto editable (solo si NO es tarjeta) */}
-              {metodo !== 'TARJETA' && (
+              {/* Monto editable (solo métodos manuales — no QR) */}
+              {metodo !== 'TARJETA' && metodo !== 'YAPE' && (
                 <div className="form-group" style={{ marginBottom: '1.1rem' }}>
                   <label className="form-label" style={{ fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between' }}>
                     <span>Monto Total (S/.)</span>
@@ -893,8 +898,8 @@ export default function AdminPagoPresencial() {
                 </div>
               )}
 
-              {/* Resumen rápido (solo no-tarjeta) */}
-              {metodo && metodo !== 'TARJETA' && periodosSeleccionados.size > 0 && monto && (
+              {/* Resumen rápido (solo métodos manuales — no QR) */}
+              {metodo && metodo !== 'TARJETA' && metodo !== 'YAPE' && periodosSeleccionados.size > 0 && monto && (
                 <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.78rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', color: 'var(--text-muted)' }}>
                     <span>Periodos:</span><strong style={{ color: 'var(--text-main)' }}>{periodosSeleccionados.size}</strong>
@@ -922,7 +927,9 @@ export default function AdminPagoPresencial() {
                   padding: '0.9rem', fontSize: '0.95rem',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
                   background: (enviando || periodosSeleccionados.size === 0 || !metodo) ? '#94A3B8'
-                    : metodo === 'TARJETA' ? '#2563EB' : '#10B981',
+                    : metodo === 'TARJETA' ? '#2563EB'
+                    : metodo === 'YAPE'    ? '#7C3AED'
+                    : '#10B981',
                   border: 'none', borderRadius: '10px', color: 'white',
                   fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0 || !metodo) ? 'not-allowed' : 'pointer',
                   transition: 'all 0.15s',
@@ -934,7 +941,9 @@ export default function AdminPagoPresencial() {
                   ? <><Loader2 size={18} className="spin" /> Procesando…</>
                   : metodo === 'TARJETA'
                     ? <><CreditCard size={18} /> Generar QR de pago</>
-                    : <><CheckCircle2 size={18} /> Confirmar y Registrar</>
+                    : metodo === 'YAPE'
+                      ? <><Smartphone size={18} /> Generar QR Yape</>
+                      : <><CheckCircle2 size={18} /> Confirmar y Registrar</>
                 }
               </button>
             </div>
