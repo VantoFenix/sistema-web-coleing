@@ -36,8 +36,9 @@ urlpatterns = [
     # Pago tarjeta presencial (admin + MP gateway)
     path('api/admin/pagos/tarjeta/', views.AdminPagoTarjetaView.as_view(), name='admin-pago-tarjeta'),
     # QR / Checkout Pro presencial
-    path('api/admin/mp/preferencia/', views.AdminMPPreferenciaView.as_view(), name='admin-mp-preferencia'),
-    path('api/admin/mp/verificar/',   views.AdminMPVerificarView.as_view(),   name='admin-mp-verificar'),
+    path('api/admin/mp/preferencia/', views.AdminMPPreferenciaView.as_view(),   name='admin-mp-preferencia'),
+    path('api/admin/mp/verificar/',   views.AdminMPVerificarView.as_view(),     name='admin-mp-verificar'),
+    path('api/admin/mp/diagnostico/', views.AdminMPDiagnosticoView.as_view(),  name='admin-mp-diagnostico'),
     
     # Pago Online — MercadoPago
     path('api/pagos/mp-config/',    views.MPConfigView.as_view(),                    name='mp-config'),

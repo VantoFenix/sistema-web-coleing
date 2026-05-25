@@ -1389,7 +1389,7 @@ def _get_or_create_mp_pos():
         raise ValueError('No se pudo crear el store de MP: {}'.format(store_data))
 
     # ── Crear POS ────────────────────────────────────────────────────────────
-    r_pos = http.post(
+    r_pos    = http.post(
         'https://api.mercadopago.com/pos',
         json={
             'name':         'Caja CIP',
@@ -1400,12 +1400,25 @@ def _get_or_create_mp_pos():
         headers={**hdr, 'x-idempotency-key': 'cip-pos-v1'},
         timeout=10,
     )
-    print('[MP POS SETUP] pos → {}'.format(r_pos.json()), file=sys.stderr)
+    pos_resp = r_pos.json()
+    print('[MP POS SETUP] pos → {}'.format(pos_resp), file=sys.stderr)
 
-    # Guardar flag en caché
+    # Verificar que el POS existe (creado o ya existía)
+    pos_id = pos_resp.get('id')
+    if not pos_id:
+        # Intentar obtener el POS por external_id si ya existía
+        r_get = http.get('https://api.mercadopago.com/pos?external_id={}'.format(EXTERNAL_POS_ID),
+                         headers=hdr, timeout=10)
+        results = r_get.json().get('results', [])
+        if results:
+            pos_id = results[0].get('id')
+        if not pos_id:
+            raise ValueError('No se pudo crear/obtener el POS de MP: {}'.format(pos_resp))
+
+    # Guardar flag en caché solo si el POS está confirmado
     Configuracion.objects.update_or_create(
         clave='mp_pos_ready',
-        defaults={'valor': '1', 'descripcion': 'MP POS cip-caja-001 listo'}
+        defaults={'valor': '1', 'descripcion': 'MP POS {} listo'.format(EXTERNAL_POS_ID)}
     )
     return user_id, EXTERNAL_POS_ID
 
@@ -1650,6 +1663,50 @@ class AdminMPVerificarView(APIView):
             'total_registrado':     len(registrados),
             'habilitado_nuevo':     _get_habilitado(colegiado.id),
         })
+
+
+class AdminMPDiagnosticoView(APIView):
+    """Diagnóstico del setup de MercadoPago in-store QR (stores, POS, última respuesta)."""
+    authentication_classes = []
+    permission_classes     = [AllowAny]
+
+    def get(self, request):
+        import requests as http, sys
+
+        access_token = settings.MP_ACCESS_TOKEN
+        hdr  = {'Authorization': 'Bearer {}'.format(access_token), 'Content-Type': 'application/json'}
+        info = {'token_tipo': 'TEST' if access_token.startswith('TEST-') else 'PRODUCCION'}
+
+        # 1. Usuario / collector
+        r_user = http.get('https://api.mercadopago.com/users/me', headers=hdr, timeout=10)
+        ud     = r_user.json()
+        user_id = str(ud.get('id', ''))
+        info['user_id']    = user_id
+        info['user_email'] = ud.get('email')
+        info['user_site']  = ud.get('site_id')
+        info['user_tags']  = ud.get('tags', [])
+
+        # 2. Stores
+        r_st    = http.get('https://api.mercadopago.com/users/{}/stores/search'.format(user_id), headers=hdr, timeout=10)
+        st_data = r_st.json()
+        info['stores_status'] = r_st.status_code
+        info['stores']        = st_data.get('data', {}).get('results', st_data)
+
+        # 3. POS
+        r_pos    = http.get('https://api.mercadopago.com/pos', headers=hdr, timeout=10)
+        pos_data = r_pos.json()
+        info['pos_status'] = r_pos.status_code
+        info['pos_list']   = pos_data.get('results', pos_data)
+
+        # 4. Cache en BD
+        info['mp_pos_ready_cache'] = Configuracion.objects.filter(clave='mp_pos_ready').values('valor').first()
+
+        return Response(info)
+
+    def delete(self, request):
+        """Limpia el caché del POS para forzar re-creación."""
+        deleted, _ = Configuracion.objects.filter(clave__in=['mp_pos_ready', 'mp_user_id']).delete()
+        return Response({'ok': True, 'eliminados': deleted})
 
 
 class PagoOnlineStatusView(APIView):
