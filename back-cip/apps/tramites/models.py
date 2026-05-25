@@ -117,6 +117,13 @@ class TramiteInscripcion(models.Model):
         help_text='URL externa del voucher (si se usa almacenamiento en la nube)'
     )
 
+    firma_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text='URL externa de la firma (si se usa almacenamiento en la nube)'
+    )
+
     # ==== Estado del Trámite ====
     estado = models.CharField(
         max_length=15,

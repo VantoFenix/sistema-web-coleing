@@ -7,17 +7,17 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.hashers import make_password, check_password
-from django.db import connection
+from django.db import connection, transaction, IntegrityError
 from django.http import HttpResponse
 from django.core.files.storage import default_storage
 import os
 import uuid
-import pandas as pd
 from datetime import datetime, date
 from django.core.mail import send_mail
 from django.conf import settings
 
-from .models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago, CargaRecaudacion
+from .models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago, PagoVoucherPendiente, Configuracion
+from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import AdministradorSerializer, ColegiadoSerializer, SolicitudSerializer, CarreraSerializer, SedeSerializer
 
 def generate_jwt(user_id, role):
@@ -76,6 +76,18 @@ class ReniecConsultaView(APIView):
         dni = request.query_params.get('dni')
         if not dni or len(dni) != 8 or not dni.isdigit():
             return Response({'error': 'DNI inválido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verificar contra la BD antes de consumir la API externa
+        if Colegiado.objects.filter(dni=dni).exists():
+            return Response(
+                {'error': 'DNI_YA_COLEGIADO', 'detalle': 'Este DNI ya está registrado como colegiado. Ingrese a su portal.'},
+                status=status.HTTP_409_CONFLICT
+            )
+        if Solicitud.objects.filter(dni=dni, estado__in=['EN_REVISION', 'APROBADA']).exists():
+            return Response(
+                {'error': 'DNI_CON_SOLICITUD', 'detalle': 'Este DNI ya tiene una solicitud activa. Puede consultar su estado en la página principal.'},
+                status=status.HTTP_409_CONFLICT
+            )
 
         token = os.getenv('RENIEC_TOKEN')
         if not token:
@@ -192,8 +204,9 @@ class PublicPostulacionView(APIView):
         foto = request.FILES.get('foto')
         titulo = request.FILES.get('titulo')
         recibo = request.FILES.get('recibo')
+        firma = request.FILES.get('firma')
 
-        if not all([dni, nombres, correo, carrera_nombre, sede_nombre, foto, titulo, recibo]):
+        if not all([dni, nombres, correo, carrera_nombre, sede_nombre, foto, titulo, recibo, firma]):
             return Response({'error': 'Faltan campos o documentos requeridos'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validacion de formatos de archivo
@@ -203,6 +216,32 @@ class PublicPostulacionView(APIView):
             return Response({'error': 'El Título Profesional debe ser un archivo PDF.'}, status=status.HTTP_400_BAD_REQUEST)
         if not (recibo.content_type.startswith('image/') or recibo.content_type == 'application/pdf'):
             return Response({'error': 'El Recibo de Caja debe ser un PDF o una imagen.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not firma.content_type.startswith('image/'):
+            return Response({'error': 'La firma debe ser una imagen (JPG, PNG).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verificar que el correo y DNI no pertenezcan a un colegiado ya registrado
+        if Colegiado.objects.filter(correo=correo).exists():
+            return Response(
+                {'error': 'El correo electrónico ya está registrado en el sistema. Si ya es colegiado, ingrese a su portal.'},
+                status=status.HTTP_409_CONFLICT
+            )
+        if Colegiado.objects.filter(dni=dni).exists():
+            return Response(
+                {'error': 'El DNI ya está registrado como colegiado. Si ya es colegiado, ingrese a su portal.'},
+                status=status.HTTP_409_CONFLICT
+            )
+
+        # Verificar que no exista ya una solicitud activa (pendiente o aprobada) para ese DNI o correo
+        if Solicitud.objects.filter(dni=dni, estado__in=['EN_REVISION', 'APROBADA']).exists():
+            return Response(
+                {'error': 'Ya existe una solicitud activa para este DNI. Puede consultar su estado en la página principal.'},
+                status=status.HTTP_409_CONFLICT
+            )
+        if Solicitud.objects.filter(correo=correo, estado__in=['EN_REVISION', 'APROBADA']).exists():
+            return Response(
+                {'error': 'Ya existe una solicitud activa con este correo electrónico.'},
+                status=status.HTTP_409_CONFLICT
+            )
 
         # Buscar carrera y sede
         carrera = Carrera.objects.filter(nombre=carrera_nombre).first()
@@ -215,11 +254,13 @@ class PublicPostulacionView(APIView):
         foto_name = f"{base_path}{uuid.uuid4()}_{foto.name}"
         titulo_name = f"{base_path}{uuid.uuid4()}_{titulo.name}"
         recibo_name = f"{base_path}{uuid.uuid4()}_{recibo.name}"
+        firma_name = f"{base_path}{uuid.uuid4()}_{firma.name}"
 
         try:
             default_storage.save(foto_name, foto)
             default_storage.save(titulo_name, titulo)
             default_storage.save(recibo_name, recibo)
+            default_storage.save(firma_name, firma)
         except Exception as e:
             import sys
             print(f"[ERROR] Fallo al guardar archivos: {e}", file=sys.stderr)
@@ -236,6 +277,7 @@ class PublicPostulacionView(APIView):
                 foto_url=f"/media/{foto_name}",
                 titulo_pdf_url=f"/media/{titulo_name}",
                 recibo_pago_url=f"/media/{recibo_name}",
+                firma_url=f"/media/{firma_name}",
                 estado='EN_REVISION'
             )
         except Exception as e:
@@ -327,7 +369,7 @@ class AdminResolverSolicitudView(APIView):
     def post(self, request, pk):
         accion = request.data.get('accion') # 'APROBAR' o 'RECHAZAR'
         comentarios = request.data.get('comentarios', '')
-        
+
         try:
             solicitud = Solicitud.objects.get(pk=pk, estado='EN_REVISION')
         except Solicitud.DoesNotExist:
@@ -339,49 +381,69 @@ class AdminResolverSolicitudView(APIView):
             solicitud.resuelto_en = datetime.utcnow()
             solicitud.save()
             return Response({'success': True, 'estado': 'RECHAZADA'})
-            
-        elif accion == 'APROBAR':
-            solicitud.estado = 'APROBADA'
-            solicitud.resuelto_en = datetime.utcnow()
-            solicitud.save()
-            
-            # Generar Nro Colegiado — único por CARRERA + SEDE
-            # Ej: Civil Lima → 00001, 00002 ... independiente de Civil Arequipa → 00001, 00002
-            with connection.cursor() as cursor:
-                if solicitud.sede_id:
-                    cursor.execute(
-                        "SELECT MAX(CAST(nro_colegiado AS INTEGER)) "
-                        "FROM colegiado WHERE carrera_id = %s AND sede_id = %s",
-                        [solicitud.carrera_id, solicitud.sede_id]
-                    )
-                else:
-                    # Sin sede → serie propia solo por carrera (sin sede asignada)
-                    cursor.execute(
-                        "SELECT MAX(CAST(nro_colegiado AS INTEGER)) "
-                        "FROM colegiado WHERE carrera_id = %s AND sede_id IS NULL",
-                        [solicitud.carrera_id]
-                    )
-                row = cursor.fetchone()
-                siguiente_nro = str((row[0] or 0) + 1).zfill(5)
-            
-            Colegiado.objects.create(
-                correo=solicitud.correo,
-                password_hash=make_password(solicitud.dni), # Contraseña por defecto
-                dni=solicitud.dni,
-                nombres=solicitud.nombres,
-                celular=solicitud.celular,
-                foto_url=solicitud.foto_url,
-                carrera=solicitud.carrera,
-                sede=solicitud.sede, # Puede ser null
-                nro_colegiado=siguiente_nro,
-                solicitud=solicitud,
-                colegiado_desde=datetime.utcnow().date()
-            )
 
-            # Enviar correo de bienvenida al colegiado
+        elif accion == 'APROBAR':
+            import sys
+
             try:
-                asunto = f"¡Bienvenido al Colegio de Ingenieros del Perú!"
-                mensaje = f"""Estimado(a) {solicitud.nombres},
+                with transaction.atomic():
+                    solicitud.estado = 'APROBADA'
+                    solicitud.resuelto_en = datetime.utcnow()
+                    solicitud.save()
+
+                    # Generar Nro Colegiado — único por CARRERA + SEDE
+                    with connection.cursor() as cursor:
+                        if solicitud.sede_id:
+                            cursor.execute(
+                                "SELECT MAX(CAST(nro_colegiado AS INTEGER)) "
+                                "FROM colegiado WHERE carrera_id = %s AND sede_id = %s",
+                                [solicitud.carrera_id, solicitud.sede_id]
+                            )
+                        else:
+                            cursor.execute(
+                                "SELECT MAX(CAST(nro_colegiado AS INTEGER)) "
+                                "FROM colegiado WHERE carrera_id = %s AND sede_id IS NULL",
+                                [solicitud.carrera_id]
+                            )
+                        row = cursor.fetchone()
+                        siguiente_nro = str((row[0] or 0) + 1).zfill(5)
+
+                    Colegiado.objects.create(
+                        correo=solicitud.correo,
+                        password_hash=make_password(solicitud.dni),
+                        dni=solicitud.dni,
+                        nombres=solicitud.nombres,
+                        celular=solicitud.celular,
+                        foto_url=solicitud.foto_url,
+                        carrera=solicitud.carrera,
+                        sede=solicitud.sede,
+                        nro_colegiado=siguiente_nro,
+                        solicitud=solicitud,
+                        colegiado_desde=datetime.utcnow().date()
+                    )
+
+            except IntegrityError as e:
+                msg = str(e)
+                if 'correo' in msg:
+                    detalle = f"El correo '{solicitud.correo}' ya pertenece a otro colegiado."
+                elif 'dni' in msg:
+                    detalle = f"El DNI '{solicitud.dni}' ya pertenece a otro colegiado."
+                else:
+                    detalle = f"Conflicto de datos únicos: {msg}"
+                print(f"[APROBAR] IntegrityError solicitud_id={pk}: {e}", file=sys.stderr)
+                return Response({'error': detalle}, status=status.HTTP_409_CONFLICT)
+            except Exception as e:
+                print(f"[APROBAR] Error solicitud_id={pk}: {e}", file=sys.stderr)
+                return Response(
+                    {'error': f'Error al crear la cuenta: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+            # Correo de bienvenida (fuera del atomic para no bloquear el commit)
+            try:
+                send_mail(
+                    "¡Bienvenido al Colegio de Ingenieros del Perú!",
+                    f"""Estimado(a) {solicitud.nombres},
 
 Su solicitud de colegiatura ha sido APROBADA satisfactoriamente.
 
@@ -395,20 +457,16 @@ https://tu-dominio.com/login
 
 Atentamente,
 Colegio de Ingenieros del Perú
-"""
-                send_mail(
-                    asunto,
-                    mensaje,
+""",
                     settings.DEFAULT_FROM_EMAIL,
                     [solicitud.correo],
                     fail_silently=True,
                 )
             except Exception as e:
-                import sys
                 print(f"[MAIL WARNING] No se pudo enviar el correo: {e}", file=sys.stderr)
 
             return Response({'success': True, 'estado': 'APROBADA'})
-            
+
         return Response({'error': 'Acción inválida'}, status=status.HTTP_400_BAD_REQUEST)
 
 class PortalPerfilView(APIView):
@@ -545,7 +603,7 @@ class PortalPagosView(APIView):
                 'historial': historial,
                 'periodos_pendientes': pendientes,
                 'habilitado': _get_habilitado(col.id),
-                'monto_mensualidad': '20.00',
+                'monto_mensualidad': str(_get_monto_mensualidad()),
             })
 
         except Exception as e:
@@ -620,104 +678,6 @@ class PortalPagosView(APIView):
             'monto_cobrado': monto_total,
         })
 
-class AdminCargaRecaudacionView(APIView):
-    authentication_classes = []
-    permission_classes = [AllowAny]  # MVP: En prod debería ser IsAuthenticated(Admin)
-
-    def post(self, request):
-        archivo = request.FILES.get('archivo')
-        carrera = request.data.get('carrera')
-        if not archivo or not carrera:
-            return Response({'error': 'Archivo o carrera no proporcionados'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Leer archivo con pandas
-        try:
-            if archivo.name.endswith('.csv'):
-                df = pd.read_csv(archivo)
-            else:
-                df = pd.read_excel(archivo)
-        except Exception as e:
-            return Response({'error': f'Error al leer el archivo: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Normalizar nombres de columnas
-        df.columns = df.columns.str.strip().str.upper()
-        requeridas = ['CIP', 'MES', 'MONTO']
-        for req in requeridas:
-            if req not in df.columns:
-                return Response({'error': f'Columna requerida no encontrada: {req}'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Crear registro de auditoría (asumiendo que el admin tiene ID 1 para el MVP, en real sacar de request.user)
-        admin = Administrador.objects.first()
-        carga = CargaRecaudacion.objects.create(
-            nombre_archivo=archivo.name,
-            procesado_por=admin,
-            total_filas=len(df),
-            filas_ok=0,
-            filas_error=0
-        )
-
-        filas_ok = 0
-        filas_error = 0
-        errores = []
-
-        # Como todos los pagos se suben "a fin de mes", usaremos el final del mes provisto, o la fecha actual
-        fecha_pago_defecto = date.today()
-
-        for index, row in df.iterrows():
-            try:
-                cip_str = str(row['CIP']).strip()
-                if cip_str.endswith('.0'): cip_str = cip_str[:-2]
-                
-                carrera_nombre = carrera.strip()
-                mes_str = str(row['MES']).strip() # Esperado '2026-05' o '2026-05-01'
-                monto = float(row['MONTO'])
-
-                # Parsear el periodo
-                if len(mes_str) >= 7:
-                    año = int(mes_str[0:4])
-                    mes = int(mes_str[5:7])
-                    periodo_date = date(año, mes, 1)
-                else:
-                    raise ValueError(f"Formato de mes inválido: {mes_str}")
-
-                # Buscar colegiado
-                colegiado = Colegiado.objects.filter(nro_colegiado=cip_str, carrera__nombre=carrera_nombre).first()
-                if not colegiado:
-                    raise ValueError(f"Colegiado no encontrado (CIP: {cip_str}, Carrera: {carrera_nombre})")
-
-                # Crear el pago o actualizar si existe (solo hay 1 pago de mensualidad por periodo)
-                pago, created = Pago.objects.update_or_create(
-                    colegiado=colegiado,
-                    periodo=periodo_date,
-                    defaults={
-                        'tipo': 'MENSUALIDAD',
-                        'monto': monto,
-                        'canal': 'ARCHIVO_RECAUDACION',
-                        'fecha_pago': fecha_pago_defecto,
-                        'carga': carga,
-                        'registrado_por': admin,
-                        'nro_operacion': f"CARGA-{carga.id}-ROW-{index}"
-                    }
-                )
-                filas_ok += 1
-            except Exception as e:
-                filas_error += 1
-                errores.append(f"Fila {index + 2}: {str(e)}")
-
-        # Actualizar auditoría
-        carga.filas_ok = filas_ok
-        carga.filas_error = filas_error
-        carga.save()
-
-        return Response({
-            'success': True,
-            'carga_id': carga.id,
-            'total': len(df),
-            'ok': filas_ok,
-            'error': filas_error,
-            'errores': errores[:10] # Enviar solo los primeros 10 errores para no saturar
-        })
-
 @api_view(['GET'])
 @authentication_classes([])
 @permission_classes([AllowAny])
@@ -733,6 +693,14 @@ def get_catalogos(request):
 # ==============================================================================
 # HU14 — Registro de Pagos Presencial por Administrador
 # ==============================================================================
+
+def _get_monto_mensualidad():
+    """Devuelve el monto de mensualidad configurado en BD (default S/ 20.00)."""
+    try:
+        return round(float(Configuracion.objects.get(clave='monto_mensualidad').valor), 2)
+    except (Configuracion.DoesNotExist, ValueError, TypeError):
+        return 20.00
+
 
 def _get_habilitado(colegiado_id):
     """Consulta la vista v_estado_colegiado y retorna True/False."""
@@ -804,7 +772,9 @@ class AdminBuscarColegiadoView(APIView):
 
 
 class AdminDeudaColegiadoView(APIView):
-    """Devuelve los periodos sin pago de un colegiado (su deuda pendiente)."""
+    """Devuelve todos los periodos del año actual + deudas previas de un colegiado.
+    Cada periodo tiene estado: PAGADO | PENDIENTE | ADELANTO.
+    """
     authentication_classes = []
     permission_classes = [AllowAny]
 
@@ -814,23 +784,56 @@ class AdminDeudaColegiadoView(APIView):
         except Colegiado.DoesNotExist:
             return Response({'error': 'Colegiado no encontrado'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Periodos ya pagados como mensualidad
-        pagos_existentes = set(
-            Pago.objects.filter(colegiado=col, tipo='MENSUALIDAD')
-            .values_list('periodo', flat=True)
-        )
+        # Periodos ya pagados — normalizados a date (Supabase puede devolver datetime)
+        raw_pagados = Pago.objects.filter(colegiado=col, tipo='MENSUALIDAD').values_list('periodo', flat=True)
+        pagados = set()
+        for p in raw_pagados:
+            if p is None:
+                continue
+            if hasattr(p, 'date') and callable(p.date):
+                pagados.add(p.date())
+            elif isinstance(p, str):
+                try:
+                    from datetime import datetime as _dt
+                    pagados.add(_dt.strptime(p[:10], '%Y-%m-%d').date())
+                except Exception:
+                    pass
+            else:
+                pagados.add(p)
 
-        # Todos los meses desde colegiado_desde hasta hoy
         hoy = date.today()
-        todos_los_meses = _meses_entre(col.colegiado_desde, hoy)
+        mes_actual = date(hoy.year, hoy.month, 1)
+        fin_anio   = date(hoy.year, 12, 1)   # diciembre del año en curso
 
-        pendientes = []
+        # Todos los meses: desde colegiado_desde hasta diciembre del año actual
+        todos_los_meses = _meses_entre(col.colegiado_desde, fin_anio)
+
+        periodos = []
+        pendientes_compat = []  # para retrocompatibilidad
+
         for m in todos_los_meses:
-            if m not in pagos_existentes:
-                pendientes.append({
+            pagado    = m in pagados
+            if pagado:
+                estado = 'PAGADO'
+            elif m == mes_actual:
+                estado = 'MES_ACTUAL'   # dentro del plazo → todo el mes para pagar
+            elif m > mes_actual:
+                estado = 'ADELANTO'     # pago anticipado
+            else:
+                estado = 'PENDIENTE'    # mes pasado sin pagar → deuda
+
+            periodos.append({
+                'periodo': m.strftime('%Y-%m'),
+                'fecha':   m.strftime('%Y-%m-%d'),
+                'estado':  estado,
+            })
+            if not pagado:
+                pendientes_compat.append({
                     'periodo': m.strftime('%Y-%m'),
-                    'fecha': m.strftime('%Y-%m-%d'),
+                    'fecha':   m.strftime('%Y-%m-%d'),
                 })
+
+        total_deuda = sum(1 for p in periodos if p['estado'] == 'PENDIENTE')  # solo deudas reales (no MES_ACTUAL)
 
         return Response({
             'colegiado': {
@@ -843,8 +846,9 @@ class AdminDeudaColegiadoView(APIView):
                 'colegiado_desde': col.colegiado_desde.strftime('%Y-%m-%d'),
                 'habilitado': _get_habilitado(col.id),
             },
-            'periodos_pendientes': pendientes,
-            'total_deuda': len(pendientes),
+            'periodos': periodos,                  # ← nuevo
+            'periodos_pendientes': pendientes_compat,  # ← compatibilidad
+            'total_deuda': total_deuda,
         })
 
 
@@ -937,6 +941,489 @@ class AdminRegistrarPagoPresencialView(APIView):
             'habilitado_nuevo': _get_habilitado(colegiado.id),
             'total_registrado': len(registrados),
         })
+
+# ==============================================================================
+# PAGO ONLINE — MercadoPago
+# ==============================================================================
+
+class MPConfigView(APIView):
+    """Devuelve solo la public key al frontend (nunca el access token)."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response({'public_key': settings.MP_PUBLIC_KEY})
+
+
+class PagoPreferenciaView(APIView):
+    """
+    Crea una preferencia de MercadoPago Checkout Pro.
+    Usado para Yape: redirige al checkout nativo de MP donde el usuario paga.
+    Al volver, PagoVerificarPreferenciaView registra el pago automáticamente.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import mercadopago, sys
+
+        periodos = request.data.get('periodos', [])
+        if not periodos:
+            return Response({'error': 'Seleccione al menos un periodo.'}, status=400)
+
+        colegiado   = request.user
+        monto_total = round(len(periodos) * _get_monto_mensualidad(), 2)
+
+        # external_reference: "cip-{id}~{p1}~{p2}" — URL-safe, parseable en el retorno
+        external_ref = 'cip-{}~{}'.format(colegiado.id, '~'.join(sorted(periodos)))
+
+        sdk = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
+
+        # Usar SITE_URL del .env si está definida, si no construir desde la request
+        site_url = getattr(settings, 'SITE_URL', '').rstrip('/')
+        if not site_url:
+            site_url = request.scheme + '://' + request.get_host()
+
+        success_url = '{}/portal/pagos'.format(site_url)
+        failure_url = '{}/portal/pagos'.format(site_url)
+        pending_url = '{}/portal/pagos'.format(site_url)
+
+        preference_data = {
+            "items": [{
+                "title":       "CIP - {} cuota(s) mensual(es)".format(len(periodos)),
+                "quantity":    1,
+                "unit_price":  float(monto_total),
+                "currency_id": "PEN",
+            }],
+            "payer": {
+                "email": getattr(colegiado, 'correo', 'pagador@cip.org.pe'),
+            },
+            "back_urls": {
+                "success": success_url,
+                "failure": failure_url,
+                "pending": pending_url,
+            },
+            # auto_return omitido: requiere URL HTTPS pública validada por MP.
+            # MP mostrará botón "Volver al sitio" → misma URL con payment_id en params.
+            "external_reference": external_ref,
+        }
+
+        print("[MP PREF] Creando preferencia: {} monto={}".format(external_ref, monto_total), file=sys.stderr)
+        result   = sdk.preference().create(preference_data)
+        response = result.get("response", {})
+        pref_id  = response.get("id")
+        init_pt  = response.get("init_point")
+
+        print("[MP PREF] Respuesta: {}".format(response), file=sys.stderr)
+
+        if not pref_id or not init_pt:
+            err = response.get("message") or response.get("error") or "Error desconocido"
+            return Response({'error': 'No se pudo crear el enlace de pago: {}'.format(err)}, status=500)
+
+        return Response({'preference_id': pref_id, 'init_point': init_pt})
+
+
+class PagoVerificarPreferenciaView(APIView):
+    """
+    Verifica y registra un pago de Checkout Pro luego de la redirección desde MP.
+    MP pasa payment_id y external_reference como query params en la back_url.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import mercadopago, sys
+
+        payment_id   = request.data.get('payment_id', '')
+        external_ref = request.data.get('external_reference', '')
+
+        if not payment_id:
+            return Response({'error': 'payment_id requerido.'}, status=400)
+
+        sdk      = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
+        result   = sdk.payment().get(payment_id)
+        response = result.get("response", {})
+        mp_status = response.get("status")
+
+        print("[MP VERIFY] payment_id={} status={}".format(payment_id, mp_status), file=sys.stderr)
+        print("[MP VERIFY] response={}".format(response), file=sys.stderr)
+
+        if mp_status != "approved":
+            return Response(
+                {'error': 'El pago no fue aprobado (estado: {}).'.format(mp_status)},
+                status=402,
+            )
+
+        # Decodificar external_reference → "cip-{id}~{p1}~{p2}"
+        try:
+            parts        = external_ref.split('~')
+            col_id_str   = parts[0].replace('cip-', '')
+            periodos     = parts[1:]
+            assert int(col_id_str) == request.user.id, "colegiado_id no coincide"
+        except Exception as ex:
+            print("[MP VERIFY] external_ref inválido: {} → {}".format(external_ref, ex), file=sys.stderr)
+            return Response({'error': 'Referencia de pago inválida.'}, status=400)
+
+        if not periodos:
+            return Response({'error': 'No se determinaron los periodos a registrar.'}, status=400)
+
+        colegiado   = request.user
+        hoy         = date.today()
+        metodo_str  = (response.get('payment_method_id') or 'CHECKOUT_PRO').upper()
+        registrados = []
+        ya_existian = []
+
+        for periodo_str in sorted(periodos):
+            try:
+                año, mes = map(int, periodo_str.split('-'))
+                _, created = Pago.objects.get_or_create(
+                    colegiado=colegiado,
+                    periodo=date(año, mes, 1),
+                    defaults={
+                        'tipo':          'MENSUALIDAD',
+                        'monto':         _get_monto_mensualidad(),
+                        'canal':         'PORTAL',
+                        'metodo':        metodo_str,
+                        'nro_operacion': str(payment_id),
+                        'fecha_pago':    hoy,
+                    }
+                )
+                (registrados if created else ya_existian).append(periodo_str)
+            except Exception as ex:
+                print("[MP VERIFY] Error guardando {}: {}".format(periodo_str, ex), file=sys.stderr)
+
+        return Response({
+            'success':          True,
+            'periodos_pagados': registrados,
+            'ya_existian':      ya_existian,
+            'nro_operacion':    str(payment_id),
+            'habilitado_nuevo': _get_habilitado(colegiado.id),
+            'monto_cobrado':    round(len(periodos) * _get_monto_mensualidad(), 2),
+        })
+
+
+class PagoOnlineView(APIView):
+    """
+    Procesa pagos online via MercadoPago.
+    Soporta Tarjeta (Visa/MC/Amex): requiere token, payment_method_id, installments.
+    (Yape usa PagoPreferenciaView + PagoVerificarPreferenciaView)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import mercadopago, sys
+
+        payment_method_id = request.data.get('payment_method_id', '')
+        periodos          = request.data.get('periodos', [])
+        email_payer       = (
+            request.data.get('email')
+            or getattr(request.user, 'correo', None)
+            or 'pagador@cip.org.pe'
+        )
+
+        if not periodos:
+            return Response({'error': 'Seleccione al menos un periodo.'}, status=400)
+        if not payment_method_id:
+            return Response({'error': 'Método de pago requerido.'}, status=400)
+
+        monto_total = round(len(periodos) * _get_monto_mensualidad(), 2)
+        sdk         = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
+
+        # ── Construir payload según método ──────────────────────────────────
+        if payment_method_id == 'yape':
+            # Yape: sin token, requiere teléfono del pagador
+            phone_number = (
+                request.data.get('phone')
+                or (request.data.get('payer') or {}).get('phone', {}).get('number', '')
+            )
+            if not phone_number:
+                return Response({'error': 'Número de teléfono Yape requerido.'}, status=400)
+
+            # Extraer nombres del colegiado (first_name y last_name son requeridos por MP)
+            nombres_completo = (getattr(request.user, 'nombres', '') or '').strip()
+            partes           = nombres_completo.split() if nombres_completo else []
+            first_name       = partes[0]          if partes               else 'Colegiado'
+            last_name        = ' '.join(partes[1:]) if len(partes) > 1   else 'CIP'
+
+            payment_data = {
+                "transaction_amount": float(monto_total),
+                "description":        f"CIP - {len(periodos)} cuota(s) mensual(es)",
+                "payment_method_id":  "yape",
+                "payer": {
+                    "email":      email_payer,
+                    "first_name": first_name,
+                    "last_name":  last_name,
+                    # area_code debe ser "51" sin el símbolo "+"
+                    "phone":      {"area_code": "51", "number": str(phone_number)},
+                },
+            }
+            metodo_registro = 'YAPE'
+
+        else:
+            # Tarjeta (Visa/MC/Amex): requiere token
+            token        = request.data.get('token')
+            installments = request.data.get('installments', 1)
+            issuer_id    = request.data.get('issuer_id')
+
+            if not token:
+                return Response({'error': 'Token de tarjeta requerido.'}, status=400)
+
+            payment_data = {
+                "transaction_amount": float(monto_total),
+                "token":              token,
+                "description":        f"CIP - {len(periodos)} cuota(s) mensual(es)",
+                "installments":       int(installments),
+                "payment_method_id":  payment_method_id,
+                "payer":              {"email": email_payer},
+            }
+            if issuer_id:
+                payment_data["issuer_id"] = issuer_id
+            metodo_registro = 'TARJETA'
+
+        # ── Llamar a MP ──────────────────────────────────────────────────────
+        print(f"[MP] Creando pago: metodo={metodo_registro} monto={monto_total} periodos={periodos}", file=sys.stderr)
+        print(f"[MP] Payload enviado: {payment_data}", file=sys.stderr)
+        result    = sdk.payment().create(payment_data)
+        response  = result.get("response", {})
+        mp_status = response.get("status")
+        print(f"[MP] Respuesta completa: {response}", file=sys.stderr)
+
+        # ── Manejar respuesta ────────────────────────────────────────────────
+        if mp_status == "approved":
+            colegiado   = request.user
+            hoy         = date.today()
+            registrados = []
+            ya_existian = []
+
+            for periodo_str in sorted(periodos):
+                try:
+                    año, mes = map(int, periodo_str.split('-'))
+                    _, created = Pago.objects.get_or_create(
+                        colegiado=colegiado,
+                        periodo=date(año, mes, 1),
+                        defaults={
+                            'tipo':          'MENSUALIDAD',
+                            'monto':         _get_monto_mensualidad(),
+                            'canal':         'PORTAL',
+                            'metodo':        metodo_registro,
+                            'nro_operacion': str(response.get("id", "")),
+                            'fecha_pago':    hoy,
+                        }
+                    )
+                    (registrados if created else ya_existian).append(periodo_str)
+                except Exception as ex:
+                    print(f"[MP] Error guardando periodo {periodo_str}: {ex}", file=sys.stderr)
+
+            return Response({
+                'success':          True,
+                'periodos_pagados': registrados,
+                'ya_existian':      ya_existian,
+                'nro_operacion':    str(response.get("id", "")),
+                'habilitado_nuevo': _get_habilitado(colegiado.id),
+                'monto_cobrado':    monto_total,
+            })
+
+        elif mp_status in ("pending", "in_process"):
+            # Yape puede quedar pending mientras el usuario aprueba en la app
+            # Devolvemos pending_id para que el frontend haga polling
+            return Response({
+                'pending':      True,
+                'mp_id':        str(response.get("id", "")),
+                'periodos':     periodos,
+                'monto':        monto_total,
+            }, status=202)
+
+        else:
+            detalle   = response.get("status_detail", "")
+            error_mp  = response.get("error", "")
+            causa_mp  = response.get("cause", [])
+            print(f"[MP] RECHAZADO — status_detail={detalle} error={error_mp} cause={causa_mp}", file=sys.stderr)
+
+            msgs = {
+                # Tarjeta
+                "cc_rejected_bad_filled_card_number":   "Número de tarjeta incorrecto.",
+                "cc_rejected_bad_filled_date":          "Fecha de vencimiento incorrecta.",
+                "cc_rejected_bad_filled_security_code": "Código de seguridad incorrecto.",
+                "cc_rejected_insufficient_amount":      "Fondos insuficientes en la tarjeta.",
+                "cc_rejected_blacklist":                "Tarjeta bloqueada. Contacte a su banco.",
+                "cc_rejected_call_for_authorize":       "Tarjeta requiere autorización. Llame a su banco.",
+                "cc_rejected_card_disabled":            "Tarjeta desactivada. Active pagos en línea.",
+                "cc_rejected_duplicated_payment":       "Pago duplicado. Espere unos minutos.",
+                "cc_rejected_high_risk":                "Pago rechazado por seguridad. Intente con otra tarjeta.",
+                # Yape
+                "yape_rejected_other_reason":           "Pago Yape rechazado. Verifique que el número esté registrado en Yape.",
+                "yape_rejected_not_enough_balance":     "Saldo insuficiente en Yape.",
+                "yape_rejected_invalid_phone":          "Número de teléfono no registrado en Yape.",
+            }
+
+            if detalle in msgs:
+                mensaje = msgs[detalle]
+            elif error_mp:
+                mensaje = f"Error MP: {error_mp} — {detalle or 'sin detalle'}"
+            elif detalle:
+                mensaje = f"Pago rechazado: {detalle}"
+            else:
+                mensaje = f"Pago rechazado por MercadoPago (status: {mp_status})."
+
+            return Response({'error': mensaje, 'mp_detail': detalle}, status=402)
+
+
+class PagoOnlineStatusView(APIView):
+    """Consulta el estado de un pago MP pendiente (polling para Yape)."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, mp_id):
+        import mercadopago, sys
+
+        sdk      = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
+        result   = sdk.payment().get(mp_id)
+        response = result.get("response", {})
+        mp_status = response.get("status")
+
+        if mp_status == "approved":
+            # Registrar los periodos (venían en la URL como query params)
+            periodos_str = request.query_params.get('periodos', '')
+            periodos = [p for p in periodos_str.split(',') if p]
+            colegiado = request.user
+            hoy       = date.today()
+            registrados = []
+
+            for periodo_str in sorted(periodos):
+                try:
+                    año, mes = map(int, periodo_str.split('-'))
+                    _, created = Pago.objects.get_or_create(
+                        colegiado=colegiado,
+                        periodo=date(año, mes, 1),
+                        defaults={
+                            'tipo':          'MENSUALIDAD',
+                            'monto':         _get_monto_mensualidad(),
+                            'canal':         'PORTAL',
+                            'metodo':        'YAPE',
+                            'nro_operacion': str(mp_id),
+                            'fecha_pago':    hoy,
+                        }
+                    )
+                    if created:
+                        registrados.append(periodo_str)
+                except Exception as ex:
+                    print(f"[MP STATUS] Error guardando {periodo_str}: {ex}", file=sys.stderr)
+
+            return Response({
+                'success':          True,
+                'status':           'approved',
+                'periodos_pagados': registrados,
+                'nro_operacion':    str(mp_id),
+                'habilitado_nuevo': _get_habilitado(colegiado.id),
+                'monto_cobrado':    round(len(periodos) * _get_monto_mensualidad(), 2),
+            })
+
+        elif mp_status in ("pending", "in_process"):
+            return Response({'status': 'pending'}, status=202)
+
+        else:
+            return Response({'status': 'rejected', 'error': 'Pago rechazado o expirado.'}, status=402)
+
+
+# ==============================================================================
+# PORTAL — Pago con Voucher (Yape / Plin / Transferencia)
+# ==============================================================================
+class PortalPagoVoucherView(APIView):
+    """Recibe voucher de pago manual y lo guarda como PENDIENTE de revisión."""
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        import json as _json
+
+        user_id = request.user.id
+        col = Colegiado.objects.filter(id=user_id, activo=True).first()
+        if not col:
+            return Response({'error': 'Colegiado no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Periodos: puede llegar como string JSON o como lista
+        periodos_raw = request.data.get('periodos', '')
+        metodo       = request.data.get('metodo', '').upper()
+        voucher_file = request.FILES.get('voucher')
+
+        if not periodos_raw:
+            return Response({'error': 'Seleccione al menos un periodo.'}, status=status.HTTP_400_BAD_REQUEST)
+        if metodo not in ('YAPE', 'PLIN', 'TRANSFERENCIA'):
+            return Response({'error': 'Método de pago inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not voucher_file:
+            return Response({'error': 'Debe adjuntar el comprobante de pago.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Parsear periodos
+        try:
+            periodos = _json.loads(periodos_raw) if isinstance(periodos_raw, str) else list(periodos_raw)
+        except Exception:
+            return Response({'error': 'Formato de periodos inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not periodos:
+            return Response({'error': 'Seleccione al menos un periodo.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verificar que los periodos no estén ya pagados
+        ya_pagados = []
+        for ps in periodos:
+            try:
+                año, mes = map(int, ps.split('-'))
+                if Pago.objects.filter(colegiado=col, periodo=date(año, mes, 1)).exists():
+                    ya_pagados.append(ps)
+            except Exception:
+                pass
+        if ya_pagados:
+            return Response({'error': f'Los siguientes periodos ya están pagados: {", ".join(ya_pagados)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        monto      = round(len(periodos) * _get_monto_mensualidad(), 2)
+        nro_ref    = f"VOC-{uuid.uuid4().hex[:8].upper()}"
+
+        PagoVoucherPendiente.objects.create(
+            colegiado=col,
+            periodos_json=_json.dumps(periodos),
+            monto=monto,
+            metodo=metodo,
+            voucher=voucher_file,
+            nro_referencia=nro_ref,
+        )
+
+        return Response({
+            'success':       True,
+            'nro_referencia': nro_ref,
+            'monto':          f'{monto:.2f}',
+            'periodos':       periodos,
+            'metodo':         metodo,
+        })
+
+
+# ==============================================================================
+# ADMIN — Configuración del sistema (precio mensualidad, etc.)
+# ==============================================================================
+class AdminConfiguracionView(APIView):
+    """GET / PUT para leer y actualizar la configuración del sistema."""
+
+    def get(self, request):
+        return Response({
+            'monto_mensualidad': str(_get_monto_mensualidad()),
+        })
+
+    def put(self, request):
+        monto_str = request.data.get('monto_mensualidad', '')
+        try:
+            monto = round(float(str(monto_str).replace(',', '.')), 2)
+            if monto <= 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            return Response({'error': 'Ingrese un monto válido mayor a 0.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        Configuracion.objects.update_or_create(
+            clave='monto_mensualidad',
+            defaults={
+                'valor':       str(monto),
+                'descripcion': 'Monto de la mensualidad CIP (S/)',
+            }
+        )
+        return Response({
+            'success':          True,
+            'monto_mensualidad': str(monto),
+        })
+
 
 def react_catchall_view(request):
     try:

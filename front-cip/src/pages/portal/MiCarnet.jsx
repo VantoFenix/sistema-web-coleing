@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
-import { AlertCircle, Loader2, CheckCircle, Shield, Download } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AlertCircle, Loader2, CheckCircle } from 'lucide-react';
 
 export default function MiCarnet() {
   const [colegiado, setColegiado] = useState(null);
   const [cargando, setCargando] = useState(true);
-  const [flipped, setFlipped] = useState(false);
   const [fotoError, setFotoError] = useState(false);
 
   useEffect(() => {
@@ -37,12 +36,9 @@ export default function MiCarnet() {
   if (!colegiado) return <div style={{ textAlign: 'center', padding: '3rem' }}>Error al cargar datos.</div>;
 
   const habilitado = colegiado.habilitado;
-  const hoy = new Date();
-  const vencimiento = new Date(hoy.getFullYear() + 1, hoy.getMonth(), hoy.getDate());
-  const vencimientoStr = vencimiento.toLocaleDateString('es-PE', { year: 'numeric', month: '2-digit', day: '2-digit' });
-  const fechaDesde = colegiado.colegiado_desde
-    ? new Date(colegiado.colegiado_desde).toLocaleDateString('es-PE', { year: 'numeric', month: 'long', day: 'numeric' })
-    : '';
+  const fechaEmision = colegiado.colegiado_desde
+    ? new Date(colegiado.colegiado_desde + 'T00:00:00').toLocaleDateString('es-PE', { year: 'numeric', month: '2-digit', day: '2-digit' })
+    : '—';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', padding: '1rem 0' }}>
@@ -59,24 +55,16 @@ export default function MiCarnet() {
         Estado Colegiado: {habilitado === false ? 'INHABILITADO' : 'HABILITADO'}
       </div>
 
-      {/* Contenedor de Flip */}
-      <div
-        style={{ perspective: '1200px', width: '100%', maxWidth: '440px', cursor: 'pointer' }}
-        onClick={() => setFlipped(f => !f)}
-        title="Clic para ver el reverso"
-      >
+      {/* Carnet — solo cara delantera */}
+      <div style={{ width: '100%', maxWidth: '440px' }}>
         <div style={{
           position: 'relative',
           width: '100%', height: '270px',
-          transformStyle: 'preserve-3d',
-          transition: 'transform 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
-          transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
         }}>
 
           {/* ===== CARA DELANTERA ===== */}
           <div style={{
             position: 'absolute', width: '100%', height: '100%',
-            backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
             borderRadius: '14px', overflow: 'hidden', background: '#FFFFFF',
             boxShadow: '0 20px 40px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.1)',
             fontFamily: 'system-ui, sans-serif'
@@ -182,52 +170,8 @@ export default function MiCarnet() {
             )}
           </div>
 
-          {/* ===== CARA TRASERA ===== */}
-          <div style={{
-            position: 'absolute', width: '100%', height: '100%',
-            backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
-            transform: 'rotateY(180deg)',
-            borderRadius: '14px', overflow: 'hidden',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-          }}>
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #1E293B 0%, #0F172A 100%)' }} />
-            {/* Banda */}
-            <div style={{ position: 'absolute', top: '40px', left: 0, right: 0, height: '40px', background: '#000', opacity: 0.8 }} />
-            {/* Contenido reverso */}
-            <div style={{ position: 'absolute', inset: 0, padding: '1.2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <div style={{ color: '#94A3B8', fontSize: '0.65rem', fontWeight: '700', letterSpacing: '1px' }}>INFORMACIÓN DEL COLEGIADO</div>
-              <div style={{ marginTop: '2.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
-                {[
-                  { label: 'DNI', val: colegiado.dni },
-                  { label: 'SEDE', val: colegiado.sede?.nombre },
-                  { label: 'COLEGIADO DESDE', val: fechaDesde },
-                  { label: 'CORREO', val: colegiado.correo },
-                ].map(({ label, val }) => (
-                  <div key={label}>
-                    <div style={{ color: '#64748B', fontSize: '0.55rem', letterSpacing: '1px' }}>{label}</div>
-                    <div style={{ color: '#E2E8F0', fontWeight: '600', fontSize: '0.7rem', marginTop: '0.1rem' }}>{val || '—'}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Shield size={14} color="#64748B" />
-                <span style={{ color: '#475569', fontSize: '0.58rem' }}>
-                  Este carnet es de uso personal e intransferible. Cualquier falsificación será sancionada.
-                </span>
-              </div>
-              <div style={{ textAlign: 'center', color: '#334155', fontSize: '0.6rem', marginTop: '0.3rem' }}>
-                www.cip.org.pe
-              </div>
-            </div>
-          </div>
-
         </div>
       </div>
-
-      {/* Indicador flip */}
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-        <span>👆</span> Clic en el carnet para ver el reverso
-      </p>
 
       {/* Mensaje de estado */}
       {habilitado === false && (

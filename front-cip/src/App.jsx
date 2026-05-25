@@ -1,9 +1,8 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import PublicHome from './pages/PublicHome';
 import Postular from './pages/Postular';
 import Login from './pages/Login';
 import PortalLayout from './layouts/PortalLayout';
-import PerfilYo from './pages/portal/PerfilYo';
 import MiCarnet from './pages/portal/MiCarnet';
 import MisPagos from './pages/portal/MisPagos';
 
@@ -25,7 +24,7 @@ function App() {
         
         {/* Rutas Protegidas (Portal del Colegiado) */}
         <Route path="/portal" element={<PortalLayout />}>
-          <Route path="yo" element={<PerfilYo />} />
+          <Route index element={<Navigate to="carnet" replace />} />
           <Route path="carnet" element={<MiCarnet />} />
           <Route path="pagos" element={<MisPagos />} />
         </Route>
