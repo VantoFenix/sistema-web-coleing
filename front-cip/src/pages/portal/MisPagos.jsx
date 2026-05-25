@@ -26,7 +26,7 @@ const fmtFecha = (iso) => {
 };
 
 // ── Paso: Selección de periodos (calendario estilo admin) ─────────────────
-function StepPeriodos({ pendientes, historial, seleccionados, onToggle, onSelAll, onSelSoloDeuda, onDeselAll, montoUnit, onContinuar }) {
+function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSoloDeuda, onDeselAll, montoUnit, onContinuar }) {
   const total = seleccionados.size * parseFloat(montoUnit);
 
   // Construir lista completa de periodos (pendientes + mes actual + adelantos)
@@ -47,6 +47,32 @@ function StepPeriodos({ pendientes, historial, seleccionados, onToggle, onSelAll
       allPeriodos.push({ periodo: per, estado: 'ADELANTO' });
   }
   allPeriodos.sort((a, b) => a.periodo.localeCompare(b.periodo));
+
+  // Lógica de selección en cascada (igual que admin)
+  const handleToggle = (periodo, estado) => {
+    let s = new Set(seleccionados);
+    if (estado === 'PENDIENTE') {
+      // Pendientes se seleccionan/deseleccionan como bloque
+      const todasSel = pendientes.every(p => s.has(p.periodo));
+      if (todasSel) pendientes.forEach(p => s.delete(p.periodo));
+      else          pendientes.forEach(p => s.add(p.periodo));
+    } else {
+      // MES_ACTUAL / ADELANTO: en cascada
+      if (s.has(periodo)) {
+        // Deseleccionar: también quitar todos los meses posteriores
+        const idx = allPeriodos.findIndex(p => p.periodo === periodo);
+        allPeriodos.slice(idx).forEach(p => s.delete(p.periodo));
+      } else {
+        // Seleccionar: primero agrega todos los meses anteriores que no estén pagados
+        for (const p of allPeriodos) {
+          if (p.periodo === periodo) break;
+          s.add(p.periodo);
+        }
+        s.add(periodo);
+      }
+    }
+    onSelAll(s);
+  };
 
   if (allPeriodos.length === 0) {
     return (
@@ -129,7 +155,7 @@ function StepPeriodos({ pendientes, historial, seleccionados, onToggle, onSelAll
                 return (
                   <div
                     key={p.periodo}
-                    onClick={() => onToggle(p.periodo)}
+                    onClick={() => handleToggle(p.periodo, p.estado)}
                     style={{
                       background: paleta.bg,
                       border: `2px solid ${sel ? paleta.accent : paleta.border}`,
@@ -1102,7 +1128,6 @@ export default function MisPagos() {
                   pendientes={pendientes}
                   historial={historial}
                   seleccionados={seleccionados}
-                  onToggle={p => setSeleccionados(prev => { const s = new Set(prev); s.has(p) ? s.delete(p) : s.add(p); return s; })}
                   onSelAll={(set) => setSeleccionados(set)}
                   onSelSoloDeuda={() => setSeleccionados(new Set(pendientes.map(p => p.periodo)))}
                   onDeselAll={() => setSeleccionados(new Set())}
