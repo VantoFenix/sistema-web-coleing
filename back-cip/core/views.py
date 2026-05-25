@@ -1226,6 +1226,113 @@ class PagoOnlineView(APIView):
             return Response({'error': mensaje, 'mp_detail': detalle, 'mp_error': error_mp}, status=402)
 
 
+class AdminPagoTarjetaView(APIView):
+    """
+    Procesa pago con tarjeta vía MercadoPago para el módulo de Pagos Presenciales.
+    Usa el CardPayment Brick; recibe token + payment_method_id generados por el Brick.
+    El pago se registra con canal='CAJA' (iniciado por el admin).
+    """
+    authentication_classes = []
+    permission_classes     = [AllowAny]
+
+    def post(self, request):
+        import mercadopago, sys
+
+        colegiado_id      = request.data.get('colegiado_id')
+        token             = request.data.get('token')
+        payment_method_id = request.data.get('payment_method_id')
+        installments      = request.data.get('installments', 1)
+        issuer_id         = request.data.get('issuer_id')
+        periodos          = request.data.get('periodos', [])
+        monto             = request.data.get('monto')
+        email_payer       = request.data.get('email') or 'pagador@cip.org.pe'
+
+        if not all([colegiado_id, token, payment_method_id, periodos, monto]):
+            return Response({'error': 'Faltan datos requeridos.'}, status=400)
+
+        colegiado = Colegiado.objects.filter(pk=colegiado_id).first()
+        if not colegiado:
+            return Response({'error': 'Colegiado no encontrado.'}, status=404)
+
+        monto_total = float(monto)
+        sdk         = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
+
+        payment_data = {
+            "transaction_amount": monto_total,
+            "token":              token,
+            "description":        f"CIP - {len(periodos)} cuota(s) mensual(es)",
+            "installments":       int(installments),
+            "payment_method_id":  payment_method_id,
+            "payer":              {"email": email_payer},
+        }
+        if issuer_id:
+            payment_data["issuer_id"] = issuer_id
+
+        print(f"[ADMIN TARJETA] colegiado_id={colegiado_id} monto={monto_total} periodos={periodos}", file=sys.stderr)
+        result    = sdk.payment().create(payment_data)
+        response  = result.get("response", {})
+        mp_status = response.get("status")
+        print(f"[ADMIN TARJETA] MP respuesta: status={mp_status}", file=sys.stderr)
+
+        if mp_status != "approved":
+            detalle  = response.get("status_detail", "")
+            mp_msg   = response.get("message", "")
+            causa_mp = response.get("cause", [])
+            msgs = {
+                "cc_rejected_bad_filled_card_number":   "Número de tarjeta incorrecto.",
+                "cc_rejected_bad_filled_date":          "Fecha de vencimiento incorrecta.",
+                "cc_rejected_bad_filled_security_code": "Código de seguridad incorrecto.",
+                "cc_rejected_insufficient_amount":      "Fondos insuficientes en la tarjeta.",
+                "cc_rejected_blacklist":                "Tarjeta bloqueada. Contacte al banco emisor.",
+                "cc_rejected_call_for_authorize":       "Tarjeta requiere autorización bancaria.",
+                "cc_rejected_card_disabled":            "Tarjeta desactivada. Active pagos en línea.",
+                "cc_rejected_high_risk":                "Pago rechazado por seguridad. Intente otra tarjeta.",
+            }
+            if detalle in msgs:
+                mensaje = msgs[detalle]
+            elif mp_msg:
+                mensaje = f"Error MP: {mp_msg}"
+                if causa_mp:
+                    first = causa_mp[0] if isinstance(causa_mp, list) else causa_mp
+                    desc  = first.get("description", "") if isinstance(first, dict) else str(first)
+                    if desc: mensaje += f" ({desc})"
+            elif detalle:
+                mensaje = f"Pago rechazado: {detalle}"
+            else:
+                mensaje = f"Pago rechazado (status: {mp_status})."
+            return Response({'error': mensaje}, status=402)
+
+        # Aprobado — registrar periodos
+        hoy         = date.today()
+        monto_unit  = round(monto_total / max(len(periodos), 1), 2)
+        nro_op      = str(response.get("id", ""))
+        registrados = []; ya_existian = []
+        for periodo_str in sorted(periodos):
+            try:
+                año, mes = map(int, periodo_str.split('-'))
+                _, created = Pago.objects.get_or_create(
+                    colegiado=colegiado, periodo=date(año, mes, 1),
+                    defaults={
+                        'tipo': 'MENSUALIDAD', 'monto': monto_unit,
+                        'canal': 'CAJA', 'metodo': 'TARJETA',
+                        'nro_operacion': nro_op, 'fecha_pago': hoy,
+                    }
+                )
+                (registrados if created else ya_existian).append(periodo_str)
+            except Exception as ex:
+                print(f"[ADMIN TARJETA] Error guardando {periodo_str}: {ex}", file=sys.stderr)
+
+        return Response({
+            'success':            True,
+            'periodos_registrados': registrados,
+            'ya_existian':        ya_existian,
+            'nro_operacion':      nro_op,
+            'colegiado':          colegiado.nombres,
+            'total_registrado':   len(registrados),
+            'habilitado_nuevo':   _get_habilitado(colegiado.id),
+        })
+
+
 class PagoOnlineStatusView(APIView):
     """Consulta el estado de un pago MP pendiente (polling para Yape)."""
     permission_classes = [IsAuthenticated]
