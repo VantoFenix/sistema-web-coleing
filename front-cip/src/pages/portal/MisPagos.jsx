@@ -135,10 +135,10 @@ function StepMetodo({ totalBase, total, onMontoChange, onVolver, onSeleccionar }
     {
       id: 'YAPE',
       label: 'Yape',
-      desc: 'Paga con Yape vía MercadoPago · registro automático',
+      desc: 'Yapea al número del CIP y sube tu captura · verificación en 24h',
       icon: <Smartphone size={26} />,
       bg: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)',
-      badge: 'Inmediato',
+      badge: 'Revisión 24h',
     },
     {
       id: 'TRANSFERENCIA',
@@ -280,108 +280,101 @@ function VoucherUpload({ archivo, onChange }) {
   );
 }
 
-// ── Paso: Yape → MercadoPago Checkout Pro (automático, sin voucher) ─────────
-function StepYape({ total, periodos, onVolver }) {
-  const [creando, setCreando]   = useState(false);
+// ── Paso: Yape (manual — yapea al número CIP y sube captura) ─────────────────
+const YAPE_NUMERO_CIP = '927295254';
+
+function StepYape({ total, periodos, onVolver, onExito, onError }) {
+  const [voucher, setVoucher]   = useState(null);
+  const [enviando, setEnviando] = useState(false);
   const [errLocal, setErrLocal] = useState('');
 
-  const handleIrAMP = async () => {
+  const handleEnviar = async () => {
+    if (!voucher) { setErrLocal('Debes subir la captura de pantalla de tu Yape.'); return; }
     setErrLocal('');
-    setCreando(true);
+    setEnviando(true);
     try {
       const token = localStorage.getItem('colToken');
-      const res = await fetch('/api/pagos/preferencia/', {
+      const fd = new FormData();
+      fd.append('periodos', JSON.stringify(periodos));
+      fd.append('metodo', 'YAPE');
+      fd.append('voucher', voucher);
+      const res = await fetch('/api/portal/pago-voucher/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ periodos }),
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: fd,
       });
       const data = await res.json();
-      if (data.init_point) {
-        // Redirigir al checkout de MercadoPago (Yape nativo)
-        window.location.href = data.init_point;
-      } else {
-        setErrLocal(data.error || 'No se pudo generar el enlace de pago.');
-        setCreando(false);
-      }
+      if (data.success) onExito(data);
+      else { setErrLocal(data.error || 'Error al enviar comprobante.'); onError(data.error || ''); }
     } catch {
-      setErrLocal('Error de conexión. Intente de nuevo.');
-      setCreando(false);
+      const msg = 'Error de conexión. Intente de nuevo.';
+      setErrLocal(msg); onError(msg);
+    } finally {
+      setEnviando(false);
     }
   };
 
   return (
     <div>
-      <button onClick={onVolver} style={{
-        display: 'flex', alignItems: 'center', gap: '0.4rem',
-        color: 'var(--text-muted)', background: 'none', border: 'none',
-        cursor: 'pointer', marginBottom: '1.25rem', fontSize: '0.875rem',
-      }}>
+      <button onClick={onVolver} style={{ display:'flex', alignItems:'center', gap:'0.4rem', color:'var(--text-muted)', background:'none', border:'none', cursor:'pointer', marginBottom:'1.25rem', fontSize:'0.875rem' }}>
         <ArrowLeft size={15} /> Cambiar método
       </button>
 
-      {/* Encabezado */}
-      <div style={{
-        background: 'linear-gradient(135deg, #7C3AED, #6D28D9)',
-        borderRadius: '12px', padding: '1rem 1.25rem',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        marginBottom: '1.25rem',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'white' }}>
+      {/* Encabezado con monto */}
+      <div style={{ background:'linear-gradient(135deg,#7C3AED,#6D28D9)', borderRadius:'12px', padding:'1rem 1.25rem', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', color:'white' }}>
           <Smartphone size={20} />
-          <span style={{ fontWeight: '800', fontSize: '1rem' }}>Pago con Yape</span>
+          <span style={{ fontWeight:'800', fontSize:'1rem' }}>Pago con Yape</span>
         </div>
-        <span style={{ color: 'white', fontWeight: '900', fontSize: '1.4rem' }}>S/ {total.toFixed(2)}</span>
+        <span style={{ color:'white', fontWeight:'900', fontSize:'1.4rem' }}>S/ {total.toFixed(2)}</span>
       </div>
 
-      {/* Cómo funciona */}
-      <div style={{ background: '#F5F3FF', border: '1.5px solid #DDD6FE', borderRadius: '12px', padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
-        <p style={{ fontWeight: '800', fontSize: '0.85rem', color: '#5B21B6', marginBottom: '0.75rem' }}>
-          📱 ¿Cómo funciona?
+      {/* Número Yape del CIP */}
+      <div style={{ background:'#F5F3FF', border:'2px solid #7C3AED', borderRadius:'12px', padding:'1rem 1.25rem', marginBottom:'1.25rem', textAlign:'center' }}>
+        <p style={{ fontSize:'0.75rem', fontWeight:'700', color:'#7C3AED', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'0.4rem' }}>
+          🇵🇪 Yapea exactamente S/ {total.toFixed(2)} al número:
         </p>
-        {[
-          '1. Haz clic en "Pagar con Yape"',
-          '2. Se abrirá el checkout seguro de MercadoPago',
-          '3. Aprueba el pago desde tu app Yape',
-          '4. Serás redirigido de vuelta al portal',
-          '5. El pago queda registrado automáticamente ✓',
-        ].map((s, i) => (
-          <p key={i} style={{ fontSize: '0.8rem', color: '#6D28D9', marginBottom: '0.25rem' }}>{s}</p>
+        <p style={{ fontFamily:'monospace', fontWeight:'900', fontSize:'2rem', color:'#4C1D95', letterSpacing:'4px', margin:'0' }}>
+          {YAPE_NUMERO_CIP}
+        </p>
+        <p style={{ fontSize:'0.72rem', color:'#6D28D9', marginTop:'0.4rem' }}>CIP — Consejo Departamental La Libertad</p>
+      </div>
+
+      {/* Pasos */}
+      <div style={{ background:'#FAF5FF', borderRadius:'10px', padding:'0.85rem 1rem', marginBottom:'1.25rem' }}>
+        {['1. Abre tu app Yape', `2. Envía S/ ${total.toFixed(2)} al ${YAPE_NUMERO_CIP}`, '3. Toma captura de la confirmación', '4. Sube la captura aquí abajo'].map((s,i) => (
+          <p key={i} style={{ fontSize:'0.8rem', color:'#6D28D9', marginBottom:'0.2rem' }}>{s}</p>
         ))}
       </div>
 
       {/* Periodos */}
-      <div style={{ background: '#EDE9FE', borderRadius: '8px', padding: '0.65rem 1rem', marginBottom: '1.25rem', fontSize: '0.8rem', color: '#5B21B6' }}>
-        <strong>Periodos:</strong>{' '}
-        {periodos.map(p => fmtPeriodo(p)).join(', ')}
+      <div style={{ background:'#EDE9FE', borderRadius:'8px', padding:'0.6rem 1rem', marginBottom:'1.25rem', fontSize:'0.8rem', color:'#5B21B6' }}>
+        <strong>Periodos a pagar:</strong> {periodos.map(p => fmtPeriodo(p)).join(', ')}
+      </div>
+
+      {/* Upload */}
+      <div style={{ marginBottom:'1.25rem' }}>
+        <VoucherUpload archivo={voucher} onChange={setVoucher} />
       </div>
 
       {errLocal && (
-        <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <AlertCircle size={16} style={{ flexShrink: 0 }} /> {errLocal}
+        <div style={{ background:'#FEE2E2', color:'#991B1B', padding:'0.75rem', borderRadius:'8px', marginBottom:'1rem', fontSize:'0.875rem', display:'flex', alignItems:'center', gap:'0.5rem' }}>
+          <AlertCircle size={16} style={{ flexShrink:0 }} /> {errLocal}
         </div>
       )}
 
-      <button
-        onClick={handleIrAMP}
-        disabled={creando}
-        style={{
-          width: '100%', padding: '1rem', border: 'none', borderRadius: '10px',
-          background: creando ? '#C4B5FD' : 'linear-gradient(135deg, #7C3AED, #6D28D9)',
-          color: 'white', fontWeight: '800', fontSize: '1.05rem',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem',
-          cursor: creando ? 'not-allowed' : 'pointer',
-          boxShadow: creando ? 'none' : '0 4px 14px rgba(109,40,217,0.4)',
-          transition: 'all 0.2s',
-        }}
-      >
-        {creando
-          ? <><Loader2 size={18} className="spin" /> Preparando pago…</>
-          : <><Smartphone size={18} /> Pagar con Yape →</>
-        }
+      <button onClick={handleEnviar} disabled={enviando || !voucher} style={{
+        width:'100%', padding:'0.9rem', border:'none', borderRadius:'10px',
+        background: (enviando || !voucher) ? '#C4B5FD' : 'linear-gradient(135deg,#7C3AED,#6D28D9)',
+        color:'white', fontWeight:'800', fontSize:'1rem',
+        display:'flex', alignItems:'center', justifyContent:'center', gap:'0.5rem',
+        cursor: (enviando || !voucher) ? 'not-allowed' : 'pointer',
+      }}>
+        {enviando ? <><Loader2 size={18} className="spin" /> Enviando…</> : <><UploadCloud size={18} /> Enviar comprobante Yape</>}
       </button>
 
-      <p style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
-        <ShieldCheck size={12} /> Pago procesado por MercadoPago · Registro automático al aprobar
+      <p style={{ textAlign:'center', fontSize:'0.72rem', color:'var(--text-muted)', marginTop:'0.75rem' }}>
+        Tu comprobante será verificado en las próximas 24 horas hábiles
       </p>
     </div>
   );
@@ -725,49 +718,7 @@ export default function MisPagos() {
   const [errPago, setErrPago]             = useState('');
   const [resultadoPago, setResultadoPago] = useState(null);
 
-  useEffect(() => {
-    // ── Detectar retorno desde MercadoPago Checkout Pro ──────────────────
-    const params        = new URLSearchParams(window.location.search);
-    const mpStatus      = params.get('collection_status') || params.get('status');
-    const mpPaymentId   = params.get('collection_id')     || params.get('payment_id');
-    const mpExternalRef = params.get('external_reference');
-
-    if (mpStatus === 'approved' && mpPaymentId && mpExternalRef) {
-      // Limpiar la URL antes de procesar
-      window.history.replaceState({}, '', '/portal/pagos');
-      verificarPagoMP(mpPaymentId, mpExternalRef);
-    } else {
-      cargarDatos();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Verificar y registrar pago luego del retorno de MP
-  const verificarPagoMP = async (paymentId, externalRef) => {
-    setCargando(true);
-    try {
-      const token = localStorage.getItem('colToken');
-      const res = await fetch('/api/pagos/verificar/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ payment_id: paymentId, external_reference: externalRef }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setResultadoPago(data);
-        setPaso('exito');
-        setTab('pagar');
-      } else {
-        setErrPago(data.error || 'No se pudo verificar el pago.');
-        setPaso('periodos');
-      }
-    } catch {
-      setErrPago('Error al verificar el pago. Contacte soporte.');
-      setPaso('periodos');
-    } finally {
-      await cargarDatos();
-    }
-  };
+  useEffect(() => { cargarDatos(); }, []);
 
   const cargarDatos = async () => {
     setCargando(true);
@@ -938,6 +889,8 @@ export default function MisPagos() {
                   total={totalSeleccionado}
                   periodos={periodosArray}
                   onVolver={() => setPaso('metodo')}
+                  onExito={(data) => { setResultadoPago(data); setPaso('pendiente'); }}
+                  onError={(msg) => setErrPago(msg)}
                 />
               )}
               {paso === 'transferencia' && (
