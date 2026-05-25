@@ -1362,31 +1362,36 @@ def _get_or_create_mp_pos():
             'name':        'CIP Colegio de Ingenieros',
             'external_id': 'cip-store-001',
             'location': {
-                'address_line': 'Lima',
-                'city_name':    'Lima',
-                'state_name':   'Lima',
-                'country_code': 'PE',
+                'street_name':   'Av. Arequipa',
+                'street_number': '4947',
+                'city_name':     'Lima',
+                'state_name':    'Lima',
+                'country_code':  'PE',
+                'latitude':      -12.0464,
+                'longitude':     -77.0428,
             },
         },
-        headers={**hdr, 'x-idempotency-key': 'cip-store-v1'},
+        headers={**hdr, 'x-idempotency-key': 'cip-store-v2'},
         timeout=10,
     )
     store_data = r_store.json()
     store_id   = store_data.get('id')
-    print('[MP POS SETUP] store → {}'.format(store_data), file=sys.stderr)
+    print('[MP POS SETUP] store create → status={} data={}'.format(r_store.status_code, store_data), file=sys.stderr)
 
-    # Si ya existía, buscarlo por external_id
+    # Si ya existía (conflict), buscarlo por external_id
     if not store_id:
-        r2 = http.get(
+        r2      = http.get(
             'https://api.mercadopago.com/users/{}/stores/search?external_id=cip-store-001'.format(user_id),
             headers=hdr, timeout=10,
         )
-        results = r2.json().get('data', {}).get('results', [])
+        rs      = r2.json()
+        results = rs.get('data', {}).get('results', rs.get('results', []))
         if results:
             store_id = results[0].get('id')
+        print('[MP POS SETUP] store search → id={} raw={}'.format(store_id, rs), file=sys.stderr)
 
     if not store_id:
-        raise ValueError('No se pudo crear el store de MP: {}'.format(store_data))
+        raise ValueError('No se pudo crear/encontrar el store de MP: {}'.format(store_data))
 
     # ── Crear POS ────────────────────────────────────────────────────────────
     r_pos    = http.post(
