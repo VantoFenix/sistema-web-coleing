@@ -1348,14 +1348,18 @@ class AdminMPPreferenciaView(APIView):
         periodos     = request.data.get('periodos', [])
         monto        = request.data.get('monto')
 
-        if not all([colegiado_id, periodos, monto]):
-            return Response({'error': 'Faltan datos requeridos (colegiado_id, periodos, monto).'}, status=400)
+        if not all([colegiado_id, periodos]):
+            return Response({'error': 'Faltan datos requeridos (colegiado_id, periodos).'}, status=400)
 
         colegiado = Colegiado.objects.filter(pk=colegiado_id).first()
         if not colegiado:
             return Response({'error': 'Colegiado no encontrado.'}, status=404)
 
-        monto_total  = round(float(monto), 2)
+        # Si no se provee monto, calcularlo automáticamente
+        if monto:
+            monto_total = round(float(monto), 2)
+        else:
+            monto_total = round(len(periodos) * _get_monto_mensualidad(), 2)
         external_ref = 'admin-{}~{}'.format(colegiado_id, '~'.join(sorted(periodos)))
         sdk          = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
 
@@ -1459,6 +1463,13 @@ class AdminMPVerificarView(APIView):
         registrados = []
         ya_existian = []
 
+        # Detectar método real desde la respuesta de MP
+        mp_pm = (pago_aprobado.get('payment_method_id') or '').lower()
+        if mp_pm == 'yape':
+            metodo_pago = 'YAPE'
+        else:
+            metodo_pago = 'TARJETA'   # visa, master, amex, débito, etc.
+
         for periodo_str in sorted(periodos):
             try:
                 año, mes = map(int, periodo_str.split('-'))
@@ -1469,7 +1480,7 @@ class AdminMPVerificarView(APIView):
                         'tipo':          'MENSUALIDAD',
                         'monto':         monto_unit,
                         'canal':         'CAJA',
-                        'metodo':        'TARJETA',
+                        'metodo':        metodo_pago,
                         'nro_operacion': payment_id,
                         'fecha_pago':    hoy,
                     }
