@@ -46,8 +46,6 @@ class Solicitud(models.Model):
     ]
     dni             = models.CharField(max_length=8)
     nombres         = models.CharField(max_length=160)
-    correo          = models.EmailField(max_length=160, null=True, blank=True)
-    celular         = models.CharField(max_length=15, null=True, blank=True)
     carrera         = models.ForeignKey(Carrera, on_delete=models.DO_NOTHING)
     sede            = models.ForeignKey(Sede, on_delete=models.DO_NOTHING, null=True, blank=True)
     foto_url        = models.CharField(max_length=500)
