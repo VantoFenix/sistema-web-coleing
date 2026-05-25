@@ -7,17 +7,16 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.hashers import make_password, check_password
-from django.db import connection
+from django.db import connection, transaction, IntegrityError
 from django.http import HttpResponse
 from django.core.files.storage import default_storage
 import os
 import uuid
-import pandas as pd
 from datetime import datetime, date
 from django.core.mail import send_mail
 from django.conf import settings
 
-from .models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago, CargaRecaudacion
+from .models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago
 from .serializers import AdministradorSerializer, ColegiadoSerializer, SolicitudSerializer, CarreraSerializer, SedeSerializer
 
 def generate_jwt(user_id, role):
@@ -76,6 +75,18 @@ class ReniecConsultaView(APIView):
         dni = request.query_params.get('dni')
         if not dni or len(dni) != 8 or not dni.isdigit():
             return Response({'error': 'DNI inválido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verificar contra la BD antes de consumir la API externa
+        if Colegiado.objects.filter(dni=dni).exists():
+            return Response(
+                {'error': 'DNI_YA_COLEGIADO', 'detalle': 'Este DNI ya está registrado como colegiado. Ingrese a su portal.'},
+                status=status.HTTP_409_CONFLICT
+            )
+        if Solicitud.objects.filter(dni=dni, estado__in=['EN_REVISION', 'APROBADA']).exists():
+            return Response(
+                {'error': 'DNI_CON_SOLICITUD', 'detalle': 'Este DNI ya tiene una solicitud activa. Puede consultar su estado en la página principal.'},
+                status=status.HTTP_409_CONFLICT
+            )
 
         token = os.getenv('RENIEC_TOKEN')
         if not token:
@@ -192,8 +203,9 @@ class PublicPostulacionView(APIView):
         foto = request.FILES.get('foto')
         titulo = request.FILES.get('titulo')
         recibo = request.FILES.get('recibo')
+        firma = request.FILES.get('firma')
 
-        if not all([dni, nombres, correo, carrera_nombre, sede_nombre, foto, titulo, recibo]):
+        if not all([dni, nombres, correo, carrera_nombre, sede_nombre, foto, titulo, recibo, firma]):
             return Response({'error': 'Faltan campos o documentos requeridos'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validacion de formatos de archivo
@@ -203,6 +215,32 @@ class PublicPostulacionView(APIView):
             return Response({'error': 'El Título Profesional debe ser un archivo PDF.'}, status=status.HTTP_400_BAD_REQUEST)
         if not (recibo.content_type.startswith('image/') or recibo.content_type == 'application/pdf'):
             return Response({'error': 'El Recibo de Caja debe ser un PDF o una imagen.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not firma.content_type.startswith('image/'):
+            return Response({'error': 'La firma debe ser una imagen (JPG, PNG).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verificar que el correo y DNI no pertenezcan a un colegiado ya registrado
+        if Colegiado.objects.filter(correo=correo).exists():
+            return Response(
+                {'error': 'El correo electrónico ya está registrado en el sistema. Si ya es colegiado, ingrese a su portal.'},
+                status=status.HTTP_409_CONFLICT
+            )
+        if Colegiado.objects.filter(dni=dni).exists():
+            return Response(
+                {'error': 'El DNI ya está registrado como colegiado. Si ya es colegiado, ingrese a su portal.'},
+                status=status.HTTP_409_CONFLICT
+            )
+
+        # Verificar que no exista ya una solicitud activa (pendiente o aprobada) para ese DNI o correo
+        if Solicitud.objects.filter(dni=dni, estado__in=['EN_REVISION', 'APROBADA']).exists():
+            return Response(
+                {'error': 'Ya existe una solicitud activa para este DNI. Puede consultar su estado en la página principal.'},
+                status=status.HTTP_409_CONFLICT
+            )
+        if Solicitud.objects.filter(correo=correo, estado__in=['EN_REVISION', 'APROBADA']).exists():
+            return Response(
+                {'error': 'Ya existe una solicitud activa con este correo electrónico.'},
+                status=status.HTTP_409_CONFLICT
+            )
 
         # Buscar carrera y sede
         carrera = Carrera.objects.filter(nombre=carrera_nombre).first()
@@ -215,11 +253,13 @@ class PublicPostulacionView(APIView):
         foto_name = f"{base_path}{uuid.uuid4()}_{foto.name}"
         titulo_name = f"{base_path}{uuid.uuid4()}_{titulo.name}"
         recibo_name = f"{base_path}{uuid.uuid4()}_{recibo.name}"
+        firma_name = f"{base_path}{uuid.uuid4()}_{firma.name}"
 
         try:
             default_storage.save(foto_name, foto)
             default_storage.save(titulo_name, titulo)
             default_storage.save(recibo_name, recibo)
+            default_storage.save(firma_name, firma)
         except Exception as e:
             import sys
             print(f"[ERROR] Fallo al guardar archivos: {e}", file=sys.stderr)
@@ -236,6 +276,7 @@ class PublicPostulacionView(APIView):
                 foto_url=f"/media/{foto_name}",
                 titulo_pdf_url=f"/media/{titulo_name}",
                 recibo_pago_url=f"/media/{recibo_name}",
+                firma_url=f"/media/{firma_name}",
                 estado='EN_REVISION'
             )
         except Exception as e:
@@ -327,7 +368,7 @@ class AdminResolverSolicitudView(APIView):
     def post(self, request, pk):
         accion = request.data.get('accion') # 'APROBAR' o 'RECHAZAR'
         comentarios = request.data.get('comentarios', '')
-        
+
         try:
             solicitud = Solicitud.objects.get(pk=pk, estado='EN_REVISION')
         except Solicitud.DoesNotExist:
@@ -339,49 +380,69 @@ class AdminResolverSolicitudView(APIView):
             solicitud.resuelto_en = datetime.utcnow()
             solicitud.save()
             return Response({'success': True, 'estado': 'RECHAZADA'})
-            
-        elif accion == 'APROBAR':
-            solicitud.estado = 'APROBADA'
-            solicitud.resuelto_en = datetime.utcnow()
-            solicitud.save()
-            
-            # Generar Nro Colegiado — único por CARRERA + SEDE
-            # Ej: Civil Lima → 00001, 00002 ... independiente de Civil Arequipa → 00001, 00002
-            with connection.cursor() as cursor:
-                if solicitud.sede_id:
-                    cursor.execute(
-                        "SELECT MAX(CAST(nro_colegiado AS INTEGER)) "
-                        "FROM colegiado WHERE carrera_id = %s AND sede_id = %s",
-                        [solicitud.carrera_id, solicitud.sede_id]
-                    )
-                else:
-                    # Sin sede → serie propia solo por carrera (sin sede asignada)
-                    cursor.execute(
-                        "SELECT MAX(CAST(nro_colegiado AS INTEGER)) "
-                        "FROM colegiado WHERE carrera_id = %s AND sede_id IS NULL",
-                        [solicitud.carrera_id]
-                    )
-                row = cursor.fetchone()
-                siguiente_nro = str((row[0] or 0) + 1).zfill(5)
-            
-            Colegiado.objects.create(
-                correo=solicitud.correo,
-                password_hash=make_password(solicitud.dni), # Contraseña por defecto
-                dni=solicitud.dni,
-                nombres=solicitud.nombres,
-                celular=solicitud.celular,
-                foto_url=solicitud.foto_url,
-                carrera=solicitud.carrera,
-                sede=solicitud.sede, # Puede ser null
-                nro_colegiado=siguiente_nro,
-                solicitud=solicitud,
-                colegiado_desde=datetime.utcnow().date()
-            )
 
-            # Enviar correo de bienvenida al colegiado
+        elif accion == 'APROBAR':
+            import sys
+
             try:
-                asunto = f"¡Bienvenido al Colegio de Ingenieros del Perú!"
-                mensaje = f"""Estimado(a) {solicitud.nombres},
+                with transaction.atomic():
+                    solicitud.estado = 'APROBADA'
+                    solicitud.resuelto_en = datetime.utcnow()
+                    solicitud.save()
+
+                    # Generar Nro Colegiado — único por CARRERA + SEDE
+                    with connection.cursor() as cursor:
+                        if solicitud.sede_id:
+                            cursor.execute(
+                                "SELECT MAX(CAST(nro_colegiado AS INTEGER)) "
+                                "FROM colegiado WHERE carrera_id = %s AND sede_id = %s",
+                                [solicitud.carrera_id, solicitud.sede_id]
+                            )
+                        else:
+                            cursor.execute(
+                                "SELECT MAX(CAST(nro_colegiado AS INTEGER)) "
+                                "FROM colegiado WHERE carrera_id = %s AND sede_id IS NULL",
+                                [solicitud.carrera_id]
+                            )
+                        row = cursor.fetchone()
+                        siguiente_nro = str((row[0] or 0) + 1).zfill(5)
+
+                    Colegiado.objects.create(
+                        correo=solicitud.correo,
+                        password_hash=make_password(solicitud.dni),
+                        dni=solicitud.dni,
+                        nombres=solicitud.nombres,
+                        celular=solicitud.celular,
+                        foto_url=solicitud.foto_url,
+                        carrera=solicitud.carrera,
+                        sede=solicitud.sede,
+                        nro_colegiado=siguiente_nro,
+                        solicitud=solicitud,
+                        colegiado_desde=datetime.utcnow().date()
+                    )
+
+            except IntegrityError as e:
+                msg = str(e)
+                if 'correo' in msg:
+                    detalle = f"El correo '{solicitud.correo}' ya pertenece a otro colegiado."
+                elif 'dni' in msg:
+                    detalle = f"El DNI '{solicitud.dni}' ya pertenece a otro colegiado."
+                else:
+                    detalle = f"Conflicto de datos únicos: {msg}"
+                print(f"[APROBAR] IntegrityError solicitud_id={pk}: {e}", file=sys.stderr)
+                return Response({'error': detalle}, status=status.HTTP_409_CONFLICT)
+            except Exception as e:
+                print(f"[APROBAR] Error solicitud_id={pk}: {e}", file=sys.stderr)
+                return Response(
+                    {'error': f'Error al crear la cuenta: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+            # Correo de bienvenida (fuera del atomic para no bloquear el commit)
+            try:
+                send_mail(
+                    "¡Bienvenido al Colegio de Ingenieros del Perú!",
+                    f"""Estimado(a) {solicitud.nombres},
 
 Su solicitud de colegiatura ha sido APROBADA satisfactoriamente.
 
@@ -395,20 +456,16 @@ https://tu-dominio.com/login
 
 Atentamente,
 Colegio de Ingenieros del Perú
-"""
-                send_mail(
-                    asunto,
-                    mensaje,
+""",
                     settings.DEFAULT_FROM_EMAIL,
                     [solicitud.correo],
                     fail_silently=True,
                 )
             except Exception as e:
-                import sys
                 print(f"[MAIL WARNING] No se pudo enviar el correo: {e}", file=sys.stderr)
 
             return Response({'success': True, 'estado': 'APROBADA'})
-            
+
         return Response({'error': 'Acción inválida'}, status=status.HTTP_400_BAD_REQUEST)
 
 class PortalPerfilView(APIView):
@@ -618,104 +675,6 @@ class PortalPagosView(APIView):
             'nro_operacion': nro_operacion,
             'habilitado_nuevo': _get_habilitado(col.id),
             'monto_cobrado': monto_total,
-        })
-
-class AdminCargaRecaudacionView(APIView):
-    authentication_classes = []
-    permission_classes = [AllowAny]  # MVP: En prod debería ser IsAuthenticated(Admin)
-
-    def post(self, request):
-        archivo = request.FILES.get('archivo')
-        carrera = request.data.get('carrera')
-        if not archivo or not carrera:
-            return Response({'error': 'Archivo o carrera no proporcionados'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Leer archivo con pandas
-        try:
-            if archivo.name.endswith('.csv'):
-                df = pd.read_csv(archivo)
-            else:
-                df = pd.read_excel(archivo)
-        except Exception as e:
-            return Response({'error': f'Error al leer el archivo: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Normalizar nombres de columnas
-        df.columns = df.columns.str.strip().str.upper()
-        requeridas = ['CIP', 'MES', 'MONTO']
-        for req in requeridas:
-            if req not in df.columns:
-                return Response({'error': f'Columna requerida no encontrada: {req}'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Crear registro de auditoría (asumiendo que el admin tiene ID 1 para el MVP, en real sacar de request.user)
-        admin = Administrador.objects.first()
-        carga = CargaRecaudacion.objects.create(
-            nombre_archivo=archivo.name,
-            procesado_por=admin,
-            total_filas=len(df),
-            filas_ok=0,
-            filas_error=0
-        )
-
-        filas_ok = 0
-        filas_error = 0
-        errores = []
-
-        # Como todos los pagos se suben "a fin de mes", usaremos el final del mes provisto, o la fecha actual
-        fecha_pago_defecto = date.today()
-
-        for index, row in df.iterrows():
-            try:
-                cip_str = str(row['CIP']).strip()
-                if cip_str.endswith('.0'): cip_str = cip_str[:-2]
-                
-                carrera_nombre = carrera.strip()
-                mes_str = str(row['MES']).strip() # Esperado '2026-05' o '2026-05-01'
-                monto = float(row['MONTO'])
-
-                # Parsear el periodo
-                if len(mes_str) >= 7:
-                    año = int(mes_str[0:4])
-                    mes = int(mes_str[5:7])
-                    periodo_date = date(año, mes, 1)
-                else:
-                    raise ValueError(f"Formato de mes inválido: {mes_str}")
-
-                # Buscar colegiado
-                colegiado = Colegiado.objects.filter(nro_colegiado=cip_str, carrera__nombre=carrera_nombre).first()
-                if not colegiado:
-                    raise ValueError(f"Colegiado no encontrado (CIP: {cip_str}, Carrera: {carrera_nombre})")
-
-                # Crear el pago o actualizar si existe (solo hay 1 pago de mensualidad por periodo)
-                pago, created = Pago.objects.update_or_create(
-                    colegiado=colegiado,
-                    periodo=periodo_date,
-                    defaults={
-                        'tipo': 'MENSUALIDAD',
-                        'monto': monto,
-                        'canal': 'ARCHIVO_RECAUDACION',
-                        'fecha_pago': fecha_pago_defecto,
-                        'carga': carga,
-                        'registrado_por': admin,
-                        'nro_operacion': f"CARGA-{carga.id}-ROW-{index}"
-                    }
-                )
-                filas_ok += 1
-            except Exception as e:
-                filas_error += 1
-                errores.append(f"Fila {index + 2}: {str(e)}")
-
-        # Actualizar auditoría
-        carga.filas_ok = filas_ok
-        carga.filas_error = filas_error
-        carga.save()
-
-        return Response({
-            'success': True,
-            'carga_id': carga.id,
-            'total': len(df),
-            'ok': filas_ok,
-            'error': filas_error,
-            'errores': errores[:10] # Enviar solo los primeros 10 errores para no saturar
         })
 
 @api_view(['GET'])

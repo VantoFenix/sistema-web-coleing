@@ -25,8 +25,6 @@ urlpatterns = [
     path('api/admin/dashboard/', views.AdminDashboardView.as_view(), name='admin-dashboard'),
     path('api/admin/postulaciones/', views.AdminPostulacionesView.as_view(), name='admin-postulaciones'),
     path('api/admin/postulaciones/<int:pk>/resolver/', views.AdminResolverSolicitudView.as_view(), name='admin-resolver-postulacion'),
-    path('api/admin/recaudacion/', views.AdminCargaRecaudacionView.as_view(), name='admin-recaudacion'),
-
     # HU14 — Pagos Presencial
     path('api/admin/colegiados/buscar/', views.AdminBuscarColegiadoView.as_view(), name='admin-buscar-colegiado'),
     path('api/admin/colegiados/<int:pk>/deuda/', views.AdminDeudaColegiadoView.as_view(), name='admin-deuda-colegiado'),
