@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Search, User, CheckCircle2, XCircle, Loader2,
-  Calendar, CreditCard, AlertCircle, BadgeCheck,
+  Calendar, AlertCircle, BadgeCheck, CreditCard,
   Banknote, Smartphone, Building2, Wallet, ChevronRight,
 } from 'lucide-react';
-import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const MESES = [
@@ -32,7 +31,6 @@ function fmtFecha(iso) {
 }
 
 const METODOS = [
-  { valor: 'TARJETA',       label: 'Tarjeta',       icono: <CreditCard size={16} /> },
   { valor: 'YAPE',          label: 'Yape',          icono: <Smartphone size={16} /> },
   { valor: 'PLIN',          label: 'Plin',          icono: <Smartphone size={16} /> },
   { valor: 'EFECTIVO',      label: 'Efectivo',      icono: <Banknote size={16} /> },
@@ -73,7 +71,6 @@ export default function AdminPagoPresencial() {
   const [enviando, setEnviando]     = useState(false);
   const [resultado, setResultado]   = useState(null);
   const [montoMensual, setMontoMensual] = useState(20.00);
-  const [mpListo, setMpListo]       = useState(false);
 
   const searchRef = useRef(null);
 
@@ -82,10 +79,6 @@ export default function AdminPagoPresencial() {
     fetch('/api/admin/configuracion/')
       .then(r => r.json())
       .then(d => { if (d.monto_mensualidad) setMontoMensual(parseFloat(d.monto_mensualidad)); })
-      .catch(() => {});
-    fetch('/api/pagos/mp-config/')
-      .then(r => r.json())
-      .then(d => { if (d.public_key) { initMercadoPago(d.public_key, { locale: 'es-PE' }); setMpListo(true); } })
       .catch(() => {});
   }, []);
 
@@ -180,7 +173,6 @@ export default function AdminPagoPresencial() {
     setErrForm('');
     if (periodosSeleccionados.size === 0) { setErrForm('Seleccione al menos un periodo.'); return; }
     if (!metodo)  { setErrForm('Seleccione el método de pago.'); return; }
-    if (metodo === 'TARJETA') return; // la tarjeta tiene su propio submit via CardPayment Brick
     if (!monto || isNaN(parseFloat(monto)) || parseFloat(monto) <= 0) {
       setErrForm('Ingrese un monto válido mayor a 0.'); return;
     }
@@ -207,33 +199,6 @@ export default function AdminPagoPresencial() {
     }
   };
 
-  const handleTarjetaSubmit = async (formData) => {
-    setErrForm('');
-    setEnviando(true);
-    try {
-      const res = await fetch('/api/admin/pagos/tarjeta/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          colegiado_id:      colegiado.id,
-          token:             formData.token,
-          payment_method_id: formData.payment_method_id,
-          installments:      formData.installments,
-          issuer_id:         formData.issuer_id,
-          periodos:          [...periodosSeleccionados].sort(),
-          monto:             parseFloat(monto),
-          email:             formData.payer?.email || 'pagador@cip.org.pe',
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) setResultado({ ok: true, ...data });
-      else setErrForm(data.error || 'No se pudo procesar el pago con tarjeta.');
-    } catch {
-      setErrForm('Error de conexión con el servidor.');
-    } finally {
-      setEnviando(false);
-    }
-  };
 
   const handleNuevoPago = () => {
     setColegiado(null); setDeuda(null); setResultado(null);
@@ -306,8 +271,8 @@ export default function AdminPagoPresencial() {
             {resultado.habilitado_nuevo ? <BadgeCheck size={20} color="#059669" /> : <AlertCircle size={20} color="#D97706" />}
             <span style={{ fontSize: '0.875rem', fontWeight: '600', color: resultado.habilitado_nuevo ? '#065F46' : '#92400E' }}>
               {resultado.habilitado_nuevo
-                ? 'El colegiado ahora está HABILITADO'
-                : 'El colegiado aún tiene meses pendientes (sigue inhabilitado)'}
+                ? 'El colegiado ha pagado'
+                : '-'}
             </span>
           </div>
 
@@ -506,7 +471,7 @@ export default function AdminPagoPresencial() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div>
               <h3 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--cip-blue)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <Calendar size={18} /> Periodos del Año {new Date().getFullYear()}
+                <Calendar size={18} /> Periodos del Año
               </h3>
               {periodosSeleccionados.size > 0 && (
                 <p style={{ fontSize: '0.78rem', color: '#059669', fontWeight: '600', marginTop: '0.25rem', margin: '0.25rem 0 0 0' }}>
@@ -720,9 +685,9 @@ export default function AdminPagoPresencial() {
                       style={{
                         padding: '0.55rem 0.3rem', borderRadius: '8px', cursor: 'pointer',
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.22rem',
-                        border: `2px solid ${metodo === m.valor ? (m.valor === 'TARJETA' ? '#2563EB' : 'var(--cip-blue)') : 'var(--border-color)'}`,
-                        background: metodo === m.valor ? (m.valor === 'TARJETA' ? '#EFF6FF' : '#EFF6FF') : 'white',
-                        color: metodo === m.valor ? (m.valor === 'TARJETA' ? '#1D4ED8' : 'var(--cip-blue)') : 'var(--text-main)',
+                        border: `2px solid ${metodo === m.valor ? 'var(--cip-blue)' : 'var(--border-color)'}`,
+                        background: metodo === m.valor ? '#EFF6FF' : 'white',
+                        color: metodo === m.valor ? 'var(--cip-blue)' : 'var(--text-main)',
                         fontWeight: metodo === m.valor ? '700' : '400',
                         fontSize: '0.72rem', transition: 'all 0.15s',
                       }}
@@ -758,35 +723,8 @@ export default function AdminPagoPresencial() {
                 </div>
               )}
 
-              {/* ── CardPayment Brick (solo cuando metodo === TARJETA) ── */}
-              {metodo === 'TARJETA' && periodosSeleccionados.size > 0 && (
-                <div style={{ marginBottom: '1rem' }}>
-                  {/* Monto destacado */}
-                  <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', padding: '0.65rem 1rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.78rem', color: '#3B82F6', fontWeight: '600' }}>
-                      {periodosSeleccionados.size} mes{periodosSeleccionados.size !== 1 ? 'es' : ''} × S/ {montoMensual.toFixed(2)}
-                    </span>
-                    <strong style={{ fontSize: '1.2rem', color: '#1D4ED8' }}>S/ {monto || '0.00'}</strong>
-                  </div>
-
-                  {mpListo ? (
-                    <CardPayment
-                      initialization={{ amount: parseFloat(monto) || 0 }}
-                      customization={{ paymentMethods: { minInstallments: 1, maxInstallments: 1 } }}
-                      onSubmit={handleTarjetaSubmit}
-                      onError={(err) => setErrForm(err.message || 'Error en la pasarela de pago.')}
-                    />
-                  ) : (
-                    <div style={{ textAlign: 'center', padding: '1.5rem' }}>
-                      <Loader2 size={24} className="spin" style={{ margin: '0 auto', display: 'block', color: 'var(--text-muted)' }} />
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Cargando pasarela…</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Resumen rápido (solo metodos no-tarjeta) */}
-              {metodo !== 'TARJETA' && periodosSeleccionados.size > 0 && monto && metodo && (
+              {/* Resumen rápido */}
+              {periodosSeleccionados.size > 0 && monto && metodo && (
                 <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.78rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', color: 'var(--text-muted)' }}>
                     <span>Periodos:</span>
@@ -811,9 +749,8 @@ export default function AdminPagoPresencial() {
                 </div>
               )}
 
-              {/* Botón confirmar (solo metodos no-tarjeta) */}
-              {metodo !== 'TARJETA' && (
-                <button
+              {/* Botón confirmar */}
+              <button
                   onClick={handleRegistrar}
                   disabled={enviando || periodosSeleccionados.size === 0}
                   className="btn btn-block"
@@ -833,7 +770,6 @@ export default function AdminPagoPresencial() {
                     : <><CheckCircle2 size={18} /> Confirmar y Registrar</>
                   }
                 </button>
-              )}
             </div>
           )}
         </div>
