@@ -54,8 +54,12 @@ function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSol
     if (estado === 'PENDIENTE') {
       // Pendientes se seleccionan/deseleccionan como bloque
       const todasSel = pendientes.every(p => s.has(p.periodo));
-      if (todasSel) pendientes.forEach(p => s.delete(p.periodo));
-      else          pendientes.forEach(p => s.add(p.periodo));
+      if (todasSel) {
+        // Al deseleccionar deudas, limpiar TODO (no se puede tener adelantos sin pagar la deuda)
+        s.clear();
+      } else {
+        pendientes.forEach(p => s.add(p.periodo));
+      }
     } else {
       // MES_ACTUAL / ADELANTO: en cascada
       if (s.has(periodo)) {
@@ -63,7 +67,7 @@ function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSol
         const idx = allPeriodos.findIndex(p => p.periodo === periodo);
         allPeriodos.slice(idx).forEach(p => s.delete(p.periodo));
       } else {
-        // Seleccionar: primero agrega todos los meses anteriores que no estén pagados
+        // Seleccionar: primero agrega todos los meses anteriores (incluyendo deudas)
         for (const p of allPeriodos) {
           if (p.periodo === periodo) break;
           s.add(p.periodo);
