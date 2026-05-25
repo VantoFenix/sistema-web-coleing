@@ -29,6 +29,7 @@ urlpatterns = [
     # HU14 — Pagos Presencial
     path('api/admin/colegiados/buscar/', views.AdminBuscarColegiadoView.as_view(), name='admin-buscar-colegiado'),
     path('api/admin/colegiados/<int:pk>/deuda/', views.AdminDeudaColegiadoView.as_view(), name='admin-deuda-colegiado'),
+    path('api/admin/colegiados/<int:pk>/reset-password/', views.AdminResetPasswordColegiadoView.as_view(), name='admin-reset-password'),
     path('api/admin/pagos/presencial/', views.AdminRegistrarPagoPresencialView.as_view(), name='admin-pago-presencial'),
     # HU15 — Verificación de Vouchers
     path('api/admin/vouchers/', views.AdminVouchersListView.as_view(), name='admin-vouchers-list'),

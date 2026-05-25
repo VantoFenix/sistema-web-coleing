@@ -723,6 +723,20 @@ class AdminBuscarColegiadoView(APIView):
         return Response(resultados)
 
 
+class AdminResetPasswordColegiadoView(APIView):
+    """Resetea la contraseña de un colegiado a su DNI (para casos donde el hash es incorrecto)."""
+    authentication_classes = []
+    permission_classes     = [AllowAny]
+
+    def post(self, request, pk):
+        col = Colegiado.objects.filter(pk=pk).first()
+        if not col:
+            return Response({'error': 'Colegiado no encontrado.'}, status=404)
+        col.password_hash = make_password(col.dni)
+        col.save(update_fields=['password_hash'])
+        return Response({'success': True, 'mensaje': 'Contraseña restablecida al DNI del colegiado.'})
+
+
 class AdminDeudaColegiadoView(APIView):
     """Devuelve todos los periodos del año actual + deudas previas de un colegiado.
     Cada periodo tiene estado: PAGADO | PENDIENTE | ADELANTO.
