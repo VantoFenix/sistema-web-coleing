@@ -16,7 +16,8 @@ from datetime import datetime, date
 from django.core.mail import send_mail
 from django.conf import settings
 
-from .models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago
+from .models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago, PagoVoucherPendiente, Configuracion
+from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import AdministradorSerializer, ColegiadoSerializer, SolicitudSerializer, CarreraSerializer, SedeSerializer
 
 def generate_jwt(user_id, role):
@@ -602,7 +603,7 @@ class PortalPagosView(APIView):
                 'historial': historial,
                 'periodos_pendientes': pendientes,
                 'habilitado': _get_habilitado(col.id),
-                'monto_mensualidad': '20.00',
+                'monto_mensualidad': str(_get_monto_mensualidad()),
             })
 
         except Exception as e:
@@ -692,6 +693,14 @@ def get_catalogos(request):
 # ==============================================================================
 # HU14 — Registro de Pagos Presencial por Administrador
 # ==============================================================================
+
+def _get_monto_mensualidad():
+    """Devuelve el monto de mensualidad configurado en BD (default S/ 20.00)."""
+    try:
+        return round(float(Configuracion.objects.get(clave='monto_mensualidad').valor), 2)
+    except (Configuracion.DoesNotExist, ValueError, TypeError):
+        return 20.00
+
 
 def _get_habilitado(colegiado_id):
     """Consulta la vista v_estado_colegiado y retorna True/False."""
@@ -946,100 +955,474 @@ class MPConfigView(APIView):
         return Response({'public_key': settings.MP_PUBLIC_KEY})
 
 
-class PagoOnlineView(APIView):
-    """Recibe el token de tarjeta de MP, cobra y registra los periodos."""
-    # Usa CustomJWTAuthentication del DEFAULT_AUTHENTICATION_CLASSES en settings
+class PagoPreferenciaView(APIView):
+    """
+    Crea una preferencia de MercadoPago Checkout Pro.
+    Usado para Yape: redirige al checkout nativo de MP donde el usuario paga.
+    Al volver, PagoVerificarPreferenciaView registra el pago automáticamente.
+    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        import mercadopago
+        import mercadopago, sys
 
-        token             = request.data.get('token')
-        payment_method_id = request.data.get('payment_method_id')
-        installments      = request.data.get('installments', 1)
-        issuer_id         = request.data.get('issuer_id')
+        periodos = request.data.get('periodos', [])
+        if not periodos:
+            return Response({'error': 'Seleccione al menos un periodo.'}, status=400)
+
+        colegiado   = request.user
+        monto_total = round(len(periodos) * _get_monto_mensualidad(), 2)
+
+        # external_reference: "cip-{id}~{p1}~{p2}" — URL-safe, parseable en el retorno
+        external_ref = 'cip-{}~{}'.format(colegiado.id, '~'.join(sorted(periodos)))
+
+        sdk = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
+
+        # Usar SITE_URL del .env si está definida, si no construir desde la request
+        site_url = getattr(settings, 'SITE_URL', '').rstrip('/')
+        if not site_url:
+            site_url = request.scheme + '://' + request.get_host()
+
+        success_url = '{}/portal/pagos'.format(site_url)
+        failure_url = '{}/portal/pagos'.format(site_url)
+        pending_url = '{}/portal/pagos'.format(site_url)
+
+        preference_data = {
+            "items": [{
+                "title":       "CIP - {} cuota(s) mensual(es)".format(len(periodos)),
+                "quantity":    1,
+                "unit_price":  float(monto_total),
+                "currency_id": "PEN",
+            }],
+            "payer": {
+                "email": getattr(colegiado, 'correo', 'pagador@cip.org.pe'),
+            },
+            "back_urls": {
+                "success": success_url,
+                "failure": failure_url,
+                "pending": pending_url,
+            },
+            # auto_return omitido: requiere URL HTTPS pública validada por MP.
+            # MP mostrará botón "Volver al sitio" → misma URL con payment_id en params.
+            "external_reference": external_ref,
+        }
+
+        print("[MP PREF] Creando preferencia: {} monto={}".format(external_ref, monto_total), file=sys.stderr)
+        result   = sdk.preference().create(preference_data)
+        response = result.get("response", {})
+        pref_id  = response.get("id")
+        init_pt  = response.get("init_point")
+
+        print("[MP PREF] Respuesta: {}".format(response), file=sys.stderr)
+
+        if not pref_id or not init_pt:
+            err = response.get("message") or response.get("error") or "Error desconocido"
+            return Response({'error': 'No se pudo crear el enlace de pago: {}'.format(err)}, status=500)
+
+        return Response({'preference_id': pref_id, 'init_point': init_pt})
+
+
+class PagoVerificarPreferenciaView(APIView):
+    """
+    Verifica y registra un pago de Checkout Pro luego de la redirección desde MP.
+    MP pasa payment_id y external_reference como query params en la back_url.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import mercadopago, sys
+
+        payment_id   = request.data.get('payment_id', '')
+        external_ref = request.data.get('external_reference', '')
+
+        if not payment_id:
+            return Response({'error': 'payment_id requerido.'}, status=400)
+
+        sdk      = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
+        result   = sdk.payment().get(payment_id)
+        response = result.get("response", {})
+        mp_status = response.get("status")
+
+        print("[MP VERIFY] payment_id={} status={}".format(payment_id, mp_status), file=sys.stderr)
+        print("[MP VERIFY] response={}".format(response), file=sys.stderr)
+
+        if mp_status != "approved":
+            return Response(
+                {'error': 'El pago no fue aprobado (estado: {}).'.format(mp_status)},
+                status=402,
+            )
+
+        # Decodificar external_reference → "cip-{id}~{p1}~{p2}"
+        try:
+            parts        = external_ref.split('~')
+            col_id_str   = parts[0].replace('cip-', '')
+            periodos     = parts[1:]
+            assert int(col_id_str) == request.user.id, "colegiado_id no coincide"
+        except Exception as ex:
+            print("[MP VERIFY] external_ref inválido: {} → {}".format(external_ref, ex), file=sys.stderr)
+            return Response({'error': 'Referencia de pago inválida.'}, status=400)
+
+        if not periodos:
+            return Response({'error': 'No se determinaron los periodos a registrar.'}, status=400)
+
+        colegiado   = request.user
+        hoy         = date.today()
+        metodo_str  = (response.get('payment_method_id') or 'CHECKOUT_PRO').upper()
+        registrados = []
+        ya_existian = []
+
+        for periodo_str in sorted(periodos):
+            try:
+                año, mes = map(int, periodo_str.split('-'))
+                _, created = Pago.objects.get_or_create(
+                    colegiado=colegiado,
+                    periodo=date(año, mes, 1),
+                    defaults={
+                        'tipo':          'MENSUALIDAD',
+                        'monto':         _get_monto_mensualidad(),
+                        'canal':         'PORTAL',
+                        'metodo':        metodo_str,
+                        'nro_operacion': str(payment_id),
+                        'fecha_pago':    hoy,
+                    }
+                )
+                (registrados if created else ya_existian).append(periodo_str)
+            except Exception as ex:
+                print("[MP VERIFY] Error guardando {}: {}".format(periodo_str, ex), file=sys.stderr)
+
+        return Response({
+            'success':          True,
+            'periodos_pagados': registrados,
+            'ya_existian':      ya_existian,
+            'nro_operacion':    str(payment_id),
+            'habilitado_nuevo': _get_habilitado(colegiado.id),
+            'monto_cobrado':    round(len(periodos) * _get_monto_mensualidad(), 2),
+        })
+
+
+class PagoOnlineView(APIView):
+    """
+    Procesa pagos online via MercadoPago.
+    Soporta Tarjeta (Visa/MC/Amex): requiere token, payment_method_id, installments.
+    (Yape usa PagoPreferenciaView + PagoVerificarPreferenciaView)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import mercadopago, sys
+
+        payment_method_id = request.data.get('payment_method_id', '')
         periodos          = request.data.get('periodos', [])
-        email_payer       = request.data.get('email') or getattr(request.user, 'correo', None) or 'pagador@cip.org.pe'
+        email_payer       = (
+            request.data.get('email')
+            or getattr(request.user, 'correo', None)
+            or 'pagador@cip.org.pe'
+        )
 
-        if not token:
-            return Response({'error': 'Token de tarjeta requerido.'}, status=400)
         if not periodos:
             return Response({'error': 'Seleccione al menos un periodo.'}, status=400)
         if not payment_method_id:
             return Response({'error': 'Método de pago requerido.'}, status=400)
 
-        monto_total = len(periodos) * 20.00   # S/ 20.00 por periodo
+        monto_total = round(len(periodos) * _get_monto_mensualidad(), 2)
+        sdk         = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
 
-        sdk = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
+        # ── Construir payload según método ──────────────────────────────────
+        if payment_method_id == 'yape':
+            # Yape: sin token, requiere teléfono del pagador
+            phone_number = (
+                request.data.get('phone')
+                or (request.data.get('payer') or {}).get('phone', {}).get('number', '')
+            )
+            if not phone_number:
+                return Response({'error': 'Número de teléfono Yape requerido.'}, status=400)
 
-        payment_data = {
-            "transaction_amount": float(monto_total),
-            "token": token,
-            "description": f"CIP - {len(periodos)} cuota(s) mensual(es)",
-            "installments": int(installments),
-            "payment_method_id": payment_method_id,
-            "payer": {"email": email_payer},
-        }
-        if issuer_id:
-            payment_data["issuer_id"] = issuer_id
+            # Extraer nombres del colegiado (first_name y last_name son requeridos por MP)
+            nombres_completo = (getattr(request.user, 'nombres', '') or '').strip()
+            partes           = nombres_completo.split() if nombres_completo else []
+            first_name       = partes[0]          if partes               else 'Colegiado'
+            last_name        = ' '.join(partes[1:]) if len(partes) > 1   else 'CIP'
 
-        result   = sdk.payment().create(payment_data)
-        response = result.get("response", {})
+            payment_data = {
+                "transaction_amount": float(monto_total),
+                "description":        f"CIP - {len(periodos)} cuota(s) mensual(es)",
+                "payment_method_id":  "yape",
+                "payer": {
+                    "email":      email_payer,
+                    "first_name": first_name,
+                    "last_name":  last_name,
+                    # area_code debe ser "51" sin el símbolo "+"
+                    "phone":      {"area_code": "51", "number": str(phone_number)},
+                },
+            }
+            metodo_registro = 'YAPE'
+
+        else:
+            # Tarjeta (Visa/MC/Amex): requiere token
+            token        = request.data.get('token')
+            installments = request.data.get('installments', 1)
+            issuer_id    = request.data.get('issuer_id')
+
+            if not token:
+                return Response({'error': 'Token de tarjeta requerido.'}, status=400)
+
+            payment_data = {
+                "transaction_amount": float(monto_total),
+                "token":              token,
+                "description":        f"CIP - {len(periodos)} cuota(s) mensual(es)",
+                "installments":       int(installments),
+                "payment_method_id":  payment_method_id,
+                "payer":              {"email": email_payer},
+            }
+            if issuer_id:
+                payment_data["issuer_id"] = issuer_id
+            metodo_registro = 'TARJETA'
+
+        # ── Llamar a MP ──────────────────────────────────────────────────────
+        print(f"[MP] Creando pago: metodo={metodo_registro} monto={monto_total} periodos={periodos}", file=sys.stderr)
+        print(f"[MP] Payload enviado: {payment_data}", file=sys.stderr)
+        result    = sdk.payment().create(payment_data)
+        response  = result.get("response", {})
         mp_status = response.get("status")
+        print(f"[MP] Respuesta completa: {response}", file=sys.stderr)
 
+        # ── Manejar respuesta ────────────────────────────────────────────────
         if mp_status == "approved":
-            colegiado = request.user
-            hoy = date.today()
+            colegiado   = request.user
+            hoy         = date.today()
             registrados = []
             ya_existian = []
 
             for periodo_str in sorted(periodos):
                 try:
                     año, mes = map(int, periodo_str.split('-'))
-                    periodo_date = date(año, mes, 1)
                     _, created = Pago.objects.get_or_create(
                         colegiado=colegiado,
-                        periodo=periodo_date,
+                        periodo=date(año, mes, 1),
                         defaults={
                             'tipo':          'MENSUALIDAD',
-                            'monto':         20.00,
+                            'monto':         _get_monto_mensualidad(),
                             'canal':         'PORTAL',
-                            'metodo':        'TARJETA',
+                            'metodo':        metodo_registro,
                             'nro_operacion': str(response.get("id", "")),
+                            'fecha_pago':    hoy,
+                        }
+                    )
+                    (registrados if created else ya_existian).append(periodo_str)
+                except Exception as ex:
+                    print(f"[MP] Error guardando periodo {periodo_str}: {ex}", file=sys.stderr)
+
+            return Response({
+                'success':          True,
+                'periodos_pagados': registrados,
+                'ya_existian':      ya_existian,
+                'nro_operacion':    str(response.get("id", "")),
+                'habilitado_nuevo': _get_habilitado(colegiado.id),
+                'monto_cobrado':    monto_total,
+            })
+
+        elif mp_status in ("pending", "in_process"):
+            # Yape puede quedar pending mientras el usuario aprueba en la app
+            # Devolvemos pending_id para que el frontend haga polling
+            return Response({
+                'pending':      True,
+                'mp_id':        str(response.get("id", "")),
+                'periodos':     periodos,
+                'monto':        monto_total,
+            }, status=202)
+
+        else:
+            detalle   = response.get("status_detail", "")
+            error_mp  = response.get("error", "")
+            causa_mp  = response.get("cause", [])
+            print(f"[MP] RECHAZADO — status_detail={detalle} error={error_mp} cause={causa_mp}", file=sys.stderr)
+
+            msgs = {
+                # Tarjeta
+                "cc_rejected_bad_filled_card_number":   "Número de tarjeta incorrecto.",
+                "cc_rejected_bad_filled_date":          "Fecha de vencimiento incorrecta.",
+                "cc_rejected_bad_filled_security_code": "Código de seguridad incorrecto.",
+                "cc_rejected_insufficient_amount":      "Fondos insuficientes en la tarjeta.",
+                "cc_rejected_blacklist":                "Tarjeta bloqueada. Contacte a su banco.",
+                "cc_rejected_call_for_authorize":       "Tarjeta requiere autorización. Llame a su banco.",
+                "cc_rejected_card_disabled":            "Tarjeta desactivada. Active pagos en línea.",
+                "cc_rejected_duplicated_payment":       "Pago duplicado. Espere unos minutos.",
+                "cc_rejected_high_risk":                "Pago rechazado por seguridad. Intente con otra tarjeta.",
+                # Yape
+                "yape_rejected_other_reason":           "Pago Yape rechazado. Verifique que el número esté registrado en Yape.",
+                "yape_rejected_not_enough_balance":     "Saldo insuficiente en Yape.",
+                "yape_rejected_invalid_phone":          "Número de teléfono no registrado en Yape.",
+            }
+
+            if detalle in msgs:
+                mensaje = msgs[detalle]
+            elif error_mp:
+                mensaje = f"Error MP: {error_mp} — {detalle or 'sin detalle'}"
+            elif detalle:
+                mensaje = f"Pago rechazado: {detalle}"
+            else:
+                mensaje = f"Pago rechazado por MercadoPago (status: {mp_status})."
+
+            return Response({'error': mensaje, 'mp_detail': detalle}, status=402)
+
+
+class PagoOnlineStatusView(APIView):
+    """Consulta el estado de un pago MP pendiente (polling para Yape)."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, mp_id):
+        import mercadopago, sys
+
+        sdk      = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
+        result   = sdk.payment().get(mp_id)
+        response = result.get("response", {})
+        mp_status = response.get("status")
+
+        if mp_status == "approved":
+            # Registrar los periodos (venían en la URL como query params)
+            periodos_str = request.query_params.get('periodos', '')
+            periodos = [p for p in periodos_str.split(',') if p]
+            colegiado = request.user
+            hoy       = date.today()
+            registrados = []
+
+            for periodo_str in sorted(periodos):
+                try:
+                    año, mes = map(int, periodo_str.split('-'))
+                    _, created = Pago.objects.get_or_create(
+                        colegiado=colegiado,
+                        periodo=date(año, mes, 1),
+                        defaults={
+                            'tipo':          'MENSUALIDAD',
+                            'monto':         _get_monto_mensualidad(),
+                            'canal':         'PORTAL',
+                            'metodo':        'YAPE',
+                            'nro_operacion': str(mp_id),
                             'fecha_pago':    hoy,
                         }
                     )
                     if created:
                         registrados.append(periodo_str)
-                    else:
-                        ya_existian.append(periodo_str)
-                except Exception:
-                    pass
+                except Exception as ex:
+                    print(f"[MP STATUS] Error guardando {periodo_str}: {ex}", file=sys.stderr)
 
             return Response({
-                'success':         True,
+                'success':          True,
+                'status':           'approved',
                 'periodos_pagados': registrados,
-                'ya_existian':     ya_existian,
-                'nro_operacion':   str(response.get("id", "")),
+                'nro_operacion':    str(mp_id),
                 'habilitado_nuevo': _get_habilitado(colegiado.id),
-                'monto_cobrado':   monto_total,
+                'monto_cobrado':    round(len(periodos) * _get_monto_mensualidad(), 2),
             })
 
         elif mp_status in ("pending", "in_process"):
-            return Response({'error': 'Pago pendiente de acreditación. Intente con otro medio.'}, status=402)
+            return Response({'status': 'pending'}, status=202)
 
         else:
-            detalle = response.get("status_detail", "")
-            msgs = {
-                "cc_rejected_bad_filled_card_number": "Número de tarjeta incorrecto.",
-                "cc_rejected_bad_filled_date":        "Fecha de vencimiento incorrecta.",
-                "cc_rejected_bad_filled_security_code": "Código de seguridad incorrecto.",
-                "cc_rejected_insufficient_amount":    "Fondos insuficientes.",
-                "cc_rejected_blacklist":              "Tarjeta bloqueada. Contacte a su banco.",
-                "cc_rejected_call_for_authorize":     "Tarjeta requiere autorización. Llame a su banco.",
+            return Response({'status': 'rejected', 'error': 'Pago rechazado o expirado.'}, status=402)
+
+
+# ==============================================================================
+# PORTAL — Pago con Voucher (Yape / Plin / Transferencia)
+# ==============================================================================
+class PortalPagoVoucherView(APIView):
+    """Recibe voucher de pago manual y lo guarda como PENDIENTE de revisión."""
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        import json as _json
+
+        user_id = request.user.id
+        col = Colegiado.objects.filter(id=user_id, activo=True).first()
+        if not col:
+            return Response({'error': 'Colegiado no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Periodos: puede llegar como string JSON o como lista
+        periodos_raw = request.data.get('periodos', '')
+        metodo       = request.data.get('metodo', '').upper()
+        voucher_file = request.FILES.get('voucher')
+
+        if not periodos_raw:
+            return Response({'error': 'Seleccione al menos un periodo.'}, status=status.HTTP_400_BAD_REQUEST)
+        if metodo not in ('YAPE', 'PLIN', 'TRANSFERENCIA'):
+            return Response({'error': 'Método de pago inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not voucher_file:
+            return Response({'error': 'Debe adjuntar el comprobante de pago.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Parsear periodos
+        try:
+            periodos = _json.loads(periodos_raw) if isinstance(periodos_raw, str) else list(periodos_raw)
+        except Exception:
+            return Response({'error': 'Formato de periodos inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not periodos:
+            return Response({'error': 'Seleccione al menos un periodo.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verificar que los periodos no estén ya pagados
+        ya_pagados = []
+        for ps in periodos:
+            try:
+                año, mes = map(int, ps.split('-'))
+                if Pago.objects.filter(colegiado=col, periodo=date(año, mes, 1)).exists():
+                    ya_pagados.append(ps)
+            except Exception:
+                pass
+        if ya_pagados:
+            return Response({'error': f'Los siguientes periodos ya están pagados: {", ".join(ya_pagados)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        monto      = round(len(periodos) * _get_monto_mensualidad(), 2)
+        nro_ref    = f"VOC-{uuid.uuid4().hex[:8].upper()}"
+
+        PagoVoucherPendiente.objects.create(
+            colegiado=col,
+            periodos_json=_json.dumps(periodos),
+            monto=monto,
+            metodo=metodo,
+            voucher=voucher_file,
+            nro_referencia=nro_ref,
+        )
+
+        return Response({
+            'success':       True,
+            'nro_referencia': nro_ref,
+            'monto':          f'{monto:.2f}',
+            'periodos':       periodos,
+            'metodo':         metodo,
+        })
+
+
+# ==============================================================================
+# ADMIN — Configuración del sistema (precio mensualidad, etc.)
+# ==============================================================================
+class AdminConfiguracionView(APIView):
+    """GET / PUT para leer y actualizar la configuración del sistema."""
+
+    def get(self, request):
+        return Response({
+            'monto_mensualidad': str(_get_monto_mensualidad()),
+        })
+
+    def put(self, request):
+        monto_str = request.data.get('monto_mensualidad', '')
+        try:
+            monto = round(float(str(monto_str).replace(',', '.')), 2)
+            if monto <= 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            return Response({'error': 'Ingrese un monto válido mayor a 0.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        Configuracion.objects.update_or_create(
+            clave='monto_mensualidad',
+            defaults={
+                'valor':       str(monto),
+                'descripcion': 'Monto de la mensualidad CIP (S/)',
             }
-            mensaje = msgs.get(detalle, f"Pago rechazado ({detalle or mp_status}).")
-            return Response({'error': mensaje}, status=402)
+        )
+        return Response({
+            'success':          True,
+            'monto_mensualidad': str(monto),
+        })
 
 
 def react_catchall_view(request):

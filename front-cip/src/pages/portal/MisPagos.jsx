@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   CheckCircle2, XCircle, Calendar, Loader2, CreditCard,
   ShieldCheck, ArrowLeft, AlertCircle, Clock, Receipt,
+  Smartphone, Building2, UploadCloud, CheckCheck,
 } from 'lucide-react';
 import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react';
 
@@ -19,87 +20,6 @@ const fmtFecha = (iso) => {
   const [y, m, d] = iso.split('-');
   return `${d}/${m}/${y}`;
 };
-
-// Formatear número de tarjeta con espacios
-const fmtCard = (v) =>
-  v.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim();
-
-// Detectar marca por primer dígito
-const detectBrand = (n) => {
-  const d = n.replace(/\D/g, '');
-  if (d.startsWith('4')) return 'VISA';
-  if (/^5[1-5]/.test(d)) return 'MASTERCARD';
-  if (/^3[47]/.test(d)) return 'AMEX';
-  return null;
-};
-
-// ── Componente tarjeta animada ─────────────────────────────────────────────
-function CardVisual({ numero, nombre, expiry, cvv, flip }) {
-  const brand = detectBrand(numero);
-  const masked = numero || '•••• •••• •••• ••••';
-  const displayName = nombre || 'NOMBRE EN TARJETA';
-  const displayExp = expiry || 'MM/AA';
-
-  return (
-    <div style={{ perspective: '1000px', marginBottom: '1.5rem' }}>
-      <div style={{
-        width: '100%', maxWidth: '340px', height: '195px', margin: '0 auto',
-        position: 'relative', transformStyle: 'preserve-3d',
-        transition: 'transform 0.6s', transform: flip ? 'rotateY(180deg)' : 'rotateY(0)',
-      }}>
-        {/* Frente */}
-        <div style={{
-          position: 'absolute', inset: 0, backfaceVisibility: 'hidden',
-          borderRadius: '16px', background: 'linear-gradient(135deg, #1E3A5F 0%, #0F2444 60%, #C41E3A 100%)',
-          padding: '1.5rem', color: 'white', boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
-          display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ width: 44, height: 34, background: 'linear-gradient(135deg, #FFD700, #FFA500)', borderRadius: '4px' }} />
-            <span style={{ fontWeight: '800', fontSize: '1rem', letterSpacing: '2px', opacity: 0.9 }}>
-              {brand || 'CARD'}
-            </span>
-          </div>
-          <div>
-            <p style={{ fontFamily: 'monospace', fontSize: '1.2rem', letterSpacing: '3px', marginBottom: '1rem', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
-              {masked}
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-              <div>
-                <p style={{ opacity: 0.6, marginBottom: '0.1rem', textTransform: 'uppercase', fontSize: '0.65rem' }}>Titular</p>
-                <p style={{ fontWeight: '600', letterSpacing: '0.5px', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {displayName}
-                </p>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ opacity: 0.6, marginBottom: '0.1rem', textTransform: 'uppercase', fontSize: '0.65rem' }}>Vence</p>
-                <p style={{ fontWeight: '600' }}>{displayExp}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Reverso */}
-        <div style={{
-          position: 'absolute', inset: 0, backfaceVisibility: 'hidden',
-          borderRadius: '16px', background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
-          transform: 'rotateY(180deg)', overflow: 'hidden',
-        }}>
-          <div style={{ height: '46px', background: '#111', margin: '1.5rem 0 0.75rem 0' }} />
-          <div style={{ padding: '0 1.5rem' }}>
-            <p style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', marginBottom: '0.25rem' }}>CVV</p>
-            <div style={{ background: 'white', borderRadius: '4px', padding: '0.4rem 0.75rem', display: 'flex', justifyContent: 'flex-end' }}>
-              <span style={{ fontFamily: 'monospace', letterSpacing: '4px', color: '#333', fontWeight: '700' }}>
-                {cvv ? cvv.replace(/\d/g, '•') : '•••'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── Paso: Selección de periodos ────────────────────────────────────────────
 function StepPeriodos({ pendientes, seleccionados, onToggle, onSelAll, onDeselAll, montoUnit, onContinuar }) {
@@ -187,22 +107,46 @@ function StepPeriodos({ pendientes, seleccionados, onToggle, onSelAll, onDeselAl
   );
 }
 
-// ── Paso: Selección de método de pago ─────────────────────────────────────
-function StepMetodo({ total, onVolver, onSeleccionar }) {
+// ── Paso: Selección de método ──────────────────────────────────────────────
+function StepMetodo({ totalBase, total, onMontoChange, onVolver, onSeleccionar }) {
+  const [montoInput, setMontoInput] = useState(total.toFixed(2));
+  const [editando, setEditando]     = useState(false);
+
+  const handleMontoBlur = () => {
+    const val = parseFloat(montoInput);
+    if (!isNaN(val) && val > 0) {
+      onMontoChange(Math.round(val * 100) / 100);
+      setMontoInput((Math.round(val * 100) / 100).toFixed(2));
+    } else {
+      setMontoInput(total.toFixed(2));
+    }
+    setEditando(false);
+  };
+
   const metodos = [
     {
-      id: 'EFECTIVO',
-      label: 'PagoEfectivo',
-      desc: 'Yape, Plin, Tunki y más billeteras',
-      bg: 'linear-gradient(135deg, #F5C400 0%, #D4A800 100%)',
-      emoji: '🅿️',
+      id: 'TARJETA',
+      label: 'Tarjeta de crédito / débito',
+      desc: 'Visa, Mastercard o American Express · pago inmediato',
+      icon: <CreditCard size={26} />,
+      bg: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+      badge: 'Inmediato',
     },
     {
-      id: 'TARJETA',
-      label: 'Tarjeta',
-      desc: 'Visa, Mastercard o American Express',
-      bg: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
-      emoji: '💳',
+      id: 'YAPE',
+      label: 'Yape',
+      desc: 'Paga con Yape vía MercadoPago · registro automático',
+      icon: <Smartphone size={26} />,
+      bg: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)',
+      badge: 'Inmediato',
+    },
+    {
+      id: 'TRANSFERENCIA',
+      label: 'Transferencia / Plin',
+      desc: 'Transferencia bancaria o Plin · sube el comprobante',
+      icon: <Building2 size={26} />,
+      bg: 'linear-gradient(135deg, #0F766E 0%, #0D6F68 100%)',
+      badge: 'Revisión 24h',
     },
   ];
 
@@ -219,15 +163,51 @@ function StepMetodo({ total, onVolver, onSeleccionar }) {
       <h3 style={{ fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.25rem', fontSize: '1.1rem' }}>
         ¿Cómo deseas pagar?
       </h3>
+
+      {/* Total editable */}
       <div style={{
-        background: '#EFF6FF', borderRadius: '8px', padding: '0.6rem 1rem',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        background: '#EFF6FF', border: `1.5px solid ${editando ? 'var(--cip-blue)' : '#BFDBFE'}`,
+        borderRadius: '10px', padding: '0.75rem 1rem',
         marginBottom: '1.5rem', marginTop: '0.75rem',
+        transition: 'border-color 0.2s',
       }}>
-        <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Total a pagar</span>
-        <span style={{ fontSize: '1.375rem', fontWeight: '800', color: 'var(--cip-blue)' }}>
-          S/ {total.toFixed(2)}
-        </span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+          <div>
+            <p style={{ fontSize: '0.72rem', fontWeight: '700', color: '#3B82F6', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '0.15rem' }}>
+              Monto a cobrar
+            </p>
+            {totalBase !== total && (
+              <p style={{ fontSize: '0.68rem', color: '#64748B' }}>
+                Base calculada: S/ {totalBase.toFixed(2)}
+              </p>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--cip-blue)' }}>S/</span>
+            <input
+              type="number"
+              min="1"
+              step="0.50"
+              value={montoInput}
+              onFocus={() => { setEditando(true); setMontoInput(total.toFixed(2)); }}
+              onChange={e => setMontoInput(e.target.value)}
+              onBlur={handleMontoBlur}
+              onKeyDown={e => e.key === 'Enter' && e.target.blur()}
+              style={{
+                width: '110px', padding: '0.4rem 0.6rem',
+                border: `1.5px solid ${editando ? 'var(--cip-blue)' : 'transparent'}`,
+                borderRadius: '8px', outline: 'none',
+                fontSize: '1.5rem', fontWeight: '900', color: 'var(--cip-blue)',
+                fontFamily: 'monospace', textAlign: 'right',
+                background: editando ? 'white' : 'transparent',
+                transition: 'all 0.15s',
+              }}
+            />
+          </div>
+        </div>
+        <p style={{ fontSize: '0.68rem', color: '#3B82F6', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          ✏️ Puedes editar el monto directamente
+        </p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -237,7 +217,7 @@ function StepMetodo({ total, onVolver, onSeleccionar }) {
             onClick={() => onSeleccionar(m.id)}
             style={{
               display: 'flex', alignItems: 'center', gap: '1rem',
-              padding: '1.1rem 1.25rem', borderRadius: '12px', border: 'none',
+              padding: '1rem 1.25rem', borderRadius: '12px', border: 'none',
               background: m.bg, color: 'white', cursor: 'pointer',
               boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
               transition: 'transform 0.15s, box-shadow 0.15s',
@@ -246,234 +226,305 @@ function StepMetodo({ total, onVolver, onSeleccionar }) {
             onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,0,0,0.2)'; }}
             onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'; }}
           >
-            <span style={{ fontSize: '2.2rem', flexShrink: 0 }}>{m.emoji}</span>
+            <span style={{ flexShrink: 0, opacity: 0.9 }}>{m.icon}</span>
             <div style={{ flex: 1 }}>
-              <p style={{ fontWeight: '800', fontSize: '1.05rem', margin: 0, letterSpacing: '0.3px' }}>{m.label}</p>
-              <p style={{ fontSize: '0.78rem', margin: '0.15rem 0 0', opacity: 0.85 }}>{m.desc}</p>
+              <p style={{ fontWeight: '800', fontSize: '0.95rem', margin: 0 }}>{m.label}</p>
+              <p style={{ fontSize: '0.75rem', margin: '0.1rem 0 0', opacity: 0.85 }}>{m.desc}</p>
             </div>
-            <span style={{ fontSize: '1.4rem', opacity: 0.8 }}>›</span>
+            <span style={{
+              background: 'rgba(255,255,255,0.2)', borderRadius: '999px',
+              padding: '0.15rem 0.55rem', fontSize: '0.65rem', fontWeight: '700',
+              flexShrink: 0, whiteSpace: 'nowrap',
+            }}>{m.badge}</span>
           </button>
         ))}
       </div>
 
       <p style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
-        <ShieldCheck size={12} /> Pago seguro simulado — datos no reales
+        <ShieldCheck size={12} /> Pago seguro — datos cifrados
       </p>
     </div>
   );
 }
 
-// ── Paso: PagoEfectivo ────────────────────────────────────────────────────
-function StepEfectivo({ total, onVolver, onPagar, procesando, errPago }) {
-  // Generar CIP simulado una sola vez al montar
-  const [cip] = useState(() => String(Math.floor(100000000 + Math.random() * 900000000)));
-  const [copiado, setCopiado] = useState(false);
-  const [celular, setCelular] = useState('');
+// ── Componente reutilizable: upload de voucher ─────────────────────────────
+function VoucherUpload({ archivo, onChange }) {
+  return (
+    <div>
+      <p style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '0.5rem' }}>
+        📎 Sube el comprobante de tu pago
+      </p>
+      <label style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        gap: '0.5rem', padding: '1.25rem', borderRadius: '10px', cursor: 'pointer',
+        border: `2px dashed ${archivo ? '#16A34A' : '#CBD5E1'}`,
+        background: archivo ? '#F0FDF4' : '#F8FAFC',
+        transition: 'all 0.2s',
+      }}>
+        {archivo
+          ? <CheckCheck size={28} color="#16A34A" />
+          : <UploadCloud size={28} color="#94A3B8" />
+        }
+        <span style={{ fontSize: '0.8rem', fontWeight: '600', color: archivo ? '#15803D' : '#64748B' }}>
+          {archivo ? archivo.name : 'Clic para subir imagen o PDF'}
+        </span>
+        <span style={{ fontSize: '0.7rem', color: '#94A3B8' }}>JPG, PNG o PDF · máx. 5MB</span>
+        <input
+          type="file"
+          accept="image/*,.pdf"
+          style={{ display: 'none' }}
+          onChange={e => onChange(e.target.files[0] || null)}
+        />
+      </label>
+    </div>
+  );
+}
 
-  // Fecha límite: 24 horas desde ahora
-  const vence = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  const diasSemana = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-  const mesesCortos = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const fechaStr = `${diasSemana[vence.getDay()]} ${vence.getDate()}/${mesesCortos[vence.getMonth()]}/${vence.getFullYear()} - ${String(vence.getHours()).padStart(2,'0')}:${String(vence.getMinutes()).padStart(2,'0')} PM`;
+// ── Paso: Yape → MercadoPago Checkout Pro (automático, sin voucher) ─────────
+function StepYape({ total, periodos, onVolver }) {
+  const [creando, setCreando]   = useState(false);
+  const [errLocal, setErrLocal] = useState('');
 
-  const copiarCIP = () => {
-    navigator.clipboard?.writeText(cip).catch(() => {});
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 2000);
+  const handleIrAMP = async () => {
+    setErrLocal('');
+    setCreando(true);
+    try {
+      const token = localStorage.getItem('colToken');
+      const res = await fetch('/api/pagos/preferencia/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ periodos }),
+      });
+      const data = await res.json();
+      if (data.init_point) {
+        // Redirigir al checkout de MercadoPago (Yape nativo)
+        window.location.href = data.init_point;
+      } else {
+        setErrLocal(data.error || 'No se pudo generar el enlace de pago.');
+        setCreando(false);
+      }
+    } catch {
+      setErrLocal('Error de conexión. Intente de nuevo.');
+      setCreando(false);
+    }
   };
 
-  // QR simulado
-  const qrPattern = [
-    [1,1,1,1,1,1,1,0,1,0,1],[1,0,0,0,0,0,1,0,0,1,0],[1,0,1,1,1,0,1,0,1,0,1],
-    [1,0,1,1,1,0,1,1,0,1,0],[1,0,0,0,0,0,1,0,1,0,1],[1,1,1,1,1,1,1,0,0,1,0],
-    [0,0,1,0,0,0,0,1,1,0,1],[1,0,0,1,0,1,0,0,1,1,0],[0,1,1,0,1,0,1,0,0,1,1],
-    [1,0,0,1,0,0,0,1,0,0,1],[1,1,1,1,1,1,1,0,1,1,0],
-  ];
-
-  const wallets = ['Yape','Plin','Tunki','BanBif','Interbank'];
-
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif' }}>
+    <div>
       <button onClick={onVolver} style={{
         display: 'flex', alignItems: 'center', gap: '0.4rem',
         color: 'var(--text-muted)', background: 'none', border: 'none',
-        cursor: 'pointer', marginBottom: '0.75rem', fontSize: '0.875rem',
+        cursor: 'pointer', marginBottom: '1.25rem', fontSize: '0.875rem',
       }}>
         <ArrowLeft size={15} /> Cambiar método
       </button>
 
-      {/* ── Header PagoEfectivo ── */}
+      {/* Encabezado */}
       <div style={{
-        background: '#F5C400', borderRadius: '10px 10px 0 0',
-        padding: '0.75rem 1.25rem',
+        background: 'linear-gradient(135deg, #7C3AED, #6D28D9)',
+        borderRadius: '12px', padding: '1rem 1.25rem',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginBottom: '1.25rem',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: '50%', background: '#1a1a1a',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#F5C400', fontWeight: '900', fontSize: '1rem',
-          }}>P</div>
-          <span style={{ fontWeight: '800', fontSize: '1rem', color: '#1a1a1a' }}>PagoEfectivo</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'white' }}>
+          <Smartphone size={20} />
+          <span style={{ fontWeight: '800', fontSize: '1rem' }}>Pago con Yape</span>
         </div>
-        <span style={{ fontWeight: '700', fontSize: '0.82rem', color: '#1a1a1a' }}>
-          Información para tu pago
-        </span>
+        <span style={{ color: 'white', fontWeight: '900', fontSize: '1.4rem' }}>S/ {total.toFixed(2)}</span>
       </div>
 
-      {/* ── Cuerpo ── */}
-      <div style={{
-        border: '1px solid #E2E8F0', borderTop: 'none',
-        borderRadius: '0 0 10px 10px', overflow: 'hidden',
-      }}>
-        <div style={{ padding: '1rem 1.25rem', background: '#FAFAFA', borderBottom: '1px solid #E2E8F0', textAlign: 'center' }}>
-          <p style={{ margin: 0, fontSize: '0.8rem', color: '#555' }}>
-            <strong>¡Estás a punto de completar tu pago de cuotas CIP!</strong>
-          </p>
-          <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: '#777' }}>
-            Empresa: <strong>Colegio de Ingenieros del Perú</strong> · Servicio: <strong>Cuotas mensuales</strong>
-          </p>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 0 }}>
-          {/* Columna izquierda */}
-          <div style={{ padding: '1rem 1.25rem', borderRight: '1px solid #E2E8F0' }}>
-
-            {/* CIP */}
-            <div style={{ background: '#F5C400', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '0.75rem' }}>
-              <p style={{ margin: '0 0 0.15rem', fontSize: '0.7rem', fontWeight: '700', color: '#78350F', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                Código de pago (CIP)
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ fontFamily: 'monospace', fontWeight: '900', fontSize: '1.4rem', letterSpacing: '2px', color: '#1a1a1a' }}>
-                  {cip}
-                </span>
-              </div>
-              <button onClick={copiarCIP} style={{
-                marginTop: '0.4rem', background: 'rgba(0,0,0,0.12)', border: 'none',
-                borderRadius: '4px', padding: '0.2rem 0.6rem', cursor: 'pointer',
-                fontSize: '0.7rem', fontWeight: '600', color: '#1a1a1a',
-                display: 'flex', alignItems: 'center', gap: '0.3rem',
-              }}>
-                {copiado ? '✓ Copiado' : '📋 Copiar'}
-              </button>
-            </div>
-
-            {/* Monto */}
-            <div style={{ background: '#1a1a1a', borderRadius: '8px', padding: '0.6rem 1rem', marginBottom: '0.75rem', textAlign: 'center' }}>
-              <p style={{ margin: '0 0 0.1rem', fontSize: '0.65rem', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Monto a pagar</p>
-              <p style={{ margin: 0, fontWeight: '900', fontSize: '1.5rem', color: '#F5C400', fontFamily: 'monospace' }}>
-                S/. {total.toFixed(2)}
-              </p>
-            </div>
-
-            {/* Vencimiento */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.9rem', fontSize: '0.75rem', color: '#555' }}>
-              <Clock size={13} style={{ flexShrink: 0, color: '#F59E0B' }} />
-              <span>Págalo antes del <strong>{fechaStr}</strong></span>
-            </div>
-
-            {/* SMS */}
-            <p style={{ margin: '0 0 0.4rem', fontSize: '0.72rem', color: '#666' }}>
-              Compartir código CIP por SMS:
-            </p>
-            <div style={{ display: 'flex', gap: '0.4rem' }}>
-              <input
-                type="text" inputMode="numeric" placeholder="Ingresar celular"
-                value={celular}
-                onChange={e => setCelular(e.target.value.replace(/\D/g, '').slice(0, 9))}
-                style={{
-                  flex: 1, padding: '0.4rem 0.65rem', border: '1px solid #CBD5E1',
-                  borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'monospace',
-                }}
-              />
-              <button style={{
-                background: '#1a1a1a', color: 'white', border: 'none',
-                borderRadius: '6px', padding: '0.4rem 0.75rem',
-                fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer',
-              }}>
-                Enviar
-              </button>
-            </div>
-          </div>
-
-          {/* Columna derecha: QR + wallets */}
-          <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.6rem', minWidth: '130px' }}>
-            <p style={{ margin: 0, fontSize: '0.68rem', fontWeight: '700', color: '#333', textAlign: 'center', lineHeight: 1.3 }}>
-              Escanea el QR y<br/>págalo desde tu<br/>billetera favorita*
-            </p>
-            {/* QR simulado */}
-            <div style={{ padding: '6px', background: 'white', border: '2px solid #1a1a1a', borderRadius: '6px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(11, 7px)', gap: '1px' }}>
-                {qrPattern.flat().map((cell, i) => (
-                  <div key={i} style={{ width: 7, height: 7, borderRadius: '1px', background: cell ? '#1a1a1a' : 'transparent' }} />
-                ))}
-              </div>
-            </div>
-            {/* Logos wallets */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '3px' }}>
-              {wallets.map(w => (
-                <div key={w} style={{
-                  background: '#F1F5F9', borderRadius: '4px',
-                  padding: '2px 4px', fontSize: '0.5rem', fontWeight: '700',
-                  color: '#334155', textAlign: 'center', whiteSpace: 'nowrap',
-                }}>
-                  {w}
-                </div>
-              ))}
-            </div>
-            <p style={{ margin: 0, fontSize: '0.55rem', color: '#999', textAlign: 'center', lineHeight: 1.2 }}>
-              *Recuerda habilitar tu<br/>tarjeta para compras
-            </p>
-          </div>
-        </div>
+      {/* Cómo funciona */}
+      <div style={{ background: '#F5F3FF', border: '1.5px solid #DDD6FE', borderRadius: '12px', padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
+        <p style={{ fontWeight: '800', fontSize: '0.85rem', color: '#5B21B6', marginBottom: '0.75rem' }}>
+          📱 ¿Cómo funciona?
+        </p>
+        {[
+          '1. Haz clic en "Pagar con Yape"',
+          '2. Se abrirá el checkout seguro de MercadoPago',
+          '3. Aprueba el pago desde tu app Yape',
+          '4. Serás redirigido de vuelta al portal',
+          '5. El pago queda registrado automáticamente ✓',
+        ].map((s, i) => (
+          <p key={i} style={{ fontSize: '0.8rem', color: '#6D28D9', marginBottom: '0.25rem' }}>{s}</p>
+        ))}
       </div>
 
-      {errPago && (
-        <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.75rem', borderRadius: '8px', marginTop: '1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <AlertCircle size={16} style={{ flexShrink: 0 }} /> {errPago}
+      {/* Periodos */}
+      <div style={{ background: '#EDE9FE', borderRadius: '8px', padding: '0.65rem 1rem', marginBottom: '1.25rem', fontSize: '0.8rem', color: '#5B21B6' }}>
+        <strong>Periodos:</strong>{' '}
+        {periodos.map(p => fmtPeriodo(p)).join(', ')}
+      </div>
+
+      {errLocal && (
+        <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <AlertCircle size={16} style={{ flexShrink: 0 }} /> {errLocal}
         </div>
       )}
 
-      {/* Botón confirmar */}
       <button
-        onClick={onPagar}
-        disabled={procesando}
-        className="btn btn-block"
+        onClick={handleIrAMP}
+        disabled={creando}
         style={{
-          marginTop: '1.25rem', padding: '0.9rem', fontSize: '1rem', border: 'none',
-          background: '#F5C400', color: '#1a1a1a', borderRadius: '8px', fontWeight: '800',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-          cursor: procesando ? 'not-allowed' : 'pointer', opacity: procesando ? 0.7 : 1,
-          boxShadow: '0 4px 12px rgba(245,196,0,0.4)',
+          width: '100%', padding: '1rem', border: 'none', borderRadius: '10px',
+          background: creando ? '#C4B5FD' : 'linear-gradient(135deg, #7C3AED, #6D28D9)',
+          color: 'white', fontWeight: '800', fontSize: '1.05rem',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem',
+          cursor: creando ? 'not-allowed' : 'pointer',
+          boxShadow: creando ? 'none' : '0 4px 14px rgba(109,40,217,0.4)',
+          transition: 'all 0.2s',
         }}
       >
-        {procesando
-          ? <><Loader2 size={20} className="spin" /> Procesando…</>
-          : <><ShieldCheck size={20} /> Confirmar pago con PagoEfectivo</>
+        {creando
+          ? <><Loader2 size={18} className="spin" /> Preparando pago…</>
+          : <><Smartphone size={18} /> Pagar con Yape →</>
         }
       </button>
 
-      <p style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
-        <ShieldCheck size={12} /> Simulación — datos no reales
+      <p style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
+        <ShieldCheck size={12} /> Pago procesado por MercadoPago · Registro automático al aprobar
       </p>
     </div>
   );
 }
 
-// ── Paso: Formulario de tarjeta — MercadoPago Bricks ─────────────────────
+// ── Paso: Transferencia bancaria ───────────────────────────────────────────
+function StepTransferencia({ total, periodos, onVolver, onExito, onError }) {
+  const [voucher, setVoucher]   = useState(null);
+  const [enviando, setEnviando] = useState(false);
+  const [errLocal, setErrLocal] = useState('');
+
+  const handleEnviar = async () => {
+    if (!voucher) { setErrLocal('Debes subir el comprobante de transferencia.'); return; }
+    setErrLocal('');
+    setEnviando(true);
+    try {
+      const token = localStorage.getItem('colToken');
+      const fd = new FormData();
+      fd.append('periodos', JSON.stringify(periodos));
+      fd.append('metodo', 'TRANSFERENCIA');
+      fd.append('voucher', voucher);
+
+      const res = await fetch('/api/portal/pago-voucher/', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (data.success) onExito(data);
+      else { setErrLocal(data.error || 'Error al enviar comprobante.'); onError(data.error || ''); }
+    } catch {
+      const msg = 'Error de conexión. Intente de nuevo.';
+      setErrLocal(msg);
+      onError(msg);
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  // Datos bancarios CIP (ajusta con los datos reales)
+  const cuentas = [
+    { banco: '🏦 BCP', tipo: 'Cuenta Corriente', numero: '215-2205555-0-54', cci: '002 215 002205555054 20' },
+    { banco: '🏦 Interbank', tipo: 'Cuenta Corriente', numero: '200-3001234567', cci: '003 200 003001234567 34' },
+  ];
+
+  return (
+    <div>
+      <button onClick={onVolver} style={{
+        display: 'flex', alignItems: 'center', gap: '0.4rem',
+        color: 'var(--text-muted)', background: 'none', border: 'none',
+        cursor: 'pointer', marginBottom: '1.25rem', fontSize: '0.875rem',
+      }}>
+        <ArrowLeft size={15} /> Cambiar método
+      </button>
+
+      <h3 style={{ fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.25rem', fontSize: '1rem' }}>
+        🏦 Transferencia bancaria
+      </h3>
+      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+        Realiza la transferencia al banco de tu preferencia, luego sube el comprobante.
+      </p>
+
+      {/* Monto destacado */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0F766E, #0D6F68)', borderRadius: '10px',
+        padding: '0.75rem 1.25rem', marginBottom: '1rem',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.85rem' }}>Monto exacto a transferir</span>
+        <span style={{ color: 'white', fontWeight: '900', fontSize: '1.3rem' }}>S/ {total.toFixed(2)}</span>
+      </div>
+
+      {/* Cuentas bancarias */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
+        {cuentas.map((c, i) => (
+          <div key={i} style={{
+            border: '1px solid #E2E8F0', borderRadius: '10px',
+            padding: '0.75rem 1rem', background: 'white',
+          }}>
+            <p style={{ fontWeight: '800', fontSize: '0.9rem', color: 'var(--cip-blue)', marginBottom: '0.5rem' }}>{c.banco}</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem 1rem', fontSize: '0.78rem' }}>
+              <div>
+                <p style={{ color: '#64748B', marginBottom: '0.1rem' }}>Tipo</p>
+                <p style={{ fontWeight: '600', color: '#1E293B' }}>{c.tipo}</p>
+              </div>
+              <div>
+                <p style={{ color: '#64748B', marginBottom: '0.1rem' }}>N° Cuenta</p>
+                <p style={{ fontWeight: '700', color: '#1E293B', fontFamily: 'monospace' }}>{c.numero}</p>
+              </div>
+              <div style={{ gridColumn: '1/-1' }}>
+                <p style={{ color: '#64748B', marginBottom: '0.1rem' }}>CCI (Código Interbancario)</p>
+                <p style={{ fontWeight: '700', color: '#1E293B', fontFamily: 'monospace', letterSpacing: '0.5px' }}>{c.cci}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {/* Titular */}
+        <div style={{ background: '#F1F5F9', borderRadius: '8px', padding: '0.6rem 1rem', fontSize: '0.8rem' }}>
+          <span style={{ color: '#64748B' }}>Titular: </span>
+          <span style={{ fontWeight: '700', color: '#1E293B' }}>Consejo Departamental La Libertad — CIP</span>
+        </div>
+      </div>
+
+      {/* Upload voucher */}
+      <div style={{ marginBottom: '1.25rem' }}>
+        <VoucherUpload archivo={voucher} onChange={setVoucher} />
+      </div>
+
+      {errLocal && (
+        <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <AlertCircle size={16} style={{ flexShrink: 0 }} /> {errLocal}
+        </div>
+      )}
+
+      <button
+        onClick={handleEnviar}
+        disabled={enviando || !voucher}
+        className="btn btn-block"
+        style={{
+          padding: '0.9rem', fontSize: '1rem', border: 'none', borderRadius: '8px',
+          background: 'linear-gradient(135deg, #0F766E, #0D6F68)', color: 'white', fontWeight: '800',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+          opacity: (enviando || !voucher) ? 0.6 : 1,
+          cursor: (enviando || !voucher) ? 'not-allowed' : 'pointer',
+        }}
+      >
+        {enviando ? <><Loader2 size={18} className="spin" /> Enviando…</> : <><UploadCloud size={18} /> Enviar comprobante</>}
+      </button>
+    </div>
+  );
+}
+
+// ── Paso: Tarjeta (MercadoPago Bricks) ────────────────────────────────────
 function StepTarjeta({ total, periodos, onVolver, onExito, onError }) {
-  const [mpListo, setMpListo]     = useState(false);
+  const [mpListo, setMpListo]       = useState(false);
   const [cargandoMP, setCargandoMP] = useState(true);
-  const [errLocal, setErrLocal]   = useState('');
+  const [errLocal, setErrLocal]     = useState('');
 
   useEffect(() => {
     fetch('/api/pagos/mp-config/')
       .then(r => r.json())
-      .then(d => {
-        initMercadoPago(d.public_key, { locale: 'es-PE' });
-        setMpListo(true);
-      })
+      .then(d => { initMercadoPago(d.public_key, { locale: 'es-PE' }); setMpListo(true); })
       .catch(() => setErrLocal('No se pudo cargar la pasarela de pago.'))
       .finally(() => setCargandoMP(false));
   }, []);
@@ -484,10 +535,7 @@ function StepTarjeta({ total, periodos, onVolver, onExito, onError }) {
       const token = localStorage.getItem('colToken');
       const res = await fetch('/api/pagos/online/', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
           token:             formData.token,
           payment_method_id: formData.payment_method_id,
@@ -498,13 +546,8 @@ function StepTarjeta({ total, periodos, onVolver, onExito, onError }) {
         }),
       });
       const data = await res.json();
-      if (data.success) {
-        onExito(data);
-      } else {
-        const msg = data.error || 'No se pudo procesar el pago.';
-        setErrLocal(msg);
-        onError(msg);
-      }
+      if (data.success) onExito(data);
+      else { const msg = data.error || 'No se pudo procesar el pago.'; setErrLocal(msg); onError(msg); }
     } catch {
       const msg = 'Error de conexión. Intente de nuevo.';
       setErrLocal(msg);
@@ -518,13 +561,11 @@ function StepTarjeta({ total, periodos, onVolver, onExito, onError }) {
         <ArrowLeft size={15} /> Cambiar método
       </button>
 
-      {/* Total */}
       <div style={{ background: '#EFF6FF', borderRadius: '8px', padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
         <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Total a cobrar</span>
         <span style={{ fontSize: '1.375rem', fontWeight: '800', color: 'var(--cip-blue)' }}>S/ {total.toFixed(2)}</span>
       </div>
 
-      {/* Cargando SDK */}
       {cargandoMP && (
         <div style={{ textAlign: 'center', padding: '2rem' }}>
           <Loader2 size={28} className="spin" style={{ margin: '0 auto', display: 'block', color: 'var(--text-muted)' }} />
@@ -532,14 +573,12 @@ function StepTarjeta({ total, periodos, onVolver, onExito, onError }) {
         </div>
       )}
 
-      {/* Error */}
       {errLocal && (
         <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <AlertCircle size={16} style={{ flexShrink: 0 }} /> {errLocal}
         </div>
       )}
 
-      {/* Brick de MercadoPago */}
       {mpListo && (
         <CardPayment
           initialization={{ amount: total }}
@@ -556,7 +595,59 @@ function StepTarjeta({ total, periodos, onVolver, onExito, onError }) {
   );
 }
 
-// ── Paso: Éxito ────────────────────────────────────────────────────────────
+// ── Paso: Pago pendiente de revisión (voucher enviado) ─────────────────────
+function StepPendiente({ resultado, onVerHistorial }) {
+  const labels = { YAPE: '🟣 Yape', PLIN: '🟢 Plin', TRANSFERENCIA: '🏦 Transferencia' };
+  return (
+    <div style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
+      <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem auto' }}>
+        <Clock size={38} color="#D97706" />
+      </div>
+      <h2 style={{ fontSize: '1.3rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.5rem' }}>
+        ¡Comprobante recibido!
+      </h2>
+      <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.88rem', lineHeight: 1.5 }}>
+        Tu pago está siendo verificado. Te notificaremos en las próximas <strong>24 horas hábiles</strong>.
+      </p>
+
+      {/* Periodos */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.4rem', marginBottom: '1.25rem' }}>
+        {(resultado.periodos || []).map(p => (
+          <span key={p} style={{ background: '#FEF3C7', color: '#92400E', padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: '600' }}>
+            {fmtPeriodo(p)}
+          </span>
+        ))}
+      </div>
+
+      {/* Detalles */}
+      <div style={{ background: '#F8FAFC', border: '1px solid var(--border-color)', borderRadius: '10px', overflow: 'hidden', marginBottom: '1.5rem', textAlign: 'left' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.65rem 1rem', borderBottom: '1px solid var(--border-color)', fontSize: '0.82rem' }}>
+          <span style={{ color: 'var(--text-muted)' }}>N° Referencia</span>
+          <span style={{ fontFamily: 'monospace', fontWeight: '700' }}>{resultado.nro_referencia}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.65rem 1rem', borderBottom: '1px solid var(--border-color)', fontSize: '0.82rem' }}>
+          <span style={{ color: 'var(--text-muted)' }}>Método</span>
+          <span style={{ fontWeight: '700' }}>{labels[resultado.metodo] || resultado.metodo}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.65rem 1rem', fontSize: '0.82rem' }}>
+          <span style={{ color: 'var(--text-muted)' }}>Monto enviado</span>
+          <span style={{ fontWeight: '700', color: 'var(--cip-blue)' }}>S/ {parseFloat(resultado.monto).toFixed(2)}</span>
+        </div>
+      </div>
+
+      <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '1.5rem', fontSize: '0.8rem', color: '#92400E', display: 'flex', alignItems: 'flex-start', gap: '0.5rem', textAlign: 'left' }}>
+        <AlertCircle size={15} style={{ flexShrink: 0, marginTop: '0.1rem' }} />
+        <span>Guarda tu N° de referencia. Una vez aprobado, los periodos se registrarán automáticamente.</span>
+      </div>
+
+      <button onClick={onVerHistorial} className="btn btn-primary btn-block" style={{ padding: '0.8rem' }}>
+        Ver historial de pagos
+      </button>
+    </div>
+  );
+}
+
+// ── Paso: Éxito tarjeta (inmediato) ────────────────────────────────────────
 function StepExito({ resultado, onNuevoPago }) {
   return (
     <div style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
@@ -575,7 +666,6 @@ function StepExito({ resultado, onNuevoPago }) {
         <strong style={{ color: 'var(--cip-blue)' }}>S/ {parseFloat(resultado.monto_cobrado).toFixed(2)}</strong>.
       </p>
 
-      {/* Meses pagados */}
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.4rem', marginBottom: '1.25rem' }}>
         {resultado.periodos_pagados.map(p => (
           <span key={p} style={{ background: '#D1FAE5', color: '#065F46', padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: '600' }}>
@@ -584,7 +674,6 @@ function StepExito({ resultado, onNuevoPago }) {
         ))}
       </div>
 
-      {/* Nro operación */}
       <div style={{ background: '#F8FAFC', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '1.25rem', fontSize: '0.82rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
           <Receipt size={14} /> N° operación
@@ -594,7 +683,6 @@ function StepExito({ resultado, onNuevoPago }) {
         </span>
       </div>
 
-      {/* Nueva habilitación */}
       <div style={{
         padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1.5rem',
         background: resultado.habilitado_nuevo ? '#D1FAE5' : '#FEF3C7',
@@ -605,9 +693,7 @@ function StepExito({ resultado, onNuevoPago }) {
           : <AlertCircle size={18} color="#D97706" />
         }
         <span style={{ fontWeight: '700', fontSize: '0.875rem', color: resultado.habilitado_nuevo ? '#065F46' : '#92400E' }}>
-          {resultado.habilitado_nuevo
-            ? 'Tu cuenta está HABILITADA ✓'
-            : 'Aún tienes meses pendientes'}
+          {resultado.habilitado_nuevo ? 'Tu cuenta está HABILITADA ✓' : 'Aún tienes meses pendientes'}
         </span>
       </div>
 
@@ -623,27 +709,65 @@ function StepExito({ resultado, onNuevoPago }) {
 // PÁGINA PRINCIPAL
 // ══════════════════════════════════════════════════════════════════════════════
 export default function MisPagos() {
-  const [tab, setTab]                   = useState('pagar');   // 'pagar' | 'historial'
-  const [cargando, setCargando]         = useState(true);
-  const [error, setError]               = useState('');
+  const [tab, setTab]                     = useState('pagar');
+  const [cargando, setCargando]           = useState(true);
+  const [error, setError]                 = useState('');
 
-  // Datos del servidor
-  const [pendientes, setPendientes]     = useState([]);
-  const [historial, setHistorial]       = useState([]);
-  const [habilitado, setHabilitado]     = useState(null);
-  const [montoUnit, setMontoUnit]       = useState('30.00');
+  const [pendientes, setPendientes]       = useState([]);
+  const [historial, setHistorial]         = useState([]);
+  const [habilitado, setHabilitado]       = useState(null);
+  const [montoUnit, setMontoUnit]         = useState('20.00');
 
-  // Paso gateway: 'periodos' | 'metodo' | 'tarjeta' | 'yapeplin' | 'exito'
-  const [paso, setPaso]                 = useState('periodos');
-  const [metodoPago, setMetodoPago]     = useState('TARJETA');
+  // paso: 'periodos' | 'metodo' | 'tarjeta' | 'yape' | 'transferencia' | 'pendiente' | 'exito'
+  const [paso, setPaso]                   = useState('periodos');
   const [seleccionados, setSeleccionados] = useState(new Set());
-  const [procesando, setProcesando]     = useState(false);
-  const [errPago, setErrPago]           = useState('');
+  const [montoCustom, setMontoCustom]     = useState(null); // null = cálculo automático
+  const [errPago, setErrPago]             = useState('');
   const [resultadoPago, setResultadoPago] = useState(null);
 
   useEffect(() => {
-    cargarDatos();
+    // ── Detectar retorno desde MercadoPago Checkout Pro ──────────────────
+    const params        = new URLSearchParams(window.location.search);
+    const mpStatus      = params.get('collection_status') || params.get('status');
+    const mpPaymentId   = params.get('collection_id')     || params.get('payment_id');
+    const mpExternalRef = params.get('external_reference');
+
+    if (mpStatus === 'approved' && mpPaymentId && mpExternalRef) {
+      // Limpiar la URL antes de procesar
+      window.history.replaceState({}, '', '/portal/pagos');
+      verificarPagoMP(mpPaymentId, mpExternalRef);
+    } else {
+      cargarDatos();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Verificar y registrar pago luego del retorno de MP
+  const verificarPagoMP = async (paymentId, externalRef) => {
+    setCargando(true);
+    try {
+      const token = localStorage.getItem('colToken');
+      const res = await fetch('/api/pagos/verificar/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ payment_id: paymentId, external_reference: externalRef }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setResultadoPago(data);
+        setPaso('exito');
+        setTab('pagar');
+      } else {
+        setErrPago(data.error || 'No se pudo verificar el pago.');
+        setPaso('periodos');
+      }
+    } catch {
+      setErrPago('Error al verificar el pago. Contacte soporte.');
+      setPaso('periodos');
+    } finally {
+      await cargarDatos();
+    }
+  };
 
   const cargarDatos = async () => {
     setCargando(true);
@@ -653,27 +777,22 @@ export default function MisPagos() {
       const res = await fetch('/api/portal/mis-pagos/', {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (res.status === 401 || res.status === 403) {
-        // Token expirado → redirigir al login
         localStorage.removeItem('colToken');
         localStorage.removeItem('colUser');
         window.location.href = '/login';
         return;
       }
-
       if (!res.ok) {
         let detalle = '';
         try { const d = await res.json(); detalle = d.error || ''; } catch (_) {}
         throw new Error(detalle || `Error ${res.status}`);
       }
-
       const data = await res.json();
       setPendientes(data.periodos_pendientes || []);
       setHistorial(data.historial || []);
       setHabilitado(data.habilitado ?? null);
-      setMontoUnit(data.monto_mensualidad || '30.00');
-      // Pre-seleccionar todos los pendientes
+      setMontoUnit(data.monto_mensualidad || '20.00');
       setSeleccionados(new Set((data.periodos_pendientes || []).map(p => p.periodo)));
     } catch (e) {
       setError(`No se pudo cargar la información de pagos: ${e.message}`);
@@ -682,47 +801,18 @@ export default function MisPagos() {
     }
   };
 
-  const handlePagar = async () => {
-    setProcesando(true);
-    setErrPago('');
-
-    // Simular delay de procesamiento (realismo)
-    await new Promise(r => setTimeout(r, 1800));
-
-    try {
-      const token = localStorage.getItem('colToken');
-      const total = seleccionados.size * parseFloat(montoUnit);
-      const res = await fetch('/api/portal/mis-pagos/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          periodos: [...seleccionados].sort(),
-          monto: total.toFixed(2),
-          metodo: metodoPago,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setResultadoPago(data);
-        setPaso('exito');
-      } else {
-        setErrPago(data.error || 'No se pudo procesar el pago. Intente de nuevo.');
-      }
-    } catch (e) {
-      setErrPago('Error de conexión. Intente de nuevo.');
-    } finally {
-      setProcesando(false);
-    }
-  };
-
   const handleNuevoPago = () => {
     cargarDatos();
     setPaso('periodos');
-    setMetodoPago('TARJETA');
+    setMontoCustom(null);
     setResultadoPago(null);
     setErrPago('');
     setTab('historial');
   };
+
+  const totalBase         = seleccionados.size * parseFloat(montoUnit);
+  const totalSeleccionado = montoCustom !== null ? montoCustom : totalBase;
+  const periodosArray     = [...seleccionados].sort();
 
   if (cargando) {
     return (
@@ -749,23 +839,18 @@ export default function MisPagos() {
     <div style={{ maxWidth: '600px', margin: '0 auto' }}>
 
       {/* ── Estado de cuenta ── */}
-      <div className="card" style={{ marginBottom: '1.5rem', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: habilitado === false ? '#FEF2F2' : habilitado ? '#F0FDF4' : 'white', border: `1px solid ${habilitado === false ? '#FECACA' : habilitado ? '#86EFAC' : 'var(--border-color)'}` }}>
+      <div className="card" style={{
+        marginBottom: '1.5rem', padding: '1.25rem 1.5rem',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        background: habilitado === false ? '#FEF2F2' : habilitado ? '#F0FDF4' : 'white',
+        border: `1px solid ${habilitado === false ? '#FECACA' : habilitado ? '#86EFAC' : 'var(--border-color)'}`,
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          {habilitado === false
-            ? <XCircle size={26} color="#DC2626" />
-            : habilitado
-              ? <CheckCircle2 size={26} color="#16A34A" />
-              : <Clock size={26} color="var(--text-muted)" />
-          }
+          {habilitado === false ? <XCircle size={26} color="#DC2626" /> : habilitado ? <CheckCircle2 size={26} color="#16A34A" /> : <Clock size={26} color="var(--text-muted)" />}
           <div>
-            <p style={{ fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '0.1rem' }}>
-              Estado de cuenta
-            </p>
+            <p style={{ fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '0.1rem' }}>Estado de cuenta</p>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              {pendientes.length > 0
-                ? `${pendientes.length} mes${pendientes.length !== 1 ? 'es' : ''} pendiente${pendientes.length !== 1 ? 's' : ''} de pago`
-                : 'Pagos al día'
-              }
+              {pendientes.length > 0 ? `${pendientes.length} mes${pendientes.length !== 1 ? 'es' : ''} pendiente${pendientes.length !== 1 ? 's' : ''} de pago` : 'Pagos al día'}
             </p>
           </div>
         </div>
@@ -788,7 +873,7 @@ export default function MisPagos() {
             { id: 'historial',label: 'Historial',           icon: <Receipt size={15} /> },
           ].map(t => (
             <button key={t.id}
-              onClick={() => { setTab(t.id); if (t.id === 'pagar' && paso === 'exito') { setPaso('periodos'); setMetodoPago('EFECTIVO'); } }}
+              onClick={() => { setTab(t.id); if (t.id === 'pagar' && paso === 'exito') { setPaso('periodos'); } }}
               style={{
                 flex: 1, padding: '1rem', border: 'none', background: 'transparent',
                 fontWeight: tab === t.id ? '700' : '500',
@@ -818,13 +903,7 @@ export default function MisPagos() {
                 <StepPeriodos
                   pendientes={pendientes}
                   seleccionados={seleccionados}
-                  onToggle={p => {
-                    setSeleccionados(prev => {
-                      const s = new Set(prev);
-                      s.has(p) ? s.delete(p) : s.add(p);
-                      return s;
-                    });
-                  }}
+                  onToggle={p => setSeleccionados(prev => { const s = new Set(prev); s.has(p) ? s.delete(p) : s.add(p); return s; })}
                   onSelAll={() => setSeleccionados(new Set(pendientes.map(p => p.periodo)))}
                   onDeselAll={() => setSeleccionados(new Set())}
                   montoUnit={montoUnit}
@@ -833,32 +912,45 @@ export default function MisPagos() {
               )}
               {paso === 'metodo' && (
                 <StepMetodo
-                  total={seleccionados.size * parseFloat(montoUnit)}
-                  onVolver={() => setPaso('periodos')}
+                  totalBase={totalBase}
+                  total={totalSeleccionado}
+                  onMontoChange={(v) => setMontoCustom(v)}
+                  onVolver={() => { setPaso('periodos'); setMontoCustom(null); }}
                   onSeleccionar={(m) => {
-                    setMetodoPago(m);
                     setErrPago('');
-                    setPaso(m === 'TARJETA' ? 'tarjeta' : 'efectivo');
+                    if (m === 'TARJETA')        setPaso('tarjeta');
+                    else if (m === 'YAPE')       setPaso('yape');
+                    else                         setPaso('transferencia');
                   }}
-                />
-              )}
-              {paso === 'efectivo' && (
-                <StepEfectivo
-                  total={seleccionados.size * parseFloat(montoUnit)}
-                  onVolver={() => setPaso('metodo')}
-                  onPagar={handlePagar}
-                  procesando={procesando}
-                  errPago={errPago}
                 />
               )}
               {paso === 'tarjeta' && (
                 <StepTarjeta
-                  total={seleccionados.size * parseFloat(montoUnit)}
-                  periodos={[...seleccionados].sort()}
+                  total={totalSeleccionado}
+                  periodos={periodosArray}
                   onVolver={() => setPaso('metodo')}
                   onExito={(data) => { setResultadoPago(data); setPaso('exito'); }}
                   onError={(msg) => setErrPago(msg)}
                 />
+              )}
+              {paso === 'yape' && (
+                <StepYape
+                  total={totalSeleccionado}
+                  periodos={periodosArray}
+                  onVolver={() => setPaso('metodo')}
+                />
+              )}
+              {paso === 'transferencia' && (
+                <StepTransferencia
+                  total={totalSeleccionado}
+                  periodos={periodosArray}
+                  onVolver={() => setPaso('metodo')}
+                  onExito={(data) => { setResultadoPago(data); setPaso('pendiente'); }}
+                  onError={(msg) => setErrPago(msg)}
+                />
+              )}
+              {paso === 'pendiente' && (
+                <StepPendiente resultado={resultadoPago} onVerHistorial={handleNuevoPago} />
               )}
               {paso === 'exito' && (
                 <StepExito resultado={resultadoPago} onNuevoPago={handleNuevoPago} />
@@ -901,8 +993,11 @@ export default function MisPagos() {
                             padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: '600',
                           }}>
                             {h.canal === 'PORTAL'
-                              ? h.metodo === 'EFECTIVO' ? '🅿️ PagoEfectivo'
-                              : '💳 Tarjeta'
+                              ? h.metodo === 'TARJETA' ? '💳 Tarjeta'
+                              : h.metodo === 'YAPE'     ? '🟣 Yape'
+                              : h.metodo === 'PLIN'     ? '🟢 Plin'
+                              : h.metodo === 'TRANSFERENCIA' ? '🏦 Transferencia'
+                              : `💼 ${h.metodo || 'Portal'}`
                             : h.canal === 'CAJA' ? `🏢 ${h.metodo || 'Caja'}`
                             : h.canal}
                           </span>
@@ -924,6 +1019,11 @@ export default function MisPagos() {
           )}
         </div>
       </div>
+
+      <style dangerouslySetInnerHTML={{__html: `
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+      `}} />
     </div>
   );
 }

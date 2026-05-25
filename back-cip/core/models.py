@@ -106,6 +106,7 @@ class Pago(models.Model):
     CANAL = [
         ('CAJA', 'CAJA'),
         ('ARCHIVO_RECAUDACION', 'ARCHIVO_RECAUDACION'),
+        ('PORTAL', 'PORTAL'),
     ]
     colegiado = models.ForeignKey(Colegiado, on_delete=models.DO_NOTHING)
     tipo = models.CharField(max_length=20, choices=TIPO_PAGO)
@@ -123,3 +124,42 @@ class Pago(models.Model):
         managed = False
         db_table = 'pago'
         unique_together = ('colegiado', 'periodo')
+
+
+class PagoVoucherPendiente(models.Model):
+    """Pagos manuales (Yape, Plin, Transferencia) pendientes de verificación."""
+    METODO_CHOICES = [
+        ('YAPE', 'Yape'),
+        ('PLIN', 'Plin'),
+        ('TRANSFERENCIA', 'Transferencia Bancaria'),
+    ]
+    ESTADO_CHOICES = [
+        ('PENDIENTE', 'Pendiente'),
+        ('APROBADO', 'Aprobado'),
+        ('RECHAZADO', 'Rechazado'),
+    ]
+    colegiado       = models.ForeignKey(Colegiado, on_delete=models.DO_NOTHING)
+    periodos_json   = models.TextField()                                      # JSON list ["2025-01","2025-02"]
+    monto           = models.DecimalField(max_digits=8, decimal_places=2)
+    metodo          = models.CharField(max_length=20, choices=METODO_CHOICES)
+    voucher         = models.FileField(upload_to='vouchers/')
+    estado          = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='PENDIENTE')
+    nro_referencia  = models.CharField(max_length=40, blank=True)
+    observacion     = models.TextField(blank=True)
+    creado_en       = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'pago_voucher_pendiente'
+
+
+class Configuracion(models.Model):
+    """Parámetros del sistema configurables desde el panel admin."""
+    clave       = models.CharField(max_length=50, unique=True)
+    valor       = models.CharField(max_length=200)
+    descripcion = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        db_table = 'configuracion'
+
+    def __str__(self):
+        return f'{self.clave} = {self.valor}'

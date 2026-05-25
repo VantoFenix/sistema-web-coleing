@@ -246,3 +246,4 @@ DEFAULT_FROM_EMAIL = 'Colegio de Ingenieros del Perú <noreply@cip.org.pe>'
 # ==============================================================================
 MP_PUBLIC_KEY   = os.getenv('MP_PUBLIC_KEY', '')
 MP_ACCESS_TOKEN = os.getenv('MP_ACCESS_TOKEN', '')
+SITE_URL        = os.getenv('SITE_URL', '')   # URL pública del sitio, ej: https://cip.tudominio.com

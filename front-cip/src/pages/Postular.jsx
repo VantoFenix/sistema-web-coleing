@@ -7,8 +7,6 @@ export default function Postular() {
 
   const [dni, setDni] = useState('');
   const [nombres, setNombres] = useState('');
-  const [celular, setCelular] = useState('');
-  const [correo, setCorreo] = useState('');
   const [carrera, setCarrera] = useState('');
   const [sede, setSede] = useState('');
 
@@ -35,7 +33,6 @@ export default function Postular() {
   const [fotoInfo, setFotoInfo] = useState('');
   const [titulo, setTitulo] = useState(null);
   const [recibo, setRecibo] = useState(null);
-  const [firma, setFirma] = useState(null);
 
   const [isValidando, setIsValidando] = useState(false);
   const [dniValidado, setDniValidado] = useState(false);
@@ -145,12 +142,12 @@ export default function Postular() {
       setSubmitError("Debe validar su DNI para obtener los nombres.");
       return;
     }
-    if (!celular || !correo || !carrera || !sede) {
-      setSubmitError("Complete todos los datos de contacto, sede y académicos.");
+    if (!carrera || !sede) {
+      setSubmitError("Complete la sede y carrera académica.");
       return;
     }
-    if (!foto || !titulo || !recibo || !firma) {
-      setSubmitError("Debe adjuntar todos los documentos requeridos (Foto, Título, Recibo y Firma).");
+    if (!foto || !titulo || !recibo) {
+      setSubmitError("Debe adjuntar todos los documentos requeridos: Foto, Título Profesional y Recibo de Pago.");
       return;
     }
     if (foto.type !== 'image/jpeg') {
@@ -165,24 +162,17 @@ export default function Postular() {
       setSubmitError("El Recibo de Caja debe ser un PDF o una imagen.");
       return;
     }
-    if (!firma.type.startsWith('image/')) {
-      setSubmitError("La Firma debe ser un archivo de imagen válido (JPG, PNG).");
-      return;
-    }
 
     setEnviando(true);
 
     const formData = new FormData();
     formData.append('dni', dni);
     formData.append('nombres', nombres);
-    formData.append('celular', celular);
-    formData.append('correo', correo);
     formData.append('carrera', carrera);
     formData.append('sede', sede);
     formData.append('foto', foto);
     formData.append('titulo', titulo);
     formData.append('recibo', recibo);
-    formData.append('firma', firma);
 
     try {
       const response = await fetch('/api/postulaciones/', {
@@ -216,7 +206,7 @@ export default function Postular() {
           <CheckCircle2 size={64} color="var(--success)" style={{ margin: '0 auto 1rem auto' }} />
           <h2 style={{ color: 'var(--cip-blue)', marginBottom: '1rem' }}>¡Solicitud Enviada!</h2>
           <p className="text-muted" style={{ marginBottom: '2rem' }}>
-            Su expediente ha ingresado a estado de <strong>revisión</strong>. Nos comunicaremos a su correo electrónico ante cualquier observación.
+            Su expediente ha ingresado a estado de <strong>revisión</strong>. Recibirá una respuesta en los próximos días hábiles.
           </p>
           <button className="btn btn-primary btn-block" onClick={() => navigate('/')}>
             Volver al Inicio
@@ -300,17 +290,14 @@ export default function Postular() {
                 </div>
               </div>
 
-              {/* 2. Firma */}
+              {/* 2. Título Profesional */}
               <div className="form-group">
-                <label className="form-label">2. Imagen de Firma</label>
+                <label className="form-label">2. Título Profesional</label>
                 <div className="upload-box">
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={fileNameStyle}>{firma ? firma.name : 'Clic para subir firma (JPG/PNG)'}</p>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                    Fondo blanco · máx. 2 MB
-                  </p>
-                  <input type="file" accept="image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-firma" onChange={(e) => handleFileChange(e, setFirma)} />
-                  <label htmlFor="file-firma" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
+                  <p style={fileNameStyle}>{titulo ? titulo.name : 'Clic para subir documento (PDF)'}</p>
+                  <input type="file" accept=".pdf" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-titulo" onChange={(e) => handleFileChange(e, setTitulo)} />
+                  <label htmlFor="file-titulo" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
                 </div>
               </div>
 
@@ -364,30 +351,6 @@ export default function Postular() {
                   />
                 </div>
 
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Celular</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="Ej. 987654321"
-                      maxLength={9}
-                      value={celular}
-                      onChange={(e) => setCelular(e.target.value)}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Correo Electrónico</label>
-                    <input
-                      type="email"
-                      className="form-input"
-                      placeholder="ejemplo@correo.com"
-                      value={correo}
-                      onChange={(e) => setCorreo(e.target.value)}
-                    />
-                  </div>
-                </div>
-
                 <div className="form-group">
                   <label className="form-label">Carrera Profesional</label>
                   <select className="form-select" value={carrera} onChange={(e) => setCarrera(e.target.value)}>
@@ -415,18 +378,6 @@ export default function Postular() {
                 )}
               </div>
 
-              {/* 4. Título Profesional — shaded, cierra la L */}
-              <div style={{ ...shadedStyle, borderTopLeftRadius: '0', borderTopRightRadius: '12px', borderBottomRightRadius: '12px', borderBottomLeftRadius: '12px' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">4. Título Profesional</label>
-                  <div className="upload-box">
-                    <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                    <p style={fileNameStyle}>{titulo ? titulo.name : 'Clic para subir documento (PDF)'}</p>
-                    <input type="file" accept=".pdf" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-titulo" onChange={(e) => handleFileChange(e, setTitulo)} />
-                    <label htmlFor="file-titulo" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
-                  </div>
-                </div>
-              </div>
 
             </div>
 
