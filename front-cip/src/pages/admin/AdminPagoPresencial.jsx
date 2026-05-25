@@ -3,8 +3,8 @@ import {
   Search, User, CheckCircle2, XCircle, Loader2,
   Calendar, CreditCard, AlertCircle, BadgeCheck,
   Banknote, Smartphone, Building2, Wallet, ChevronRight,
+  Copy, ExternalLink, RefreshCw,
 } from 'lucide-react';
-import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const MESES = [
@@ -73,21 +73,46 @@ export default function AdminPagoPresencial() {
   const [enviando, setEnviando]     = useState(false);
   const [resultado, setResultado]   = useState(null);
   const [montoMensual, setMontoMensual] = useState(20.00);
-  const [mpListo, setMpListo]       = useState(false);
+
+  // Estado para el flujo QR con MercadoPago
+  const [mpData, setMpData]         = useState(null);   // { init_point, external_ref, monto, colegiado }
+  const [mpMsg, setMpMsg]           = useState('');
+  const [mpVerificando, setMpVerificando] = useState(false);
+  const [copiado, setCopiado]       = useState(false);
 
   const searchRef = useRef(null);
 
-  // Cargar precio configurado + public key MP
+  // Cargar precio configurado
   useEffect(() => {
     fetch('/api/admin/configuracion/')
       .then(r => r.json())
       .then(d => { if (d.monto_mensualidad) setMontoMensual(parseFloat(d.monto_mensualidad)); })
       .catch(() => {});
-    fetch('/api/pagos/mp-config/')
-      .then(r => r.json())
-      .then(d => { if (d.public_key) { initMercadoPago(d.public_key, { locale: 'es-PE' }); setMpListo(true); } })
-      .catch(() => {});
   }, []);
+
+  // Auto-polling cada 5s mientras hay un QR activo
+  useEffect(() => {
+    if (!mpData) return;
+    const ref = mpData.external_ref;
+    const intervalo = setInterval(async () => {
+      try {
+        const res = await fetch('/api/admin/mp/verificar/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ external_ref: ref }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          clearInterval(intervalo);
+          setMpData(null);
+          setResultado({ ok: true, ...data });
+        } else {
+          setMpMsg(data.mensaje || 'Esperando pago del cliente…');
+        }
+      } catch { /* ignorar errores de red temporales */ }
+    }, 5000);
+    return () => clearInterval(intervalo);
+  }, [mpData]);
 
   // Auto-calcular monto
   useEffect(() => {
@@ -179,8 +204,36 @@ export default function AdminPagoPresencial() {
   const handleRegistrar = async () => {
     setErrForm('');
     if (periodosSeleccionados.size === 0) { setErrForm('Seleccione al menos un periodo.'); return; }
-    if (!metodo)  { setErrForm('Seleccione el método de pago.'); return; }
-    if (metodo === 'TARJETA') return; // la tarjeta tiene su propio submit via CardPayment Brick
+    if (!metodo) { setErrForm('Seleccione el método de pago.'); return; }
+
+    // ── TARJETA: genera QR vía Checkout Pro ──────────────────────────────────
+    if (metodo === 'TARJETA') {
+      setEnviando(true);
+      try {
+        const res = await fetch('/api/admin/mp/preferencia/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            colegiado_id: colegiado.id,
+            periodos: [...periodosSeleccionados].sort(),
+          }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setMpData(data);
+          setMpMsg('Esperando que el cliente escanee el QR…');
+        } else {
+          setErrForm(data.error || 'Error al generar el QR de pago.');
+        }
+      } catch {
+        setErrForm('Error de conexión con el servidor.');
+      } finally {
+        setEnviando(false);
+      }
+      return;
+    }
+
+    // ── Otros métodos: registro manual directo ────────────────────────────────
     if (!monto || isNaN(parseFloat(monto)) || parseFloat(monto) <= 0) {
       setErrForm('Ingrese un monto válido mayor a 0.'); return;
     }
@@ -207,37 +260,41 @@ export default function AdminPagoPresencial() {
     }
   };
 
-  const handleTarjetaSubmit = async (formData) => {
-    setErrForm('');
-    setEnviando(true);
+  const handleVerificarMP = async () => {
+    if (!mpData) return;
+    setMpVerificando(true);
     try {
-      const res = await fetch('/api/admin/pagos/tarjeta/', {
+      const res = await fetch('/api/admin/mp/verificar/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          colegiado_id:      colegiado.id,
-          token:             formData.token,
-          payment_method_id: formData.payment_method_id,
-          installments:      formData.installments,
-          issuer_id:         formData.issuer_id,
-          periodos:          [...periodosSeleccionados].sort(),
-          monto:             parseFloat(monto),
-          email:             formData.payer?.email || 'pagador@cip.org.pe',
-        }),
+        body: JSON.stringify({ external_ref: mpData.external_ref }),
       });
       const data = await res.json();
-      if (res.ok && data.success) setResultado({ ok: true, ...data });
-      else setErrForm(data.error || 'No se pudo procesar el pago con tarjeta.');
+      if (data.success) {
+        setMpData(null);
+        setResultado({ ok: true, ...data });
+      } else {
+        setMpMsg(data.mensaje || 'Pago aún no confirmado. Intente en unos segundos.');
+      }
     } catch {
-      setErrForm('Error de conexión con el servidor.');
+      setMpMsg('Error al verificar. Intente nuevamente.');
     } finally {
-      setEnviando(false);
+      setMpVerificando(false);
     }
+  };
+
+  const copiarEnlace = () => {
+    if (!mpData) return;
+    navigator.clipboard.writeText(mpData.init_point).then(() => {
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    });
   };
 
   const handleNuevoPago = () => {
     setColegiado(null); setDeuda(null); setResultado(null);
     setQuery(''); setResultados(null); setErrBusqueda(''); setErrForm('');
+    setMpData(null); setMpMsg('');
     setTimeout(() => searchRef.current?.focus(), 100);
   };
 
@@ -678,15 +735,88 @@ export default function AdminPagoPresencial() {
           )}
         </div>
 
-        {/* ═══ COLUMNA DERECHA: Formulario de pago (sticky) ════════════════ */}
+        {/* ═══ COLUMNA DERECHA ════════════════════════════════════════════ */}
         <div style={{ position: 'sticky', top: '1rem' }}>
+
+          {/* ── TODO PAGADO ── */}
           {!hayPeriodosNoPagados ? (
-            /* Todo pagado */
             <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem', background: '#F0FDF4', border: '2px solid #86EFAC' }}>
               <CheckCircle2 size={48} style={{ margin: '0 auto 1rem auto', display: 'block', color: '#16A34A' }} />
               <p style={{ fontWeight: '800', color: '#065F46', fontSize: '1.1rem', marginBottom: '0.4rem' }}>¡Al día!</p>
               <p style={{ fontSize: '0.85rem', color: '#166534' }}>Este colegiado no tiene pendientes.</p>
             </div>
+
+          /* ── PANEL QR ACTIVO ── */
+          ) : mpData ? (
+            <div className="card" style={{ padding: '1.5rem' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: '700', color: '#1D4ED8', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.45rem', borderBottom: '2px solid #3B82F6', paddingBottom: '0.5rem' }}>
+                <CreditCard size={18} /> Cobro con Tarjeta — MercadoPago
+              </h3>
+
+              {/* Monto */}
+              <div style={{ background: 'linear-gradient(135deg, #1D4ED8, #2563EB)', borderRadius: '10px', padding: '0.85rem 1.1rem', marginBottom: '1.25rem', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.82rem', opacity: 0.85 }}>{periodosSeleccionados.size} mes{periodosSeleccionados.size !== 1 ? 'es' : ''}</span>
+                <strong style={{ fontSize: '1.4rem', fontWeight: '800' }}>S/ {mpData.monto?.toFixed(2) || monto}</strong>
+              </div>
+
+              {/* QR Code */}
+              <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.6rem', fontWeight: '600' }}>
+                  El cliente escanea este QR con su teléfono para pagar:
+                </p>
+                <div style={{ display: 'inline-block', padding: '10px', background: 'white', border: '3px solid #2563EB', borderRadius: '12px' }}>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(mpData.init_point)}`}
+                    alt="QR MercadoPago"
+                    style={{ width: 200, height: 200, display: 'block' }}
+                  />
+                </div>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
+                  Compatible con Visa, Mastercard, Amex, débito
+                </p>
+              </div>
+
+              {/* Estado polling */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.65rem 0.85rem', background: '#EFF6FF', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #BFDBFE' }}>
+                <Loader2 size={14} className="spin" style={{ color: '#2563EB', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.78rem', color: '#1D4ED8', fontWeight: '600' }}>{mpMsg || 'Verificando automáticamente…'}</span>
+              </div>
+
+              {/* Botones */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                <button
+                  onClick={handleVerificarMP}
+                  disabled={mpVerificando}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.6rem', borderRadius: '8px', border: '1.5px solid #2563EB', background: '#EFF6FF', color: '#1D4ED8', fontWeight: '700', fontSize: '0.78rem', cursor: mpVerificando ? 'not-allowed' : 'pointer' }}
+                >
+                  {mpVerificando ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
+                  Verificar ahora
+                </button>
+                <button
+                  onClick={copiarEnlace}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.6rem', borderRadius: '8px', border: '1.5px solid #E2E8F0', background: 'white', color: copiado ? '#059669' : 'var(--text-main)', fontWeight: '700', fontSize: '0.78rem', cursor: 'pointer' }}
+                >
+                  <Copy size={14} />
+                  {copiado ? '¡Copiado!' : 'Copiar enlace'}
+                </button>
+              </div>
+              <a
+                href={mpData.init_point}
+                target="_blank"
+                rel="noreferrer"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.5rem', borderRadius: '8px', background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#64748B', fontSize: '0.75rem', textDecoration: 'none', marginBottom: '0.75rem' }}
+              >
+                <ExternalLink size={13} /> Abrir en nueva pestaña
+              </a>
+              <button
+                onClick={() => { setMpData(null); setMpMsg(''); setErrForm(''); }}
+                style={{ width: '100%', padding: '0.55rem', borderRadius: '8px', border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#B91C1C', fontWeight: '600', fontSize: '0.78rem', cursor: 'pointer' }}
+              >
+                Cancelar cobro
+              </button>
+            </div>
+
+          /* ── FORMULARIO NORMAL ── */
           ) : (
             <div className="card" style={{ padding: '1.5rem' }}>
               <h3 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.45rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem' }}>
@@ -720,9 +850,9 @@ export default function AdminPagoPresencial() {
                       style={{
                         padding: '0.55rem 0.3rem', borderRadius: '8px', cursor: 'pointer',
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.22rem',
-                        border: `2px solid ${metodo === m.valor ? (m.valor === 'TARJETA' ? '#2563EB' : 'var(--cip-blue)') : 'var(--border-color)'}`,
-                        background: metodo === m.valor ? (m.valor === 'TARJETA' ? '#EFF6FF' : '#EFF6FF') : 'white',
-                        color: metodo === m.valor ? (m.valor === 'TARJETA' ? '#1D4ED8' : 'var(--cip-blue)') : 'var(--text-main)',
+                        border: `2px solid ${metodo === m.valor ? '#2563EB' : 'var(--border-color)'}`,
+                        background: metodo === m.valor ? '#EFF6FF' : 'white',
+                        color: metodo === m.valor ? '#1D4ED8' : 'var(--text-main)',
                         fontWeight: metodo === m.valor ? '700' : '400',
                         fontSize: '0.72rem', transition: 'all 0.15s',
                       }}
@@ -732,9 +862,14 @@ export default function AdminPagoPresencial() {
                     </button>
                   ))}
                 </div>
+                {metodo === 'TARJETA' && (
+                  <p style={{ fontSize: '0.68rem', color: '#2563EB', marginTop: '0.35rem', fontWeight: '600' }}>
+                    💳 Genera un QR que el cliente escanea con su teléfono
+                  </p>
+                )}
               </div>
 
-              {/* Monto editable (solo si NO es tarjeta, que lo calcula MP) */}
+              {/* Monto editable (solo si NO es tarjeta) */}
               {metodo !== 'TARJETA' && (
                 <div className="form-group" style={{ marginBottom: '1.1rem' }}>
                   <label className="form-label" style={{ fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between' }}>
@@ -758,82 +893,50 @@ export default function AdminPagoPresencial() {
                 </div>
               )}
 
-              {/* ── CardPayment Brick (solo cuando metodo === TARJETA) ── */}
-              {metodo === 'TARJETA' && periodosSeleccionados.size > 0 && (
-                <div style={{ marginBottom: '1rem' }}>
-                  {/* Monto destacado */}
-                  <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', padding: '0.65rem 1rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.78rem', color: '#3B82F6', fontWeight: '600' }}>
-                      {periodosSeleccionados.size} mes{periodosSeleccionados.size !== 1 ? 'es' : ''} × S/ {montoMensual.toFixed(2)}
-                    </span>
-                    <strong style={{ fontSize: '1.2rem', color: '#1D4ED8' }}>S/ {monto || '0.00'}</strong>
-                  </div>
-
-                  {mpListo ? (
-                    <CardPayment
-                      initialization={{ amount: parseFloat(monto) || 0 }}
-                      customization={{ paymentMethods: { minInstallments: 1, maxInstallments: 1 } }}
-                      onSubmit={handleTarjetaSubmit}
-                      onError={(err) => setErrForm(err.message || 'Error en la pasarela de pago.')}
-                    />
-                  ) : (
-                    <div style={{ textAlign: 'center', padding: '1.5rem' }}>
-                      <Loader2 size={24} className="spin" style={{ margin: '0 auto', display: 'block', color: 'var(--text-muted)' }} />
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Cargando pasarela…</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Resumen rápido (solo metodos no-tarjeta) */}
-              {metodo !== 'TARJETA' && periodosSeleccionados.size > 0 && monto && metodo && (
+              {/* Resumen rápido (solo no-tarjeta) */}
+              {metodo && metodo !== 'TARJETA' && periodosSeleccionados.size > 0 && monto && (
                 <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.78rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', color: 'var(--text-muted)' }}>
-                    <span>Periodos:</span>
-                    <strong style={{ color: 'var(--text-main)' }}>{periodosSeleccionados.size}</strong>
+                    <span>Periodos:</span><strong style={{ color: 'var(--text-main)' }}>{periodosSeleccionados.size}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', color: 'var(--text-muted)' }}>
-                    <span>Total:</span>
-                    <strong style={{ color: '#059669', fontSize: '0.9rem' }}>S/ {parseFloat(monto).toFixed(2)}</strong>
+                    <span>Total:</span><strong style={{ color: '#059669', fontSize: '0.9rem' }}>S/ {parseFloat(monto).toFixed(2)}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
-                    <span>Vía:</span>
-                    <strong style={{ color: 'var(--text-main)' }}>{METODOS.find(m => m.valor === metodo)?.label}</strong>
+                    <span>Vía:</span><strong style={{ color: 'var(--text-main)' }}>{METODOS.find(m => m.valor === metodo)?.label}</strong>
                   </div>
                 </div>
               )}
 
-              {/* Error */}
               {errForm && (
                 <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.65rem 0.85rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.82rem', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <AlertCircle size={15} style={{ flexShrink: 0 }} />
-                  {errForm}
+                  <AlertCircle size={15} style={{ flexShrink: 0 }} />{errForm}
                 </div>
               )}
 
-              {/* Botón confirmar (solo metodos no-tarjeta) */}
-              {metodo !== 'TARJETA' && (
-                <button
-                  onClick={handleRegistrar}
-                  disabled={enviando || periodosSeleccionados.size === 0}
-                  className="btn btn-block"
-                  style={{
-                    padding: '0.9rem', fontSize: '0.95rem',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                    background: (enviando || periodosSeleccionados.size === 0) ? '#94A3B8' : '#10B981',
-                    border: 'none', borderRadius: '10px', color: 'white',
-                    fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0) ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#059669'; }}
-                  onMouseLeave={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#10B981'; }}
-                >
-                  {enviando
-                    ? <><Loader2 size={18} className="spin" /> Registrando…</>
+              <button
+                onClick={handleRegistrar}
+                disabled={enviando || periodosSeleccionados.size === 0 || !metodo}
+                className="btn btn-block"
+                style={{
+                  padding: '0.9rem', fontSize: '0.95rem',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                  background: (enviando || periodosSeleccionados.size === 0 || !metodo) ? '#94A3B8'
+                    : metodo === 'TARJETA' ? '#2563EB' : '#10B981',
+                  border: 'none', borderRadius: '10px', color: 'white',
+                  fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0 || !metodo) ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { if (!enviando && periodosSeleccionados.size > 0 && metodo) e.currentTarget.style.opacity = '0.88'; }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
+              >
+                {enviando
+                  ? <><Loader2 size={18} className="spin" /> Procesando…</>
+                  : metodo === 'TARJETA'
+                    ? <><CreditCard size={18} /> Generar QR de pago</>
                     : <><CheckCircle2 size={18} /> Confirmar y Registrar</>
-                  }
-                </button>
-              )}
+                }
+              </button>
             </div>
           )}
         </div>
