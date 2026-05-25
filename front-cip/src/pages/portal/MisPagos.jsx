@@ -133,14 +133,6 @@ function StepMetodo({ totalBase, total, onMontoChange, onVolver, onSeleccionar }
       badge: 'Inmediato',
     },
     {
-      id: 'YAPE',
-      label: 'Yape',
-      desc: 'Paga desde tu app Yape · checkout seguro de MercadoPago · inmediato',
-      icon: <Smartphone size={26} />,
-      bg: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)',
-      badge: 'Inmediato',
-    },
-    {
       id: 'TRANSFERENCIA',
       label: 'Transferencia / Plin',
       desc: 'Transferencia bancaria o Plin · sube el comprobante',
@@ -1050,15 +1042,6 @@ export default function MisPagos() {
               )}
               {paso === 'tarjeta' && (
                 <StepTarjeta
-                  total={totalSeleccionado}
-                  periodos={periodosArray}
-                  onVolver={() => setPaso('metodo')}
-                  onExito={(data) => { setResultadoPago(data); setPaso('exito'); }}
-                  onError={(msg) => setErrPago(msg)}
-                />
-              )}
-              {paso === 'yape' && (
-                <StepYape
                   total={totalSeleccionado}
                   periodos={periodosArray}
                   onVolver={() => setPaso('metodo')}
