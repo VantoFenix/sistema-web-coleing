@@ -1,8 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import PublicHome from './pages/PublicHome';
 import Postular from './pages/Postular';
 import Login from './pages/Login';
 import PortalLayout from './layouts/PortalLayout';
+import PerfilYo from './pages/portal/PerfilYo';
 import MiCarnet from './pages/portal/MiCarnet';
 import MisPagos from './pages/portal/MisPagos';
 
@@ -12,7 +13,6 @@ import AdminHome from './pages/admin/AdminHome';
 import AdminPostulaciones from './pages/admin/AdminPostulaciones';
 import AdminPresencial from './pages/admin/AdminPresencial';
 import AdminPagoPresencial from './pages/admin/AdminPagoPresencial';
-import AdminVouchers from './pages/admin/AdminVouchers';
 
 function App() {
   return (
@@ -25,7 +25,7 @@ function App() {
         
         {/* Rutas Protegidas (Portal del Colegiado) */}
         <Route path="/portal" element={<PortalLayout />}>
-          <Route index element={<Navigate to="carnet" replace />} />
+          <Route path="yo" element={<PerfilYo />} />
           <Route path="carnet" element={<MiCarnet />} />
           <Route path="pagos" element={<MisPagos />} />
         </Route>
@@ -37,7 +37,6 @@ function App() {
           <Route path="postulaciones" element={<AdminPostulaciones />} />
           <Route path="pagos-presencial" element={<AdminPagoPresencial />} />
           <Route path="presencial" element={<AdminPresencial />} />
-          <Route path="vouchers" element={<AdminVouchers />} />
         </Route>
       </Routes>
     </BrowserRouter>

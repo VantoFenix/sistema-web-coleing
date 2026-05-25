@@ -234,6 +234,8 @@ export default function AdminPostulaciones() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Apellidos y Nombres</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.nombres}</p></div>
             <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>DNI</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.dni}</p></div>
+            <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Celular</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.celular}</p></div>
+            <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Correo Electrónico</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.correo}</p></div>
             <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Especialidad / Carrera</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.carrera?.nombre}</p></div>
             <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Sede</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.sede?.nombre || '—'}</p></div>
           </div>
@@ -407,7 +409,7 @@ export default function AdminPostulaciones() {
                 >
                   {procesando ? <Loader2 className="spin" size={20} /> : <><XCircle size={20} /> Confirmar Rechazo y Notificar</>}
                 </button>
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', marginTop: '0.75rem' }}>Al confirmar, el expediente saldrá de la cola y se aprobará inmediatamente.</p>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', marginTop: '0.75rem' }}>Al confirmar, el expediente saldrá de la cola y se enviará un correo al postulante.</p>
               </div>
             </>
           )}

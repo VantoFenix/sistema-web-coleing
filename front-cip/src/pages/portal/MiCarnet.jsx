@@ -4,6 +4,7 @@ import { AlertCircle, Loader2, CheckCircle } from 'lucide-react';
 export default function MiCarnet() {
   const [colegiado, setColegiado] = useState(null);
   const [cargando, setCargando] = useState(true);
+  const [flipped, setFlipped] = useState(false);
   const [fotoError, setFotoError] = useState(false);
 
   useEffect(() => {
@@ -55,16 +56,24 @@ export default function MiCarnet() {
         Estado Colegiado: {habilitado === false ? 'INHABILITADO' : 'HABILITADO'}
       </div>
 
-      {/* Carnet — solo cara delantera */}
-      <div style={{ width: '100%', maxWidth: '440px' }}>
+      {/* Contenedor de Flip */}
+      <div
+        style={{ perspective: '1200px', width: '100%', maxWidth: '440px', cursor: 'pointer' }}
+        onClick={() => setFlipped(f => !f)}
+        title="Clic para ver el reverso"
+      >
         <div style={{
           position: 'relative',
           width: '100%', height: '270px',
+          transformStyle: 'preserve-3d',
+          transition: 'transform 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+          transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
         }}>
 
           {/* ===== CARA DELANTERA ===== */}
           <div style={{
             position: 'absolute', width: '100%', height: '100%',
+            backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
             borderRadius: '14px', overflow: 'hidden', background: '#FFFFFF',
             boxShadow: '0 20px 40px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.1)',
             fontFamily: 'system-ui, sans-serif'
@@ -170,8 +179,113 @@ export default function MiCarnet() {
             )}
           </div>
 
+          {/* ===== CARA TRASERA ===== */}
+          <div style={{
+            position: 'absolute', width: '100%', height: '100%',
+            backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
+            transform: 'rotateY(180deg)',
+            borderRadius: '14px', overflow: 'hidden',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+            background: '#FFFFFF',
+            fontFamily: 'system-ui, sans-serif',
+            display: 'flex', flexDirection: 'column'
+          }}>
+            {/* Header: logos ICO_BLACK + texto membresía */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '9px 10px 7px'
+            }}>
+              <img src="/ICO_BLACK.webp" alt="CIP" style={{ height: '54px', width: 'auto', flexShrink: 0 }} />
+              <div style={{
+                flex: 1, textAlign: 'center', padding: '0 8px',
+                fontSize: '0.62rem', fontWeight: '700', color: '#111', lineHeight: 1.4,
+                borderBottom: '1px solid #9ca3af', paddingBottom: '6px'
+              }}>
+                El titular de este carné es miembro del<br/>
+                <span style={{ fontSize: '0.67rem' }}>Colegio de Ingenieros del Perú</span>
+              </div>
+              <img src="/ICO_BLACK.webp" alt="CIP" style={{ height: '54px', width: 'auto', flexShrink: 0 }} />
+            </div>
+
+            {/* Firma del titular */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '5px 0 2px' }}>
+              <div style={{
+                width: '155px', height: '38px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                borderBottom: '1px solid #6b7280'
+              }}>
+                {colegiado.firma_url ? (
+                  <img src={colegiado.firma_url} alt="Firma"
+                    style={{ maxHeight: '34px', maxWidth: '150px', objectFit: 'contain' }} />
+                ) : (
+                  <span style={{ color: '#d1d5db', fontSize: '0.5rem' }}>—</span>
+                )}
+              </div>
+              <div style={{ fontSize: '0.46rem', color: '#6b7280', marginTop: '1px', letterSpacing: '0.8px' }}>
+                Firma del Titular
+              </div>
+            </div>
+
+            {/* Autoridades — layout asimétrico */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', padding: '3px 10px 0', gap: '6px', flex: 1 }}>
+
+              {/* Director — izquierda, más estrecho */}
+              <div style={{ textAlign: 'center', width: '44%' }}>
+                <svg viewBox="0 0 120 38" style={{ width: '96px', height: '30px', display: 'block', margin: '0 auto' }}>
+                  <path d="M8,28 C16,11 28,9 38,20 C44,26 50,13 60,15 C70,17 75,24 85,19 C93,15 103,20 112,17"
+                    fill="none" stroke="#1a1a1a" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M22,33 C48,30 74,32 96,30"
+                    fill="none" stroke="#1a1a1a" strokeWidth="1" strokeLinecap="round"/>
+                </svg>
+                <div style={{ fontSize: '0.48rem', fontWeight: '700', color: '#111', lineHeight: 1.3 }}>
+                  Ing. Marco Antonio<br/>Cabrera Huamán
+                </div>
+                <div style={{ fontSize: '0.41rem', color: '#4b5563', lineHeight: 1.3, marginTop: '1px' }}>
+                  DIRECTOR SECRETARIO<br/>NACIONAL
+                </div>
+              </div>
+
+              {/* Decana — derecha, más ancha y grande */}
+              <div style={{ textAlign: 'center', width: '56%' }}>
+                <svg viewBox="0 0 130 44" style={{ width: '112px', height: '38px', display: 'block', margin: '0 auto' }}>
+                  <path d="M6,22 C14,8 26,5 36,16 C43,22 50,10 62,13 C74,16 80,7 92,12 C102,16 114,23 124,19"
+                    fill="none" stroke="#1a1a1a" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M20,30 C44,27 68,30 92,26 C100,25 110,28 120,26"
+                    fill="none" stroke="#1a1a1a" strokeWidth="1.2" strokeLinecap="round"/>
+                  <path d="M30,37 C50,35 70,37 88,35"
+                    fill="none" stroke="#1a1a1a" strokeWidth="0.7" strokeLinecap="round" strokeDasharray="2,2"/>
+                </svg>
+                <div style={{ fontSize: '0.55rem', fontWeight: '700', color: '#111', lineHeight: 1.3 }}>
+                  Ing. María del Carmen<br/>Ponce Mejía
+                </div>
+                <div style={{ fontSize: '0.46rem', color: '#4b5563', lineHeight: 1.3, marginTop: '1px' }}>
+                  DECANA NACIONAL
+                </div>
+              </div>
+            </div>
+
+            {/* Footer: aviso izquierda + Fecha Emisión derecha, al fondo */}
+            <div style={{
+              borderTop: '1px solid #e5e7eb', marginTop: 'auto',
+              padding: '4px 12px 6px',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end'
+            }}>
+              <div style={{ fontSize: '0.38rem', color: '#9ca3af', maxWidth: '52%', lineHeight: 1.3 }}>
+                En caso de encontrarlo sírvase entregarlo a la institución
+              </div>
+              <div style={{ fontSize: '0.52rem', color: '#1a1a1a', fontWeight: '700', whiteSpace: 'nowrap' }}>
+                Fecha Emisión: {fechaEmision}
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
+
+      {/* Indicador flip */}
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+        <span>👆</span> Clic en el carnet para ver el reverso
+      </p>
 
       {/* Mensaje de estado */}
       {habilitado === false && (

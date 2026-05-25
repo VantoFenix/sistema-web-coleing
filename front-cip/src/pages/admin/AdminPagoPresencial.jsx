@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import {
-  Search, User, CheckCircle2, XCircle, Loader2,
-  Calendar, CreditCard, AlertCircle, BadgeCheck,
-  Banknote, Smartphone, Building2, Wallet, ChevronRight,
+  Search, User, CheckCircle2, XCircle, ChevronRight, Loader2,
+  Calendar, CreditCard, Hash, ArrowLeft, AlertCircle, BadgeCheck,
+  Banknote, Smartphone, Building2, Wallet,
 } from 'lucide-react';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -10,18 +10,10 @@ const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
 ];
-const MESES_CORTO = [
-  'ENE','FEB','MAR','ABR','MAY','JUN',
-  'JUL','AGO','SEP','OCT','NOV','DIC',
-];
 
 function fmtPeriodo(p) {
   const [año, mes] = p.split('-');
   return `${MESES[parseInt(mes, 10) - 1]} ${año}`;
-}
-function fmtPeriodoCorto(p) {
-  const mes = parseInt(p.split('-')[1], 10) - 1;
-  return MESES_CORTO[mes];
 }
 
 function fmtFecha(iso) {
@@ -31,66 +23,93 @@ function fmtFecha(iso) {
 }
 
 const METODOS = [
-  { valor: 'YAPE',          label: 'Yape',          icono: <Smartphone size={16} /> },
-  { valor: 'PLIN',          label: 'Plin',          icono: <Smartphone size={16} /> },
-  { valor: 'EFECTIVO',      label: 'Efectivo',      icono: <Banknote size={16} /> },
-  { valor: 'TRANSFERENCIA', label: 'Transferencia', icono: <Building2 size={16} /> },
+  { valor: 'YAPE',          label: 'Yape',          icono: <Smartphone size={18} /> },
+  { valor: 'PLIN',          label: 'Plin',          icono: <Smartphone size={18} /> },
+  { valor: 'EFECTIVO',      label: 'Efectivo',      icono: <Banknote size={18} /> },
+  { valor: 'TRANSFERENCIA', label: 'Transferencia', icono: <Building2 size={18} /> },
 ];
 
+// ── Badge habilitación ─────────────────────────────────────────────────────
 function BadgeHabilitado({ habilitado }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-      padding: '0.25rem 0.7rem', borderRadius: '999px', fontSize: '0.72rem',
-      fontWeight: '700',
+      padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.72rem',
+      fontWeight: '700', letterSpacing: '0.3px',
       background: habilitado ? '#D1FAE5' : '#FEE2E2',
       color: habilitado ? '#065F46' : '#991B1B',
     }}>
-      {habilitado ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
+      {habilitado ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
       {habilitado ? 'Habilitado' : 'Inhabilitado'}
     </span>
   );
 }
 
+// ── Tarjeta de colegiado seleccionado ──────────────────────────────────────
+function TarjetaColegiado({ col, onCambiar }) {
+  return (
+    <div style={{
+      background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '10px',
+      padding: '1rem 1.25rem', display: 'flex', alignItems: 'center',
+      justifyContent: 'space-between', gap: '1rem', marginBottom: '1.5rem',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+        <div style={{ background: 'var(--cip-blue)', color: 'white', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <User size={20} />
+        </div>
+        <div>
+          <p style={{ fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '0.15rem' }}>
+            {col.nombres}
+          </p>
+          <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+            DNI {col.dni} · CIP {col.nro_colegiado} · {col.carrera}
+          </p>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+            Colegiado desde {fmtFecha(col.colegiado_desde)}
+          </p>
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
+        <BadgeHabilitado habilitado={col.habilitado} />
+        <button
+          onClick={onCambiar}
+          style={{ fontSize: '0.75rem', color: 'var(--cip-blue)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+        >
+          Cambiar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 export default function AdminPagoPresencial() {
+  // ── Paso 1: Búsqueda ──────────────────────────────────────────────────────
   const [query, setQuery]           = useState('');
   const [buscando, setBuscando]     = useState(false);
-  const [resultados, setResultados] = useState(null);
+  const [resultados, setResultados] = useState(null); // null = sin buscar, [] = sin resultados
   const [errBusqueda, setErrBusqueda] = useState('');
 
-  const [colegiado, setColegiado]   = useState(null);
-  const [deuda, setDeuda]           = useState(null);
+  // ── Colegiado seleccionado ─────────────────────────────────────────────────
+  const [colegiado, setColegiado]   = useState(null); // objeto completo
+  const [deuda, setDeuda]           = useState(null); // { periodos_pendientes, total_deuda }
   const [cargandoDeuda, setCargandoDeuda] = useState(false);
 
+  // ── Paso 2: Formulario de pago ─────────────────────────────────────────────
   const [periodosSeleccionados, setPeriodosSeleccionados] = useState(new Set());
   const [metodo, setMetodo]         = useState('');
   const [monto, setMonto]           = useState('');
+  const [nroOp, setNroOp]           = useState('');
+  const [fechaPago, setFechaPago]   = useState(() => new Date().toISOString().slice(0, 10));
   const [errForm, setErrForm]       = useState('');
 
+  // ── Paso 3: Resultado ─────────────────────────────────────────────────────
   const [enviando, setEnviando]     = useState(false);
-  const [resultado, setResultado]   = useState(null);
-  const [montoMensual, setMontoMensual] = useState(20.00);
+  const [resultado, setResultado]   = useState(null); // { success, ... }
 
   const searchRef = useRef(null);
 
-  // Cargar precio configurado + public key MP
-  useEffect(() => {
-    fetch('/api/admin/configuracion/')
-      .then(r => r.json())
-      .then(d => { if (d.monto_mensualidad) setMontoMensual(parseFloat(d.monto_mensualidad)); })
-      .catch(() => {});
-  }, []);
-
-  // Auto-calcular monto
-  useEffect(() => {
-    if (periodosSeleccionados.size > 0) {
-      setMonto((periodosSeleccionados.size * montoMensual).toFixed(2));
-    } else {
-      setMonto('');
-    }
-  }, [periodosSeleccionados, montoMensual]);
-
+  // ── Buscar colegiado ───────────────────────────────────────────────────────
   const handleBuscar = async () => {
     const q = query.trim();
     if (q.length < 2) { setErrBusqueda('Ingrese al menos 2 caracteres'); return; }
@@ -101,13 +120,14 @@ export default function AdminPagoPresencial() {
       const res = await fetch(`/api/admin/colegiados/buscar/?q=${encodeURIComponent(q)}`);
       const data = await res.json();
       setResultados(Array.isArray(data) ? data : []);
-    } catch {
+    } catch (e) {
       setErrBusqueda('Error de conexión con el servidor.');
     } finally {
       setBuscando(false);
     }
   };
 
+  // ── Seleccionar colegiado → cargar deuda ──────────────────────────────────
   const handleSeleccionarColegiado = async (col) => {
     setColegiado(col);
     setResultados(null);
@@ -115,6 +135,8 @@ export default function AdminPagoPresencial() {
     setPeriodosSeleccionados(new Set());
     setMetodo('');
     setMonto('');
+    setNroOp('');
+    setFechaPago(new Date().toISOString().slice(0, 10));
     setErrForm('');
     setResultado(null);
     setCargandoDeuda(true);
@@ -122,60 +144,41 @@ export default function AdminPagoPresencial() {
       const res = await fetch(`/api/admin/colegiados/${col.id}/deuda/`);
       const data = await res.json();
       setDeuda(data);
-      const periodos = data.periodos || data.periodos_pendientes || [];
-      const soloDeuda = periodos.filter(p => p.estado === 'PENDIENTE').map(p => p.periodo);
-      setPeriodosSeleccionados(new Set(soloDeuda));
-    } catch {
-      setDeuda({ periodos: [], periodos_pendientes: [], total_deuda: 0 });
+      // Pre-seleccionar todos los periodos pendientes
+      setPeriodosSeleccionados(new Set(data.periodos_pendientes.map(p => p.periodo)));
+    } catch (e) {
+      setDeuda({ periodos_pendientes: [], total_deuda: 0 });
     } finally {
       setCargandoDeuda(false);
     }
   };
 
-  const getPeriodos     = () => deuda?.periodos || [];
-  const getPendientes   = () => getPeriodos().filter(p => p.estado === 'PENDIENTE').map(p => p.periodo);
-  const hayDeudaSinPagar = () => getPendientes().some(p => !periodosSeleccionados.has(p));
-
-  const togglePeriodo = (periodo, estado) => {
-    const pendientes  = getPendientes();
-    const allPeriodos = getPeriodos();
+  // ── Toggle periodo ─────────────────────────────────────────────────────────
+  const togglePeriodo = (periodo) => {
     setPeriodosSeleccionados(prev => {
-      const s = new Set(prev);
-      if (estado === 'PENDIENTE') {
-        const todasSel = pendientes.every(p => s.has(p));
-        if (todasSel) return new Set();
-        pendientes.forEach(p => s.add(p));
-        return s;
-      }
-      if (estado === 'MES_ACTUAL' || estado === 'ADELANTO') {
-        if (s.has(periodo)) {
-          const idx = allPeriodos.findIndex(p => p.periodo === periodo);
-          allPeriodos.slice(idx).forEach(p => { if (p.estado !== 'PAGADO') s.delete(p.periodo); });
-          return s;
-        } else {
-          for (const p of allPeriodos) {
-            if (p.periodo === periodo) break;
-            if (p.estado !== 'PAGADO') s.add(p.periodo);
-          }
-          s.add(periodo);
-          return s;
-        }
-      }
-      return s;
+      const nuevo = new Set(prev);
+      if (nuevo.has(periodo)) nuevo.delete(periodo);
+      else nuevo.add(periodo);
+      return nuevo;
     });
   };
 
-  const seleccionarTodos     = () => setPeriodosSeleccionados(new Set(getPeriodos().filter(p => p.estado !== 'PAGADO').map(p => p.periodo)));
-  const seleccionarSoloDeuda = () => setPeriodosSeleccionados(new Set(getPendientes()));
-  const deseleccionarTodos   = () => setPeriodosSeleccionados(new Set());
+  const seleccionarTodos = () =>
+    setPeriodosSeleccionados(new Set(deuda.periodos_pendientes.map(p => p.periodo)));
 
+  const deseleccionarTodos = () =>
+    setPeriodosSeleccionados(new Set());
+
+  // ── Registrar pago ─────────────────────────────────────────────────────────
   const handleRegistrar = async () => {
     setErrForm('');
     if (periodosSeleccionados.size === 0) { setErrForm('Seleccione al menos un periodo.'); return; }
     if (!metodo)  { setErrForm('Seleccione el método de pago.'); return; }
-if (!monto || isNaN(parseFloat(monto)) || parseFloat(monto) <= 0) {
+    if (!monto || isNaN(parseFloat(monto)) || parseFloat(monto) <= 0) {
       setErrForm('Ingrese un monto válido mayor a 0.'); return;
     }
+    if (!fechaPago) { setErrForm('Ingrese la fecha del pago.'); return; }
+
     setEnviando(true);
     try {
       const res = await fetch('/api/admin/pagos/presencial/', {
@@ -186,36 +189,33 @@ if (!monto || isNaN(parseFloat(monto)) || parseFloat(monto) <= 0) {
           periodos: [...periodosSeleccionados].sort(),
           monto: parseFloat(monto),
           metodo,
-          fecha_pago: new Date().toISOString().slice(0, 10),
+          nro_operacion: nroOp || null,
+          fecha_pago: fechaPago,
         }),
       });
       const data = await res.json();
-      if (res.ok) setResultado({ ok: true, ...data });
-      else setErrForm(data.error || 'Error al registrar el pago.');
-    } catch {
+      if (res.ok) {
+        setResultado({ ok: true, ...data });
+      } else {
+        setErrForm(data.error || 'Error al registrar el pago.');
+      }
+    } catch (e) {
       setErrForm('Error de conexión con el servidor.');
     } finally {
       setEnviando(false);
     }
   };
 
-const handleNuevoPago = () => {
-    setColegiado(null); setDeuda(null); setResultado(null);
-    setQuery(''); setResultados(null); setErrBusqueda(''); setErrForm('');
-    setTimeout(() => searchRef.current?.focus(), 100);
-  };
-
-  const recargarDeuda = () => {
-    setCargandoDeuda(true);
+  // ── Reiniciar todo ─────────────────────────────────────────────────────────
+  const handleNuevoPago = () => {
+    setColegiado(null);
+    setDeuda(null);
     setResultado(null);
-    fetch(`/api/admin/colegiados/${colegiado.id}/deuda/`)
-      .then(r => r.json())
-      .then(d => {
-        setDeuda(d);
-        const pp = d.periodos || d.periodos_pendientes || [];
-        setPeriodosSeleccionados(new Set(pp.filter(p => (p.estado ?? 'PENDIENTE') === 'PENDIENTE').map(p => p.periodo)));
-      })
-      .finally(() => setCargandoDeuda(false));
+    setQuery('');
+    setResultados(null);
+    setErrBusqueda('');
+    setErrForm('');
+    setTimeout(() => searchRef.current?.focus(), 100);
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -223,31 +223,34 @@ const handleNuevoPago = () => {
   // ═══════════════════════════════════════════════════════════════════════════
   if (resultado?.ok) {
     return (
-      <div style={{ maxWidth: '680px', margin: '0 auto' }}>
-        {/* Cabecera */}
-        <div style={{ marginBottom: '2rem' }}>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.25rem' }}>
-            ✅ Pago Registrado
-          </h1>
-          <p style={{ color: 'var(--text-muted)' }}>Los periodos han sido marcados como pagados correctamente.</p>
-        </div>
+      <div>
+        <h1 style={{ fontSize: '1.875rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.5rem' }}>
+          Pago Presencial Registrado
+        </h1>
+        <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
+          Los periodos han sido marcados como pagados.
+        </p>
 
-        <div className="card" style={{ borderLeft: '4px solid #10B981', padding: '2rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.75rem' }}>
-            <div style={{ background: '#D1FAE5', padding: '1rem', borderRadius: '50%', color: '#059669', flexShrink: 0 }}>
-              <CheckCircle2 size={36} />
+        <div className="card" style={{ maxWidth: '640px', borderLeft: '4px solid #10B981' }}>
+          {/* Icono + cabecera */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div style={{ background: '#D1FAE5', padding: '0.85rem', borderRadius: '50%', color: '#059669' }}>
+              <CheckCircle2 size={32} />
             </div>
             <div>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#065F46' }}>Pago registrado con éxito</h2>
-              <p style={{ color: '#047857', fontSize: '0.9rem', marginTop: '0.2rem' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#065F46' }}>
+                Pago registrado con éxito
+              </h2>
+              <p style={{ color: '#047857', fontSize: '0.875rem' }}>
                 {resultado.total_registrado} periodo{resultado.total_registrado !== 1 ? 's' : ''} abonado{resultado.total_registrado !== 1 ? 's' : ''} para{' '}
                 <strong>{resultado.colegiado}</strong>
               </p>
             </div>
           </div>
 
+          {/* Periodos registrados */}
           <div style={{ marginBottom: '1.25rem' }}>
-            <p style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.6rem' }}>
+            <p style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.6rem' }}>
               Periodos pagados
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
@@ -259,6 +262,7 @@ const handleNuevoPago = () => {
             </div>
           </div>
 
+          {/* Ya existían */}
           {resultado.ya_existian?.length > 0 && (
             <div style={{ marginBottom: '1rem', background: '#FEF3C7', borderRadius: '8px', padding: '0.75rem', fontSize: '0.8rem', color: '#92400E' }}>
               <strong>⚠️ Ya tenían pago registrado:</strong>{' '}
@@ -266,20 +270,37 @@ const handleNuevoPago = () => {
             </div>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1rem', background: resultado.habilitado_nuevo ? '#D1FAE5' : '#FEF3C7', borderRadius: '8px', marginBottom: '1.75rem' }}>
-            {resultado.habilitado_nuevo ? <BadgeCheck size={20} color="#059669" /> : <AlertCircle size={20} color="#D97706" />}
+          {/* Nueva habilitación */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1rem', background: resultado.habilitado_nuevo ? '#D1FAE5' : '#FEF3C7', borderRadius: '8px', marginBottom: '1.5rem' }}>
+            {resultado.habilitado_nuevo
+              ? <BadgeCheck size={20} color="#059669" />
+              : <AlertCircle size={20} color="#D97706" />
+            }
             <span style={{ fontSize: '0.875rem', fontWeight: '600', color: resultado.habilitado_nuevo ? '#065F46' : '#92400E' }}>
               {resultado.habilitado_nuevo
                 ? 'El colegiado ahora está HABILITADO'
-                : 'El colegiado aún tiene meses pendientes (sigue inhabilitado)'}
+                : 'El colegiado aún tiene meses pendientes (sigue inhabilitado)'
+              }
             </span>
           </div>
 
           <div style={{ display: 'flex', gap: '1rem' }}>
-            <button onClick={handleNuevoPago} className="btn btn-primary" style={{ flex: 1 }}>
+            <button
+              onClick={handleNuevoPago}
+              className="btn btn-primary"
+              style={{ flex: 1 }}
+            >
               Registrar otro pago
             </button>
-            <button onClick={recargarDeuda} className="btn btn-outline" style={{ flex: 1, borderColor: 'var(--cip-blue)', color: 'var(--cip-blue)' }}>
+            <button
+              onClick={() => { setColegiado(deuda?.colegiado || colegiado); setResultado(null); setCargandoDeuda(true);
+                fetch(`/api/admin/colegiados/${colegiado.id}/deuda/`)
+                  .then(r => r.json()).then(d => { setDeuda(d); setPeriodosSeleccionados(new Set(d.periodos_pendientes.map(p => p.periodo))); })
+                  .finally(() => setCargandoDeuda(false));
+              }}
+              className="btn btn-outline"
+              style={{ flex: 1, borderColor: 'var(--cip-blue)', color: 'var(--cip-blue)' }}
+            >
               Ver deuda restante
             </button>
           </div>
@@ -289,491 +310,329 @@ const handleNuevoPago = () => {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // ESTADO INICIAL: sin colegiado seleccionado
+  // FORMULARIO PRINCIPAL
   // ═══════════════════════════════════════════════════════════════════════════
-  if (!colegiado) {
-    return (
-      <div>
-        {/* Cabecera */}
-        <div style={{ marginBottom: '2rem' }}>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.25rem' }}>
-            Registrar Pago Presencial
-          </h1>
-          <p style={{ color: 'var(--text-muted)' }}>
-            Yape, Plin, efectivo o transferencia. Busque el colegiado para comenzar.
-          </p>
+  return (
+    <div>
+      {/* Cabecera */}
+      <div style={{ marginBottom: '2rem' }}>
+        <h1 style={{ fontSize: '1.875rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.5rem' }}>
+          Registrar Pago Presencial
+        </h1>
+        <p style={{ color: 'var(--text-muted)' }}>
+          Registre pagos realizados por Yape, Plin, efectivo o transferencia. Puede cubrir varios meses en un solo registro.
+        </p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: '1.5rem', alignItems: 'start' }}>
+
+        {/* ═══ COLUMNA IZQUIERDA: Buscar colegiado ══════════════════════════ */}
+        <div className="card" style={{ position: 'sticky', top: '1rem' }}>
+          <h2 style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '1.25rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.4rem', display: 'inline-block' }}>
+            1. Buscar Colegiado
+          </h2>
+
+          {/* Input de búsqueda */}
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            <input
+              ref={searchRef}
+              type="text"
+              className="form-input"
+              placeholder="DNI, nombre o N° CIP…"
+              value={query}
+              onChange={e => { setQuery(e.target.value); setErrBusqueda(''); }}
+              onKeyDown={e => e.key === 'Enter' && handleBuscar()}
+              style={{ flex: 1 }}
+            />
+            <button
+              onClick={handleBuscar}
+              disabled={buscando}
+              className="btn btn-primary"
+              style={{ padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap' }}
+            >
+              {buscando
+                ? <Loader2 size={16} className="spin" />
+                : <Search size={16} />}
+              Buscar
+            </button>
+          </div>
+
+          {errBusqueda && (
+            <p style={{ color: '#DC2626', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{errBusqueda}</p>
+          )}
+
+          {/* Resultados */}
+          {resultados !== null && (
+            resultados.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)' }}>
+                <User size={32} style={{ margin: '0 auto 0.5rem auto', display: 'block', opacity: 0.3 }} />
+                <p style={{ fontSize: '0.875rem' }}>No se encontraron colegiados.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                {resultados.map(col => (
+                  <button
+                    key={col.id}
+                    onClick={() => handleSeleccionarColegiado(col)}
+                    style={{
+                      background: 'white', border: '1px solid var(--border-color)', borderRadius: '8px',
+                      padding: '0.75rem 1rem', textAlign: 'left', cursor: 'pointer',
+                      transition: 'all 0.15s', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--cip-blue)'; e.currentTarget.style.background = '#EFF6FF'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.background = 'white'; }}
+                  >
+                    <div>
+                      <p style={{ fontWeight: '700', color: 'var(--text-main)', marginBottom: '0.2rem', fontSize: '0.875rem' }}>
+                        {col.nombres}
+                      </p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        DNI {col.dni} · CIP {col.nro_colegiado} · {col.carrera}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
+                      <BadgeHabilitado habilitado={col.habilitado} />
+                      <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )
+          )}
+
+          {/* Colegiado actualmente seleccionado (mini resumen) */}
+          {colegiado && !resultados && (
+            <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <CheckCircle2 size={16} color="#16A34A" style={{ flexShrink: 0 }} />
+              <div style={{ fontSize: '0.8rem' }}>
+                <strong style={{ color: '#15803D' }}>{colegiado.nombres}</strong>
+                <p style={{ color: '#166534', margin: 0 }}>DNI {colegiado.dni} · CIP {colegiado.nro_colegiado}</p>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Panel de búsqueda centrado y amplio */}
-        <div style={{ maxWidth: '700px', margin: '0 auto' }}>
-          <div className="card" style={{ padding: '2rem' }}>
-            {/* Icono + título */}
-            <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-              <div style={{ display: 'inline-flex', background: 'linear-gradient(135deg, #0F172A 0%, #1E3A5F 100%)', borderRadius: '50%', padding: '1.25rem', marginBottom: '1rem' }}>
-                <Wallet size={32} color="white" />
-              </div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '0.3rem' }}>
-                Buscar Colegiado
-              </h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                Ingrese DNI, nombre completo o número CIP
-              </p>
-            </div>
+        {/* ═══ COLUMNA DERECHA: Periodos + formulario ═══════════════════════ */}
+        {!colegiado ? (
+          /* Placeholder cuando no hay colegiado seleccionado */
+          <div className="card" style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--text-muted)', border: '2px dashed var(--border-color)', background: '#FAFAFA', boxShadow: 'none' }}>
+            <Wallet size={48} style={{ margin: '0 auto 1rem auto', display: 'block', opacity: 0.25 }} />
+            <p style={{ fontWeight: '600', marginBottom: '0.4rem' }}>Seleccione un colegiado</p>
+            <p style={{ fontSize: '0.875rem' }}>Busque por DNI, nombre o número CIP para continuar.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
-            {/* Input */}
-            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: errBusqueda ? '0.5rem' : '0' }}>
-              <div style={{ position: 'relative', flex: 1 }}>
-                <Search size={18} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input
-                  ref={searchRef}
-                  type="text"
-                  className="form-input"
-                  placeholder="Ej. 71234567 · Juan Pérez · 12345"
-                  value={query}
-                  onChange={e => { setQuery(e.target.value); setErrBusqueda(''); }}
-                  onKeyDown={e => e.key === 'Enter' && handleBuscar()}
-                  style={{ paddingLeft: '2.5rem', fontSize: '1rem', height: '48px' }}
-                  autoFocus
-                />
-              </div>
-              <button
-                onClick={handleBuscar}
-                disabled={buscando}
-                className="btn btn-primary"
-                style={{ height: '48px', padding: '0 1.5rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}
-              >
-                {buscando ? <Loader2 size={18} className="spin" /> : <Search size={18} />}
-                Buscar
-              </button>
-            </div>
+            {/* Tarjeta colegiado */}
+            <TarjetaColegiado col={colegiado} onCambiar={() => { setColegiado(null); setDeuda(null); setResultado(null); }} />
 
-            {errBusqueda && (
-              <p style={{ color: '#DC2626', fontSize: '0.82rem', marginTop: '0.5rem' }}>{errBusqueda}</p>
-            )}
-
-            {/* Resultados */}
-            {resultados !== null && (
-              <div style={{ marginTop: '1.25rem' }}>
-                {resultados.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)', background: '#F8FAFC', borderRadius: '10px', border: '1px dashed var(--border-color)' }}>
-                    <User size={36} style={{ margin: '0 auto 0.6rem auto', display: 'block', opacity: 0.25 }} />
-                    <p style={{ fontWeight: '600', marginBottom: '0.2rem' }}>Sin resultados</p>
-                    <p style={{ fontSize: '0.82rem' }}>No se encontraron colegiados con ese criterio.</p>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                    <p style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.1rem' }}>
-                      {resultados.length} resultado{resultados.length !== 1 ? 's' : ''} encontrado{resultados.length !== 1 ? 's' : ''}
-                    </p>
-                    {resultados.map(col => (
-                      <button
-                        key={col.id}
-                        onClick={() => handleSeleccionarColegiado(col)}
-                        style={{
-                          background: 'white', border: '1.5px solid var(--border-color)', borderRadius: '10px',
-                          padding: '0.9rem 1.1rem', textAlign: 'left', cursor: 'pointer',
-                          transition: 'all 0.15s', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--cip-blue)'; e.currentTarget.style.background = '#EFF6FF'; e.currentTarget.style.transform = 'translateX(2px)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.background = 'white'; e.currentTarget.style.transform = 'none'; }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                          <div style={{ background: 'var(--cip-blue)', color: 'white', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.85rem', fontWeight: '700' }}>
-                            {col.nombres.charAt(0)}
-                          </div>
-                          <div>
-                            <p style={{ fontWeight: '700', color: 'var(--text-main)', marginBottom: '0.2rem' }}>{col.nombres}</p>
-                            <p style={{ fontSize: '0.77rem', color: 'var(--text-muted)' }}>DNI {col.dni} · CIP {col.nro_colegiado} · {col.carrera}</p>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.3rem', flexShrink: 0 }}>
-                          <BadgeHabilitado habilitado={col.habilitado} />
-                          <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
-                        </div>
-                      </button>
-                    ))}
+            {/* Periodos pendientes */}
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--cip-blue)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Calendar size={18} /> Periodos Adeudados
+                </h3>
+                {deuda && deuda.periodos_pendientes.length > 0 && (
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button onClick={seleccionarTodos} style={{ fontSize: '0.75rem', color: 'var(--cip-blue)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                      Seleccionar todos
+                    </button>
+                    <span style={{ color: 'var(--border-color)' }}>|</span>
+                    <button onClick={deseleccionarTodos} style={{ fontSize: '0.75rem', color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                      Limpiar
+                    </button>
                   </div>
                 )}
               </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ESTADO PRINCIPAL: colegiado seleccionado — layout full screen
-  // ═══════════════════════════════════════════════════════════════════════════
+              {cargandoDeuda ? (
+                <div style={{ textAlign: 'center', padding: '2rem' }}>
+                  <Loader2 size={28} className="spin" style={{ color: 'var(--text-muted)', margin: '0 auto', display: 'block' }} />
+                  <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', fontSize: '0.875rem' }}>Calculando deuda…</p>
+                </div>
+              ) : deuda?.periodos_pendientes.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '1.5rem', background: '#F0FDF4', borderRadius: '8px', color: '#15803D' }}>
+                  <CheckCircle2 size={28} style={{ margin: '0 auto 0.5rem auto', display: 'block' }} />
+                  <p style={{ fontWeight: '700' }}>¡Sin deuda pendiente!</p>
+                  <p style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: '#166534' }}>
+                    El colegiado está al día con todos sus pagos.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.5rem', maxHeight: '260px', overflowY: 'auto', paddingRight: '0.25rem' }}>
+                  {deuda.periodos_pendientes.map(p => {
+                    const sel = periodosSeleccionados.has(p.periodo);
+                    return (
+                      <label
+                        key={p.periodo}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '0.5rem',
+                          padding: '0.55rem 0.75rem', borderRadius: '8px', cursor: 'pointer',
+                          border: `1px solid ${sel ? 'var(--cip-blue)' : 'var(--border-color)'}`,
+                          background: sel ? '#EFF6FF' : 'white',
+                          transition: 'all 0.15s', fontSize: '0.82rem', fontWeight: sel ? '700' : '400',
+                          color: sel ? 'var(--cip-blue)' : 'var(--text-main)',
+                          userSelect: 'none',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={sel}
+                          onChange={() => togglePeriodo(p.periodo)}
+                          style={{ accentColor: 'var(--cip-blue)', width: 15, height: 15, flexShrink: 0 }}
+                        />
+                        {fmtPeriodo(p.periodo)}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
 
-  const todosLosPeriodos = getPeriodos();
-  const hayPeriodosNoPagados = todosLosPeriodos.some(p => p.estado !== 'PAGADO');
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, height: '100%' }}>
-
-      {/* ── BANNER SUPERIOR: info del colegiado ── */}
-      <div style={{
-        background: 'linear-gradient(135deg, #0F172A 0%, #1E3A5F 100%)',
-        borderRadius: '12px', padding: '1.25rem 1.75rem',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: '1.5rem', gap: '1rem',
-      }}>
-        {/* Info colegiado */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(4px)', borderRadius: '50%', width: 52, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '1.25rem', fontWeight: '800', color: 'white' }}>
-            {colegiado.nombres.charAt(0)}
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.2rem' }}>
-              <p style={{ fontWeight: '800', color: 'white', fontSize: '1.1rem', margin: 0 }}>{colegiado.nombres}</p>
-              <BadgeHabilitado habilitado={colegiado.habilitado} />
-            </div>
-            <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.82rem', margin: 0 }}>
-              DNI {colegiado.dni} &nbsp;·&nbsp; CIP {colegiado.nro_colegiado} &nbsp;·&nbsp; {colegiado.carrera}
-              {colegiado.colegiado_desde && <span> &nbsp;·&nbsp; Colegiado desde {fmtFecha(colegiado.colegiado_desde)}</span>}
-            </p>
-          </div>
-        </div>
-
-        {/* Acciones + resumen deuda */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexShrink: 0 }}>
-          {deuda && deuda.total_deuda > 0 && (
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ color: '#F59E0B', fontSize: '1.5rem', fontWeight: '800', margin: 0, lineHeight: 1 }}>{deuda.total_deuda}</p>
-              <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.72rem', margin: 0, marginTop: '0.15rem' }}>mes{deuda.total_deuda !== 1 ? 'es' : ''} de deuda</p>
-            </div>
-          )}
-          {deuda && deuda.total_deuda > 0 && (
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ color: '#F87171', fontSize: '1.5rem', fontWeight: '800', margin: 0, lineHeight: 1 }}>S/ {(deuda.total_deuda * montoMensual).toFixed(0)}</p>
-              <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.72rem', margin: 0, marginTop: '0.15rem' }}>total adeudado</p>
-            </div>
-          )}
-          <button
-            onClick={() => { setColegiado(null); setDeuda(null); setResultado(null); }}
-            style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)', color: 'white', borderRadius: '8px', padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', transition: 'all 0.15s' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.22)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
-          >
-            ← Cambiar
-          </button>
-        </div>
-      </div>
-
-      {/* ── CUERPO PRINCIPAL: 2 columnas ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: '1.5rem', alignItems: 'start' }}>
-
-        {/* ═══ COLUMNA IZQUIERDA: Calendario de periodos ═══════════════════ */}
-        <div className="card" style={{ padding: '1.5rem' }}>
-          {/* Cabecera del calendario */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--cip-blue)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <Calendar size={18} /> Periodos del Año {new Date().getFullYear()}
-              </h3>
+              {/* Contador de seleccionados */}
               {periodosSeleccionados.size > 0 && (
-                <p style={{ fontSize: '0.78rem', color: '#059669', fontWeight: '600', marginTop: '0.25rem', margin: '0.25rem 0 0 0' }}>
-                  {periodosSeleccionados.size} periodo{periodosSeleccionados.size !== 1 ? 's' : ''} seleccionado{periodosSeleccionados.size !== 1 ? 's' : ''} · S/ {(periodosSeleccionados.size * montoMensual).toFixed(2)}
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.75rem', textAlign: 'right' }}>
+                  {periodosSeleccionados.size} periodo{periodosSeleccionados.size !== 1 ? 's' : ''} seleccionado{periodosSeleccionados.size !== 1 ? 's' : ''}
                 </p>
               )}
             </div>
 
-            {/* Botones de selección rápida */}
-            {deuda && (
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {/* Detalles del pago */}
+            {deuda && deuda.periodos_pendientes.length > 0 && (
+              <div className="card">
+                <h3 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <CreditCard size={18} /> Detalle del Pago
+                </h3>
+
+                {/* Método de pago */}
+                <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                  <label className="form-label">Método de Pago</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+                    {METODOS.map(m => (
+                      <button
+                        key={m.valor}
+                        type="button"
+                        onClick={() => setMetodo(m.valor)}
+                        style={{
+                          padding: '0.65rem 0.5rem', borderRadius: '8px', cursor: 'pointer',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem',
+                          border: `2px solid ${metodo === m.valor ? 'var(--cip-blue)' : 'var(--border-color)'}`,
+                          background: metodo === m.valor ? '#EFF6FF' : 'white',
+                          color: metodo === m.valor ? 'var(--cip-blue)' : 'var(--text-main)',
+                          fontWeight: metodo === m.valor ? '700' : '400',
+                          fontSize: '0.78rem', transition: 'all 0.15s',
+                        }}
+                      >
+                        {m.icono}
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Monto + Fecha en fila */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">
+                      Monto Total (S/.)
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontWeight: '600' }}>S/</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="form-input"
+                        value={monto}
+                        onChange={e => setMonto(e.target.value)}
+                        style={{ paddingLeft: '2rem' }}
+                        placeholder="0.00"
+                      />
+                    </div>
+                    {monto && periodosSeleccionados.size > 1 && (
+                      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                        ≈ S/ {(parseFloat(monto) / periodosSeleccionados.size).toFixed(2)} por mes
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Calendar size={13} /> Fecha del Pago
+                    </label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={fechaPago}
+                      onChange={e => setFechaPago(e.target.value)}
+                      max={new Date().toISOString().slice(0, 10)}
+                    />
+                  </div>
+                </div>
+
+                {/* N° operación */}
+                <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <Hash size={13} /> N° Operación / Voucher{' '}
+                    <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}>(opcional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={nroOp}
+                    onChange={e => setNroOp(e.target.value)}
+                    placeholder="Ej. 12345678"
+                  />
+                </div>
+
+                {/* Error */}
+                {errForm && (
+                  <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                    {errForm}
+                  </div>
+                )}
+
+                {/* Resumen antes de confirmar */}
+                {periodosSeleccionados.size > 0 && monto && metodo && (
+                  <div style={{ background: '#F8FAFC', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.85rem 1rem', marginBottom: '1rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                      <span>Periodos a pagar:</span>
+                      <strong style={{ color: 'var(--text-main)' }}>{periodosSeleccionados.size}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                      <span>Monto total:</span>
+                      <strong style={{ color: 'var(--text-main)' }}>S/ {parseFloat(monto).toFixed(2)}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Método:</span>
+                      <strong style={{ color: 'var(--text-main)' }}>{METODOS.find(m => m.valor === metodo)?.label}</strong>
+                    </div>
+                  </div>
+                )}
+
+                {/* Botón registrar */}
                 <button
-                  onClick={seleccionarSoloDeuda}
-                  style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', borderRadius: '6px', border: '1.5px solid #FCA5A5', background: '#FEF2F2', color: '#B91C1C', cursor: 'pointer', fontWeight: '600', transition: 'all 0.15s' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#FEE2E2'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#FEF2F2'; }}
+                  onClick={handleRegistrar}
+                  disabled={enviando || periodosSeleccionados.size === 0}
+                  className="btn btn-primary btn-block"
+                  style={{
+                    padding: '0.875rem', fontSize: '1rem', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                    background: '#10B981', borderColor: '#10B981',
+                    opacity: (enviando || periodosSeleccionados.size === 0) ? 0.6 : 1,
+                    cursor: (enviando || periodosSeleccionados.size === 0) ? 'not-allowed' : 'pointer',
+                  }}
                 >
-                  Solo deudas
-                </button>
-                <button
-                  onClick={seleccionarTodos}
-                  style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', borderRadius: '6px', border: '1.5px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8', cursor: 'pointer', fontWeight: '600', transition: 'all 0.15s' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#DBEAFE'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#EFF6FF'; }}
-                >
-                  Todos
-                </button>
-                <button
-                  onClick={deseleccionarTodos}
-                  style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', borderRadius: '6px', border: '1.5px solid #E2E8F0', background: '#F8FAFC', color: '#64748B', cursor: 'pointer', fontWeight: '600', transition: 'all 0.15s' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#F1F5F9'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#F8FAFC'; }}
-                >
-                  Ninguno
+                  {enviando
+                    ? <><Loader2 size={20} className="spin" /> Registrando…</>
+                    : <><CheckCircle2 size={20} /> Confirmar y Registrar Pago</>
+                  }
                 </button>
               </div>
             )}
           </div>
-
-          {/* Grilla de meses */}
-          {cargandoDeuda ? (
-            <div style={{ textAlign: 'center', padding: '3rem' }}>
-              <Loader2 size={32} className="spin" style={{ color: 'var(--text-muted)', margin: '0 auto', display: 'block' }} />
-              <p style={{ color: 'var(--text-muted)', marginTop: '0.75rem', fontSize: '0.9rem' }}>Cargando periodos…</p>
-            </div>
-          ) : todosLosPeriodos.every(p => p.estado === 'PAGADO') ? (
-            <div style={{ textAlign: 'center', padding: '2.5rem', background: '#F0FDF4', borderRadius: '10px', color: '#15803D' }}>
-              <CheckCircle2 size={36} style={{ margin: '0 auto 0.75rem auto', display: 'block' }} />
-              <p style={{ fontWeight: '800', fontSize: '1.1rem', marginBottom: '0.25rem' }}>¡Sin deuda pendiente!</p>
-              <p style={{ fontSize: '0.85rem', color: '#166534' }}>Todos los meses están al día.</p>
-            </div>
-          ) : (
-            /* Agrupado por año — solo meses no pagados */
-            (() => {
-              // Excluir meses ya pagados y agrupar por año
-              const porAño = {};
-              todosLosPeriodos
-                .filter(p => p.estado !== 'PAGADO')
-                .forEach(p => {
-                  const año = p.periodo.split('-')[0];
-                  if (!porAño[año]) porAño[año] = [];
-                  porAño[año].push(p);
-                });
-              const años = Object.keys(porAño).sort();
-
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {años.map(año => {
-                    const mesesDelAño = porAño[año];
-
-                    return (
-                      <div key={año}>
-                        {/* Separador de año */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.6rem' }}>
-                          <span style={{
-                            background: 'var(--cip-blue)', color: 'white',
-                            fontSize: '0.75rem', fontWeight: '800', padding: '0.2rem 0.65rem',
-                            borderRadius: '6px', letterSpacing: '0.5px',
-                          }}>{año}</span>
-                          <div style={{ flex: 1, height: '1px', background: '#E2E8F0' }} />
-                        </div>
-
-                        {/* Meses del año: 6 por fila */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.4rem' }}>
-                          {mesesDelAño.map(p => {
-                            const estado      = p.estado || 'PENDIENTE';
-                            const pagado      = estado === 'PAGADO';
-                            const esPendiente = estado === 'PENDIENTE';
-                            const esMesActual = estado === 'MES_ACTUAL';
-                            const esAdelanto  = estado === 'ADELANTO';
-                            const sel         = periodosSeleccionados.has(p.periodo);
-                            const bloqueado   = esAdelanto && hayDeudaSinPagar();
-
-                            let paleta;
-                            if (pagado) {
-                              paleta = { bg: '#F0FDF4', border: '#86EFAC', txt: '#15803D', accent: '#16A34A', tagBg: '#DCFCE7', tagTxt: '#15803D' };
-                            } else if (esPendiente) {
-                              paleta = sel
-                                ? { bg: '#FFF1F2', border: '#F87171', txt: '#991B1B', accent: '#DC2626', tagBg: '#FEE2E2', tagTxt: '#991B1B' }
-                                : { bg: '#FEF2F2', border: '#FCA5A5', txt: '#B91C1C', accent: '#DC2626', tagBg: '#FEE2E2', tagTxt: '#991B1B' };
-                            } else if (esMesActual) {
-                              paleta = sel
-                                ? { bg: '#FFFBEB', border: '#F59E0B', txt: '#78350F', accent: '#D97706', tagBg: '#FEF3C7', tagTxt: '#92400E' }
-                                : { bg: '#FFFDF5', border: '#FCD34D', txt: '#92400E', accent: '#D97706', tagBg: '#FEF3C7', tagTxt: '#92400E' };
-                            } else {
-                              paleta = sel
-                                ? { bg: '#EFF6FF', border: '#3B82F6', txt: '#1E40AF', accent: '#2563EB', tagBg: '#DBEAFE', tagTxt: '#1D4ED8' }
-                                : { bg: '#F8FAFF', border: '#BFDBFE', txt: '#3B82F6', accent: '#2563EB', tagBg: '#DBEAFE', tagTxt: '#1D4ED8' };
-                            }
-
-                            return (
-                              <div
-                                key={p.periodo}
-                                title={
-                                  pagado      ? 'Ya pagado' :
-                                  esPendiente ? 'Deuda — se paga en bloque con todos los meses adeudados' :
-                                  esMesActual ? 'Mes en curso — plazo hasta fin de mes para pagar' :
-                                  bloqueado   ? 'Primero paga las deudas atrasadas' :
-                                  'Pago anticipado'
-                                }
-                                onClick={() => { if (!pagado) togglePeriodo(p.periodo, estado); }}
-                                style={{
-                                  background: paleta.bg,
-                                  border: `2px solid ${sel && !pagado ? paleta.accent : paleta.border}`,
-                                  borderRadius: '7px',
-                                  padding: '0.45rem 0.3rem',
-                                  cursor: pagado ? 'default' : bloqueado ? 'not-allowed' : 'pointer',
-                                  transition: 'all 0.15s',
-                                  opacity: pagado ? 0.7 : bloqueado ? 0.4 : 1,
-                                  userSelect: 'none',
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  alignItems: 'center',
-                                  gap: '0.22rem',
-                                  boxShadow: sel && !pagado ? `0 0 0 2px ${paleta.accent}40` : 'none',
-                                  transform: sel && !pagado ? 'scale(1.03)' : 'scale(1)',
-                                }}
-                              >
-                                <p style={{ fontSize: '0.78rem', fontWeight: '800', color: paleta.txt, margin: 0, letterSpacing: '0.3px' }}>
-                                  {fmtPeriodoCorto(p.periodo)}
-                                </p>
-                                {pagado ? (
-                                  <CheckCircle2 size={12} color={paleta.accent} />
-                                ) : (
-                                  <input
-                                    type="checkbox"
-                                    checked={sel}
-                                    readOnly
-                                    style={{ accentColor: paleta.accent, width: 12, height: 12, pointerEvents: 'none' }}
-                                  />
-                                )}
-                                <span style={{
-                                  fontSize: '0.56rem', fontWeight: '700', padding: '0.08rem 0.3rem',
-                                  borderRadius: '999px', background: paleta.tagBg, color: paleta.tagTxt,
-                                  textTransform: 'uppercase', letterSpacing: '0.2px', whiteSpace: 'nowrap',
-                                }}>
-                                  {pagado ? 'pagado' : esPendiente ? 'deuda' : esMesActual ? 'pagar' : 'adelanto'}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()
-          )}
-        </div>
-
-        {/* ═══ COLUMNA DERECHA: Formulario de pago (sticky) ════════════════ */}
-        <div style={{ position: 'sticky', top: '1rem' }}>
-          {!hayPeriodosNoPagados ? (
-            /* Todo pagado */
-            <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem', background: '#F0FDF4', border: '2px solid #86EFAC' }}>
-              <CheckCircle2 size={48} style={{ margin: '0 auto 1rem auto', display: 'block', color: '#16A34A' }} />
-              <p style={{ fontWeight: '800', color: '#065F46', fontSize: '1.1rem', marginBottom: '0.4rem' }}>¡Al día!</p>
-              <p style={{ fontSize: '0.85rem', color: '#166534' }}>Este colegiado no tiene pendientes.</p>
-            </div>
-          ) : (
-            <div className="card" style={{ padding: '1.5rem' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.45rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem' }}>
-                <CreditCard size={18} /> Detalle del Pago
-              </h3>
-
-              {/* Resumen de selección */}
-              {periodosSeleccionados.size > 0 ? (
-                <div style={{ background: 'linear-gradient(135deg, #059669, #10B981)', borderRadius: '10px', padding: '1rem 1.25rem', marginBottom: '1.25rem', color: 'white' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                    <span style={{ fontSize: '0.82rem', opacity: 0.9 }}>{periodosSeleccionados.size} mes{periodosSeleccionados.size !== 1 ? 'es' : ''} × S/ {montoMensual.toFixed(2)}</span>
-                    <strong style={{ fontSize: '1.4rem', fontWeight: '800' }}>S/ {(periodosSeleccionados.size * montoMensual).toFixed(2)}</strong>
-                  </div>
-                  <p style={{ fontSize: '0.72rem', opacity: 0.75, margin: 0 }}>Total calculado automáticamente</p>
-                </div>
-              ) : (
-                <div style={{ background: '#F8FAFC', borderRadius: '10px', padding: '1rem', marginBottom: '1.25rem', textAlign: 'center', border: '1.5px dashed #CBD5E1' }}>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>Seleccione meses del calendario</p>
-                </div>
-              )}
-
-              {/* Método de pago */}
-              <div className="form-group" style={{ marginBottom: '1.1rem' }}>
-                <label className="form-label" style={{ fontSize: '0.8rem' }}>Método de Pago</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.4rem' }}>
-                  {METODOS.map(m => (
-                    <button
-                      key={m.valor}
-                      type="button"
-                      onClick={() => { setMetodo(m.valor); setErrForm(''); }}
-                      style={{
-                        padding: '0.55rem 0.3rem', borderRadius: '8px', cursor: 'pointer',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.22rem',
-                        border: `2px solid ${metodo === m.valor ? 'var(--cip-blue)' : 'var(--border-color)'}`,
-                        background: metodo === m.valor ? '#EFF6FF' : 'white',
-                        color: metodo === m.valor ? 'var(--cip-blue)' : 'var(--text-main)',
-                        fontWeight: metodo === m.valor ? '700' : '400',
-                        fontSize: '0.72rem', transition: 'all 0.15s',
-                      }}
-                    >
-                      {m.icono}
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Monto editable (solo si NO es tarjeta, que lo calcula MP) */}
-              {metodo !== 'TARJETA' && (
-                <div className="form-group" style={{ marginBottom: '1.1rem' }}>
-                  <label className="form-label" style={{ fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Monto Total (S/.)</span>
-                    {periodosSeleccionados.size > 0 && (
-                      <span style={{ fontSize: '0.68rem', color: '#059669', fontWeight: '600', background: '#D1FAE5', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>Auto</span>
-                    )}
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.9rem' }}>S/</span>
-                    <input
-                      type="number" step="0.01" min="0"
-                      className="form-input"
-                      value={monto}
-                      onChange={e => setMonto(e.target.value)}
-                      style={{ paddingLeft: '2.2rem', borderColor: periodosSeleccionados.size > 0 ? '#86EFAC' : undefined }}
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Ajustable si es necesario</p>
-                </div>
-              )}
-
-              {/* Resumen rápido */}
-              {periodosSeleccionados.size > 0 && monto && metodo && (
-                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.78rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', color: 'var(--text-muted)' }}>
-                    <span>Periodos:</span>
-                    <strong style={{ color: 'var(--text-main)' }}>{periodosSeleccionados.size}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', color: 'var(--text-muted)' }}>
-                    <span>Total:</span>
-                    <strong style={{ color: '#059669', fontSize: '0.9rem' }}>S/ {parseFloat(monto).toFixed(2)}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
-                    <span>Vía:</span>
-                    <strong style={{ color: 'var(--text-main)' }}>{METODOS.find(m => m.valor === metodo)?.label}</strong>
-                  </div>
-                </div>
-              )}
-
-              {/* Error */}
-              {errForm && (
-                <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.65rem 0.85rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.82rem', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <AlertCircle size={15} style={{ flexShrink: 0 }} />
-                  {errForm}
-                </div>
-              )}
-
-              {/* Botón confirmar */}
-              <button
-                onClick={handleRegistrar}
-                disabled={enviando || periodosSeleccionados.size === 0}
-                className="btn btn-block"
-                style={{
-                  padding: '0.9rem', fontSize: '0.95rem',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                  background: (enviando || periodosSeleccionados.size === 0) ? '#94A3B8' : '#10B981',
-                  border: 'none', borderRadius: '10px', color: 'white',
-                  fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0) ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#059669'; }}
-                onMouseLeave={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#10B981'; }}
-              >
-                {enviando
-                  ? <><Loader2 size={18} className="spin" /> Registrando…</>
-                  : <><CheckCircle2 size={18} /> Confirmar y Registrar</>
-                }
-              </button>
-            </div>
-          )}
-        </div>
-
-      </div>{/* fin grid */}
+        )}
+      </div>
     </div>
   );
 }

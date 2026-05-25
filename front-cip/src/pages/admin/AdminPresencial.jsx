@@ -5,6 +5,8 @@ import { procesarFotoCarnet } from '../../utils/fotoCarnet';
 export default function AdminPresencial() {
   const [dni, setDni] = useState('');
   const [nombres, setNombres] = useState('');
+  const [celular, setCelular] = useState('');
+  const [correo, setCorreo] = useState('');
   const [carrera, setCarrera] = useState('');
   const [sede, setSede] = useState('');
   
@@ -89,7 +91,7 @@ export default function AdminPresencial() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!nombres || !carrera || !sede || !foto || !titulo || !recibo) {
+    if (!nombres || !celular || !correo || !carrera || !sede || !foto || !titulo || !recibo) {
       setErrorMsg("Complete todos los campos y adjunte los documentos.");
       return;
     }
@@ -119,6 +121,8 @@ export default function AdminPresencial() {
       const formData = new FormData();
       formData.append('dni', dni);
       formData.append('nombres', nombres);
+      formData.append('celular', celular);
+      formData.append('correo', correo);
       formData.append('carrera', carrera);
       formData.append('sede', sede);
       formData.append('foto', foto);
@@ -159,7 +163,8 @@ export default function AdminPresencial() {
   };
 
   const resetForm = () => {
-    setSuccess(false); setDni(''); setNombres(''); setCarrera(''); setSede('');
+    setSuccess(false); setDni(''); setNombres(''); setCelular('');
+    setCorreo(''); setCarrera(''); setSede('');
     setFoto(null); setFotoInfo(''); setTitulo(null); setRecibo(null);
     setDniValidado(false); setErrorMsg('');
   };
@@ -213,6 +218,14 @@ export default function AdminPresencial() {
                 readOnly={dniValidado}
                 placeholder="Autocompletado con DNI o ingrese manualmente"
                 style={{ background: dniValidado ? '#f1f5f9' : 'white', fontWeight: dniValidado ? '600' : '400' }} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Celular</label>
+              <input type="text" className="form-input" value={celular} onChange={(e) => setCelular(e.target.value)} maxLength={9} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Correo Electrónico</label>
+              <input type="email" className="form-input" value={correo} onChange={(e) => setCorreo(e.target.value)} />
             </div>
             <div className="form-group">
               <label className="form-label">Especialidad / Carrera</label>
