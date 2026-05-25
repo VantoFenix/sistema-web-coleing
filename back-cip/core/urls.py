@@ -33,6 +33,8 @@ urlpatterns = [
     # HU15 — Verificación de Vouchers
     path('api/admin/vouchers/', views.AdminVouchersListView.as_view(), name='admin-vouchers-list'),
     path('api/admin/vouchers/<int:pk>/resolver/', views.AdminVoucherResolverView.as_view(), name='admin-voucher-resolver'),
+    # Pago tarjeta presencial (admin + MP gateway)
+    path('api/admin/pagos/tarjeta/', views.AdminPagoTarjetaView.as_view(), name='admin-pago-tarjeta'),
     
     # Pago Online — MercadoPago
     path('api/pagos/mp-config/',    views.MPConfigView.as_view(),                    name='mp-config'),

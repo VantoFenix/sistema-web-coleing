@@ -4,6 +4,7 @@ import {
   Calendar, CreditCard, AlertCircle, BadgeCheck,
   Banknote, Smartphone, Building2, Wallet, ChevronRight,
 } from 'lucide-react';
+import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const MESES = [
@@ -31,6 +32,7 @@ function fmtFecha(iso) {
 }
 
 const METODOS = [
+  { valor: 'TARJETA',       label: 'Tarjeta',       icono: <CreditCard size={16} /> },
   { valor: 'YAPE',          label: 'Yape',          icono: <Smartphone size={16} /> },
   { valor: 'PLIN',          label: 'Plin',          icono: <Smartphone size={16} /> },
   { valor: 'EFECTIVO',      label: 'Efectivo',      icono: <Banknote size={16} /> },
@@ -71,14 +73,19 @@ export default function AdminPagoPresencial() {
   const [enviando, setEnviando]     = useState(false);
   const [resultado, setResultado]   = useState(null);
   const [montoMensual, setMontoMensual] = useState(20.00);
+  const [mpListo, setMpListo]       = useState(false);
 
   const searchRef = useRef(null);
 
-  // Cargar precio configurado
+  // Cargar precio configurado + public key MP
   useEffect(() => {
     fetch('/api/admin/configuracion/')
       .then(r => r.json())
       .then(d => { if (d.monto_mensualidad) setMontoMensual(parseFloat(d.monto_mensualidad)); })
+      .catch(() => {});
+    fetch('/api/pagos/mp-config/')
+      .then(r => r.json())
+      .then(d => { if (d.public_key) { initMercadoPago(d.public_key, { locale: 'es-PE' }); setMpListo(true); } })
       .catch(() => {});
   }, []);
 
@@ -173,6 +180,7 @@ export default function AdminPagoPresencial() {
     setErrForm('');
     if (periodosSeleccionados.size === 0) { setErrForm('Seleccione al menos un periodo.'); return; }
     if (!metodo)  { setErrForm('Seleccione el método de pago.'); return; }
+    if (metodo === 'TARJETA') return; // la tarjeta tiene su propio submit via CardPayment Brick
     if (!monto || isNaN(parseFloat(monto)) || parseFloat(monto) <= 0) {
       setErrForm('Ingrese un monto válido mayor a 0.'); return;
     }
@@ -192,6 +200,34 @@ export default function AdminPagoPresencial() {
       const data = await res.json();
       if (res.ok) setResultado({ ok: true, ...data });
       else setErrForm(data.error || 'Error al registrar el pago.');
+    } catch {
+      setErrForm('Error de conexión con el servidor.');
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const handleTarjetaSubmit = async (formData) => {
+    setErrForm('');
+    setEnviando(true);
+    try {
+      const res = await fetch('/api/admin/pagos/tarjeta/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          colegiado_id:      colegiado.id,
+          token:             formData.token,
+          payment_method_id: formData.payment_method_id,
+          installments:      formData.installments,
+          issuer_id:         formData.issuer_id,
+          periodos:          [...periodosSeleccionados].sort(),
+          monto:             parseFloat(monto),
+          email:             formData.payer?.email || 'pagador@cip.org.pe',
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) setResultado({ ok: true, ...data });
+      else setErrForm(data.error || 'No se pudo procesar el pago con tarjeta.');
     } catch {
       setErrForm('Error de conexión con el servidor.');
     } finally {
@@ -675,20 +711,20 @@ export default function AdminPagoPresencial() {
               {/* Método de pago */}
               <div className="form-group" style={{ marginBottom: '1.1rem' }}>
                 <label className="form-label" style={{ fontSize: '0.8rem' }}>Método de Pago</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.4rem' }}>
                   {METODOS.map(m => (
                     <button
                       key={m.valor}
                       type="button"
-                      onClick={() => setMetodo(m.valor)}
+                      onClick={() => { setMetodo(m.valor); setErrForm(''); }}
                       style={{
-                        padding: '0.6rem 0.4rem', borderRadius: '8px', cursor: 'pointer',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem',
-                        border: `2px solid ${metodo === m.valor ? 'var(--cip-blue)' : 'var(--border-color)'}`,
-                        background: metodo === m.valor ? '#EFF6FF' : 'white',
-                        color: metodo === m.valor ? 'var(--cip-blue)' : 'var(--text-main)',
+                        padding: '0.55rem 0.3rem', borderRadius: '8px', cursor: 'pointer',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.22rem',
+                        border: `2px solid ${metodo === m.valor ? (m.valor === 'TARJETA' ? '#2563EB' : 'var(--cip-blue)') : 'var(--border-color)'}`,
+                        background: metodo === m.valor ? (m.valor === 'TARJETA' ? '#EFF6FF' : '#EFF6FF') : 'white',
+                        color: metodo === m.valor ? (m.valor === 'TARJETA' ? '#1D4ED8' : 'var(--cip-blue)') : 'var(--text-main)',
                         fontWeight: metodo === m.valor ? '700' : '400',
-                        fontSize: '0.75rem', transition: 'all 0.15s',
+                        fontSize: '0.72rem', transition: 'all 0.15s',
                       }}
                     >
                       {m.icono}
@@ -698,30 +734,59 @@ export default function AdminPagoPresencial() {
                 </div>
               </div>
 
-              {/* Monto editable */}
-              <div className="form-group" style={{ marginBottom: '1.1rem' }}>
-                <label className="form-label" style={{ fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Monto Total (S/.)</span>
-                  {periodosSeleccionados.size > 0 && (
-                    <span style={{ fontSize: '0.68rem', color: '#059669', fontWeight: '600', background: '#D1FAE5', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>Auto</span>
-                  )}
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.9rem' }}>S/</span>
-                  <input
-                    type="number" step="0.01" min="0"
-                    className="form-input"
-                    value={monto}
-                    onChange={e => setMonto(e.target.value)}
-                    style={{ paddingLeft: '2.2rem', borderColor: periodosSeleccionados.size > 0 ? '#86EFAC' : undefined }}
-                    placeholder="0.00"
-                  />
+              {/* Monto editable (solo si NO es tarjeta, que lo calcula MP) */}
+              {metodo !== 'TARJETA' && (
+                <div className="form-group" style={{ marginBottom: '1.1rem' }}>
+                  <label className="form-label" style={{ fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Monto Total (S/.)</span>
+                    {periodosSeleccionados.size > 0 && (
+                      <span style={{ fontSize: '0.68rem', color: '#059669', fontWeight: '600', background: '#D1FAE5', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>Auto</span>
+                    )}
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.9rem' }}>S/</span>
+                    <input
+                      type="number" step="0.01" min="0"
+                      className="form-input"
+                      value={monto}
+                      onChange={e => setMonto(e.target.value)}
+                      style={{ paddingLeft: '2.2rem', borderColor: periodosSeleccionados.size > 0 ? '#86EFAC' : undefined }}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Ajustable si es necesario</p>
                 </div>
-                <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Ajustable si es necesario</p>
-              </div>
+              )}
 
-              {/* Resumen rápido antes de confirmar */}
-              {periodosSeleccionados.size > 0 && monto && metodo && (
+              {/* ── CardPayment Brick (solo cuando metodo === TARJETA) ── */}
+              {metodo === 'TARJETA' && periodosSeleccionados.size > 0 && (
+                <div style={{ marginBottom: '1rem' }}>
+                  {/* Monto destacado */}
+                  <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', padding: '0.65rem 1rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.78rem', color: '#3B82F6', fontWeight: '600' }}>
+                      {periodosSeleccionados.size} mes{periodosSeleccionados.size !== 1 ? 'es' : ''} × S/ {montoMensual.toFixed(2)}
+                    </span>
+                    <strong style={{ fontSize: '1.2rem', color: '#1D4ED8' }}>S/ {monto || '0.00'}</strong>
+                  </div>
+
+                  {mpListo ? (
+                    <CardPayment
+                      initialization={{ amount: parseFloat(monto) || 0 }}
+                      customization={{ paymentMethods: { minInstallments: 1, maxInstallments: 1 } }}
+                      onSubmit={handleTarjetaSubmit}
+                      onError={(err) => setErrForm(err.message || 'Error en la pasarela de pago.')}
+                    />
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '1.5rem' }}>
+                      <Loader2 size={24} className="spin" style={{ margin: '0 auto', display: 'block', color: 'var(--text-muted)' }} />
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Cargando pasarela…</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Resumen rápido (solo metodos no-tarjeta) */}
+              {metodo !== 'TARJETA' && periodosSeleccionados.size > 0 && monto && metodo && (
                 <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.78rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', color: 'var(--text-muted)' }}>
                     <span>Periodos:</span>
@@ -746,27 +811,29 @@ export default function AdminPagoPresencial() {
                 </div>
               )}
 
-              {/* Botón confirmar */}
-              <button
-                onClick={handleRegistrar}
-                disabled={enviando || periodosSeleccionados.size === 0}
-                className="btn btn-block"
-                style={{
-                  padding: '0.9rem', fontSize: '0.95rem',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                  background: (enviando || periodosSeleccionados.size === 0) ? '#94A3B8' : '#10B981',
-                  border: 'none', borderRadius: '10px', color: 'white',
-                  fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0) ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#059669'; }}
-                onMouseLeave={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#10B981'; }}
-              >
-                {enviando
-                  ? <><Loader2 size={18} className="spin" /> Registrando…</>
-                  : <><CheckCircle2 size={18} /> Confirmar y Registrar</>
-                }
-              </button>
+              {/* Botón confirmar (solo metodos no-tarjeta) */}
+              {metodo !== 'TARJETA' && (
+                <button
+                  onClick={handleRegistrar}
+                  disabled={enviando || periodosSeleccionados.size === 0}
+                  className="btn btn-block"
+                  style={{
+                    padding: '0.9rem', fontSize: '0.95rem',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                    background: (enviando || periodosSeleccionados.size === 0) ? '#94A3B8' : '#10B981',
+                    border: 'none', borderRadius: '10px', color: 'white',
+                    fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0) ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#059669'; }}
+                  onMouseLeave={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#10B981'; }}
+                >
+                  {enviando
+                    ? <><Loader2 size={18} className="spin" /> Registrando…</>
+                    : <><CheckCircle2 size={18} /> Confirmar y Registrar</>
+                  }
+                </button>
+              )}
             </div>
           )}
         </div>
