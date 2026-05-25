@@ -25,7 +25,7 @@ export default function Login() {
         localStorage.setItem('colToken', data.token);
         localStorage.setItem('colUser', JSON.stringify(data.user));
         setErrorMsg('');
-        navigate('/portal/yo');
+        navigate('/portal/carnet');
       } else {
         setErrorMsg(data.error || 'DNI no encontrado. Verifique su número.');
       }

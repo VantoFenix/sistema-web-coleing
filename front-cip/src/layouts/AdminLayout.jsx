@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FileText, UserPlus, LogOut, Wallet } from 'lucide-react';
+import { LayoutDashboard, FileText, UserPlus, LogOut, Wallet, ShieldCheck } from 'lucide-react';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -58,8 +58,8 @@ export default function AdminLayout() {
           </NavLink>
 
 
-          <NavLink 
-            to="/admin/presencial" 
+          <NavLink
+            to="/admin/presencial"
             className={({isActive}) => isActive ? "admin-nav active" : "admin-nav"}
             style={({isActive}) => ({
               display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.5rem', color: isActive ? 'white' : 'rgba(255,255,255,0.7)',
@@ -68,6 +68,18 @@ export default function AdminLayout() {
           >
             <UserPlus size={20} />
             <span>Registro Presencial</span>
+          </NavLink>
+
+          <NavLink
+            to="/admin/vouchers"
+            className={({isActive}) => isActive ? "admin-nav active" : "admin-nav"}
+            style={({isActive}) => ({
+              display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.5rem', color: isActive ? 'white' : 'rgba(255,255,255,0.7)',
+              background: isActive ? 'rgba(255,255,255,0.1)' : 'transparent', textDecoration: 'none', borderLeft: isActive ? '4px solid var(--cip-red)' : '4px solid transparent', transition: 'all 0.2s'
+            })}
+          >
+            <ShieldCheck size={20} />
+            <span>Verificar Vouchers</span>
           </NavLink>
         </nav>
 

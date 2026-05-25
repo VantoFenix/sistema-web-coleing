@@ -1,6 +1,6 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, Navigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { User, CreditCard, Receipt, LogOut } from 'lucide-react';
+import { CreditCard, Receipt, LogOut } from 'lucide-react';
 
 export default function PortalLayout() {
   const navigate = useNavigate();
@@ -34,9 +34,6 @@ export default function PortalLayout() {
         <div className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', justifySelf: 'center' }}>
           <NavLink to="/portal/carnet" className={({isActive}) => isActive ? "nav-link active" : "nav-link"} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <CreditCard size={18} /> MI CARNET
-          </NavLink>
-          <NavLink to="/portal/yo" className={({isActive}) => isActive ? "nav-link active" : "nav-link"} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <User size={18} /> YO
           </NavLink>
           <NavLink to="/portal/pagos" className={({isActive}) => isActive ? "nav-link active" : "nav-link"} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Receipt size={18} /> MIS PAGOS
