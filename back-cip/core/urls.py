@@ -32,6 +32,10 @@ urlpatterns = [
     path('api/admin/colegiados/<int:pk>/deuda/', views.AdminDeudaColegiadoView.as_view(), name='admin-deuda-colegiado'),
     path('api/admin/pagos/presencial/', views.AdminRegistrarPagoPresencialView.as_view(), name='admin-pago-presencial'),
     
+    # Pago Online — MercadoPago
+    path('api/pagos/mp-config/', views.MPConfigView.as_view(),   name='mp-config'),
+    path('api/pagos/online/',    views.PagoOnlineView.as_view(), name='pago-online'),
+
     # Portal Colegiado
     path('api/portal/yo/', views.PortalPerfilView.as_view(), name='portal-yo'),
     path('api/portal/foto/', views.PortalFotoView.as_view(), name='portal-foto'),

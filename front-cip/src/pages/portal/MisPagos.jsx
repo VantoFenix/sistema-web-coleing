@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   CheckCircle2, XCircle, Calendar, Loader2, CreditCard,
-  ShieldCheck, ArrowLeft, AlertCircle, Clock, Receipt, Smartphone,
+  ShieldCheck, ArrowLeft, AlertCircle, Clock, Receipt,
 } from 'lucide-react';
+import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const MESES = [
@@ -460,38 +461,55 @@ function StepEfectivo({ total, onVolver, onPagar, procesando, errPago }) {
   );
 }
 
-// ── Paso: Formulario de tarjeta ────────────────────────────────────────────
-function StepTarjeta({ total, onVolver, onPagar, procesando, errPago }) {
-  const [numero, setNumero]   = useState('');
-  const [nombre, setNombre]   = useState('');
-  const [expiry, setExpiry]   = useState('');
-  const [cvv, setCvv]         = useState('');
-  const [flip, setFlip]       = useState(false);
-  const [errLocal, setErrLocal] = useState('');
+// ── Paso: Formulario de tarjeta — MercadoPago Bricks ─────────────────────
+function StepTarjeta({ total, periodos, onVolver, onExito, onError }) {
+  const [mpListo, setMpListo]     = useState(false);
+  const [cargandoMP, setCargandoMP] = useState(true);
+  const [errLocal, setErrLocal]   = useState('');
 
-  const handleNumero = (e) => setNumero(fmtCard(e.target.value));
-  const handleExpiry = (e) => {
-    let v = e.target.value.replace(/\D/g, '').slice(0, 4);
-    if (v.length >= 3) v = v.slice(0, 2) + '/' + v.slice(2);
-    setExpiry(v);
-  };
-  const handleCvv = (e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 4));
+  useEffect(() => {
+    fetch('/api/pagos/mp-config/')
+      .then(r => r.json())
+      .then(d => {
+        initMercadoPago(d.public_key, { locale: 'es-PE' });
+        setMpListo(true);
+      })
+      .catch(() => setErrLocal('No se pudo cargar la pasarela de pago.'))
+      .finally(() => setCargandoMP(false));
+  }, []);
 
-  const handleSubmit = () => {
+  const handleSubmit = async (formData) => {
     setErrLocal('');
-    const n = numero.replace(/\s/g, '');
-    if (n.length < 13) { setErrLocal('Número de tarjeta inválido.'); return; }
-    if (!nombre.trim())  { setErrLocal('Ingrese el nombre del titular.'); return; }
-    const [em, ey] = (expiry + '/').split('/');
-    const mesExp = parseInt(em, 10);
-    const añoExp = parseInt('20' + (ey || '00'), 10);
-    if (!mesExp || mesExp > 12) { setErrLocal('Fecha de vencimiento inválida.'); return; }
-    const ahora = new Date();
-    if (añoExp < ahora.getFullYear() || (añoExp === ahora.getFullYear() && mesExp < ahora.getMonth() + 1)) {
-      setErrLocal('La tarjeta está vencida.'); return;
+    try {
+      const token = localStorage.getItem('colToken');
+      const res = await fetch('/api/pagos/online/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          token:             formData.token,
+          payment_method_id: formData.payment_method_id,
+          installments:      formData.installments,
+          issuer_id:         formData.issuer_id,
+          periodos,
+          email:             formData.payer?.email,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        onExito(data);
+      } else {
+        const msg = data.error || 'No se pudo procesar el pago.';
+        setErrLocal(msg);
+        onError(msg);
+      }
+    } catch {
+      const msg = 'Error de conexión. Intente de nuevo.';
+      setErrLocal(msg);
+      onError(msg);
     }
-    if (cvv.length < 3) { setErrLocal('CVV inválido.'); return; }
-    onPagar();
   };
 
   return (
@@ -500,80 +518,39 @@ function StepTarjeta({ total, onVolver, onPagar, procesando, errPago }) {
         <ArrowLeft size={15} /> Cambiar método
       </button>
 
-      {/* Visual card */}
-      <CardVisual numero={numero} nombre={nombre.toUpperCase()} expiry={expiry} cvv={cvv} flip={flip} />
-
-      {/* Form */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-        <div className="form-group" style={{ margin: 0 }}>
-          <label className="form-label">Número de tarjeta</label>
-          <input
-            type="text" inputMode="numeric" className="form-input"
-            placeholder="0000 0000 0000 0000"
-            value={numero} onChange={handleNumero}
-            style={{ fontFamily: 'monospace', letterSpacing: '2px', fontSize: '1rem' }}
-          />
-        </div>
-        <div className="form-group" style={{ margin: 0 }}>
-          <label className="form-label">Nombre del titular</label>
-          <input
-            type="text" className="form-input"
-            placeholder="Como aparece en la tarjeta"
-            value={nombre} onChange={e => setNombre(e.target.value.toUpperCase())}
-            style={{ fontFamily: 'monospace', letterSpacing: '1px' }}
-          />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">Vencimiento</label>
-            <input
-              type="text" inputMode="numeric" className="form-input"
-              placeholder="MM/AA" value={expiry} onChange={handleExpiry}
-              style={{ fontFamily: 'monospace', letterSpacing: '2px' }}
-            />
-          </div>
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">CVV</label>
-            <input
-              type="text" inputMode="numeric" className="form-input"
-              placeholder="•••" value={cvv}
-              onChange={handleCvv}
-              onFocus={() => setFlip(true)}
-              onBlur={() => setFlip(false)}
-              style={{ fontFamily: 'monospace', letterSpacing: '4px' }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Errores */}
-      {(errLocal || errPago) && (
-        <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.75rem', borderRadius: '8px', marginTop: '1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <AlertCircle size={16} style={{ flexShrink: 0 }} />
-          {errLocal || errPago}
-        </div>
-      )}
-
-      {/* Total + botón pagar */}
-      <div style={{ marginTop: '1.25rem', background: '#EFF6FF', borderRadius: '10px', padding: '0.875rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+      {/* Total */}
+      <div style={{ background: '#EFF6FF', borderRadius: '8px', padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
         <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Total a cobrar</span>
         <span style={{ fontSize: '1.375rem', fontWeight: '800', color: 'var(--cip-blue)' }}>S/ {total.toFixed(2)}</span>
       </div>
 
-      <button
-        onClick={handleSubmit}
-        disabled={procesando}
-        className="btn btn-primary btn-block"
-        style={{ padding: '0.9rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: '#059669', borderColor: '#059669' }}
-      >
-        {procesando
-          ? <><Loader2 size={20} className="spin" /> Procesando pago…</>
-          : <><ShieldCheck size={20} /> Pagar S/ {total.toFixed(2)}</>
-        }
-      </button>
+      {/* Cargando SDK */}
+      {cargandoMP && (
+        <div style={{ textAlign: 'center', padding: '2rem' }}>
+          <Loader2 size={28} className="spin" style={{ margin: '0 auto', display: 'block', color: 'var(--text-muted)' }} />
+          <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', fontSize: '0.875rem' }}>Cargando pasarela de pago…</p>
+        </div>
+      )}
 
-      <p style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
-        <ShieldCheck size={12} /> Pago seguro simulado — datos no reales
+      {/* Error */}
+      {errLocal && (
+        <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <AlertCircle size={16} style={{ flexShrink: 0 }} /> {errLocal}
+        </div>
+      )}
+
+      {/* Brick de MercadoPago */}
+      {mpListo && (
+        <CardPayment
+          initialization={{ amount: total }}
+          customization={{ paymentMethods: { minInstallments: 1, maxInstallments: 1 } }}
+          onSubmit={handleSubmit}
+          onError={(err) => setErrLocal(err.message || 'Error en la pasarela de pago.')}
+        />
+      )}
+
+      <p style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
+        <ShieldCheck size={12} /> Pago procesado por MercadoPago · Datos cifrados
       </p>
     </div>
   );
@@ -877,10 +854,10 @@ export default function MisPagos() {
               {paso === 'tarjeta' && (
                 <StepTarjeta
                   total={seleccionados.size * parseFloat(montoUnit)}
+                  periodos={[...seleccionados].sort()}
                   onVolver={() => setPaso('metodo')}
-                  onPagar={handlePagar}
-                  procesando={procesando}
-                  errPago={errPago}
+                  onExito={(data) => { setResultadoPago(data); setPaso('exito'); }}
+                  onError={(msg) => setErrPago(msg)}
                 />
               )}
               {paso === 'exito' && (

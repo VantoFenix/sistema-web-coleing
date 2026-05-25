@@ -804,7 +804,9 @@ class AdminBuscarColegiadoView(APIView):
 
 
 class AdminDeudaColegiadoView(APIView):
-    """Devuelve los periodos sin pago de un colegiado (su deuda pendiente)."""
+    """Devuelve todos los periodos del año actual + deudas previas de un colegiado.
+    Cada periodo tiene estado: PAGADO | PENDIENTE | ADELANTO.
+    """
     authentication_classes = []
     permission_classes = [AllowAny]
 
@@ -814,23 +816,56 @@ class AdminDeudaColegiadoView(APIView):
         except Colegiado.DoesNotExist:
             return Response({'error': 'Colegiado no encontrado'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Periodos ya pagados como mensualidad
-        pagos_existentes = set(
-            Pago.objects.filter(colegiado=col, tipo='MENSUALIDAD')
-            .values_list('periodo', flat=True)
-        )
+        # Periodos ya pagados — normalizados a date (Supabase puede devolver datetime)
+        raw_pagados = Pago.objects.filter(colegiado=col, tipo='MENSUALIDAD').values_list('periodo', flat=True)
+        pagados = set()
+        for p in raw_pagados:
+            if p is None:
+                continue
+            if hasattr(p, 'date') and callable(p.date):
+                pagados.add(p.date())
+            elif isinstance(p, str):
+                try:
+                    from datetime import datetime as _dt
+                    pagados.add(_dt.strptime(p[:10], '%Y-%m-%d').date())
+                except Exception:
+                    pass
+            else:
+                pagados.add(p)
 
-        # Todos los meses desde colegiado_desde hasta hoy
         hoy = date.today()
-        todos_los_meses = _meses_entre(col.colegiado_desde, hoy)
+        mes_actual = date(hoy.year, hoy.month, 1)
+        fin_anio   = date(hoy.year, 12, 1)   # diciembre del año en curso
 
-        pendientes = []
+        # Todos los meses: desde colegiado_desde hasta diciembre del año actual
+        todos_los_meses = _meses_entre(col.colegiado_desde, fin_anio)
+
+        periodos = []
+        pendientes_compat = []  # para retrocompatibilidad
+
         for m in todos_los_meses:
-            if m not in pagos_existentes:
-                pendientes.append({
+            pagado    = m in pagados
+            if pagado:
+                estado = 'PAGADO'
+            elif m == mes_actual:
+                estado = 'MES_ACTUAL'   # dentro del plazo → todo el mes para pagar
+            elif m > mes_actual:
+                estado = 'ADELANTO'     # pago anticipado
+            else:
+                estado = 'PENDIENTE'    # mes pasado sin pagar → deuda
+
+            periodos.append({
+                'periodo': m.strftime('%Y-%m'),
+                'fecha':   m.strftime('%Y-%m-%d'),
+                'estado':  estado,
+            })
+            if not pagado:
+                pendientes_compat.append({
                     'periodo': m.strftime('%Y-%m'),
-                    'fecha': m.strftime('%Y-%m-%d'),
+                    'fecha':   m.strftime('%Y-%m-%d'),
                 })
+
+        total_deuda = sum(1 for p in periodos if p['estado'] == 'PENDIENTE')  # solo deudas reales (no MES_ACTUAL)
 
         return Response({
             'colegiado': {
@@ -843,8 +878,9 @@ class AdminDeudaColegiadoView(APIView):
                 'colegiado_desde': col.colegiado_desde.strftime('%Y-%m-%d'),
                 'habilitado': _get_habilitado(col.id),
             },
-            'periodos_pendientes': pendientes,
-            'total_deuda': len(pendientes),
+            'periodos': periodos,                  # ← nuevo
+            'periodos_pendientes': pendientes_compat,  # ← compatibilidad
+            'total_deuda': total_deuda,
         })
 
 
@@ -937,6 +973,115 @@ class AdminRegistrarPagoPresencialView(APIView):
             'habilitado_nuevo': _get_habilitado(colegiado.id),
             'total_registrado': len(registrados),
         })
+
+# ==============================================================================
+# PAGO ONLINE — MercadoPago
+# ==============================================================================
+
+class MPConfigView(APIView):
+    """Devuelve solo la public key al frontend (nunca el access token)."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response({'public_key': settings.MP_PUBLIC_KEY})
+
+
+class PagoOnlineView(APIView):
+    """Recibe el token de tarjeta de MP, cobra y registra los periodos."""
+    # Usa CustomJWTAuthentication del DEFAULT_AUTHENTICATION_CLASSES en settings
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import mercadopago
+
+        token             = request.data.get('token')
+        payment_method_id = request.data.get('payment_method_id')
+        installments      = request.data.get('installments', 1)
+        issuer_id         = request.data.get('issuer_id')
+        periodos          = request.data.get('periodos', [])
+        email_payer       = request.data.get('email') or getattr(request.user, 'correo', None) or 'pagador@cip.org.pe'
+
+        if not token:
+            return Response({'error': 'Token de tarjeta requerido.'}, status=400)
+        if not periodos:
+            return Response({'error': 'Seleccione al menos un periodo.'}, status=400)
+        if not payment_method_id:
+            return Response({'error': 'Método de pago requerido.'}, status=400)
+
+        monto_total = len(periodos) * 20.00   # S/ 20.00 por periodo
+
+        sdk = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
+
+        payment_data = {
+            "transaction_amount": float(monto_total),
+            "token": token,
+            "description": f"CIP - {len(periodos)} cuota(s) mensual(es)",
+            "installments": int(installments),
+            "payment_method_id": payment_method_id,
+            "payer": {"email": email_payer},
+        }
+        if issuer_id:
+            payment_data["issuer_id"] = issuer_id
+
+        result   = sdk.payment().create(payment_data)
+        response = result.get("response", {})
+        mp_status = response.get("status")
+
+        if mp_status == "approved":
+            colegiado = request.user
+            hoy = date.today()
+            registrados = []
+            ya_existian = []
+
+            for periodo_str in sorted(periodos):
+                try:
+                    año, mes = map(int, periodo_str.split('-'))
+                    periodo_date = date(año, mes, 1)
+                    _, created = Pago.objects.get_or_create(
+                        colegiado=colegiado,
+                        periodo=periodo_date,
+                        defaults={
+                            'tipo':          'MENSUALIDAD',
+                            'monto':         20.00,
+                            'canal':         'PORTAL',
+                            'metodo':        'TARJETA',
+                            'nro_operacion': str(response.get("id", "")),
+                            'fecha_pago':    hoy,
+                        }
+                    )
+                    if created:
+                        registrados.append(periodo_str)
+                    else:
+                        ya_existian.append(periodo_str)
+                except Exception:
+                    pass
+
+            return Response({
+                'success':         True,
+                'periodos_pagados': registrados,
+                'ya_existian':     ya_existian,
+                'nro_operacion':   str(response.get("id", "")),
+                'habilitado_nuevo': _get_habilitado(colegiado.id),
+                'monto_cobrado':   monto_total,
+            })
+
+        elif mp_status in ("pending", "in_process"):
+            return Response({'error': 'Pago pendiente de acreditación. Intente con otro medio.'}, status=402)
+
+        else:
+            detalle = response.get("status_detail", "")
+            msgs = {
+                "cc_rejected_bad_filled_card_number": "Número de tarjeta incorrecto.",
+                "cc_rejected_bad_filled_date":        "Fecha de vencimiento incorrecta.",
+                "cc_rejected_bad_filled_security_code": "Código de seguridad incorrecto.",
+                "cc_rejected_insufficient_amount":    "Fondos insuficientes.",
+                "cc_rejected_blacklist":              "Tarjeta bloqueada. Contacte a su banco.",
+                "cc_rejected_call_for_authorize":     "Tarjeta requiere autorización. Llame a su banco.",
+            }
+            mensaje = msgs.get(detalle, f"Pago rechazado ({detalle or mp_status}).")
+            return Response({'error': mensaje}, status=402)
+
 
 def react_catchall_view(request):
     try:

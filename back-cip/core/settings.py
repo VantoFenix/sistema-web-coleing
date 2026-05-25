@@ -240,3 +240,9 @@ else:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 DEFAULT_FROM_EMAIL = 'Colegio de Ingenieros del Perú <noreply@cip.org.pe>'
+
+# ==============================================================================
+# MERCADOPAGO
+# ==============================================================================
+MP_PUBLIC_KEY   = os.getenv('MP_PUBLIC_KEY', '')
+MP_ACCESS_TOKEN = os.getenv('MP_ACCESS_TOKEN', '')
