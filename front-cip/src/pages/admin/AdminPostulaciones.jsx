@@ -32,7 +32,10 @@ export default function AdminPostulaciones() {
     setCargando(true);
     setErrorFetch('');
     try {
-      const res = await fetch('/api/admin/postulaciones/');
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch('/api/admin/postulaciones/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (res.ok) {
         const data = await res.json();
         setPostulaciones(data);
@@ -72,9 +75,13 @@ export default function AdminPostulaciones() {
   const handleAprobar = async () => {
     setProcesando(true);
     try {
+      const token = localStorage.getItem('adminToken');
       const res = await fetch(`/api/admin/postulaciones/${expediente.id}/resolver/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ accion: 'APROBAR' })
       });
       if (res.ok) {
@@ -98,9 +105,13 @@ export default function AdminPostulaciones() {
     ].filter(Boolean).join(' | ');
 
     try {
+      const token = localStorage.getItem('adminToken');
       const res = await fetch(`/api/admin/postulaciones/${expediente.id}/resolver/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ accion: 'RECHAZAR', comentarios: observaciones })
       });
       if (res.ok) {
