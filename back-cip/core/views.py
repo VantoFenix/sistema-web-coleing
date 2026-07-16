@@ -886,6 +886,57 @@ class AdminNotificarDeudoresView(APIView):
         })
 
 
+class AdminDeudoresDetalladoView(APIView):
+    """Variante enriquecida de PanelDeudoresView usada por el panel de
+    notificaciones del cajero. Consulta v_estado_colegiado y devuelve
+    meses_adeudados, deuda_total y correo por cada deudor.
+
+    Endpoint independiente para no interferir con PanelDeudoresView (que
+    otro miembro del equipo mantiene con su propio enfoque)."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        admin = request.user
+        if getattr(admin, 'rol', None) != 'CAJERO':
+            return Response({'error': 'Solo el cajero puede ver deudores'}, status=403)
+
+        sede_id = admin.sede_id if getattr(admin, 'sede_id', None) else None
+
+        sql = """
+            SELECT v.colegiado_id, v.dni, v.nombres, v.nro_colegiado,
+                   v.carrera, v.sede, v.meses_adeudados, v.deuda_total,
+                   c.correo, c.celular
+            FROM v_estado_colegiado v
+            JOIN colegiado c ON c.id = v.colegiado_id
+            WHERE v.meses_adeudados > 0
+        """
+        params = []
+        if sede_id:
+            sql += " AND c.sede_id = %s"
+            params.append(sede_id)
+        sql += " ORDER BY v.meses_adeudados DESC, v.nombres"
+
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+
+        deudores = [{
+            'id':               r[0],
+            'dni':              r[1],
+            'nombre':           r[2],
+            'nro_colegiado':    r[3],
+            'carrera':          r[4],
+            'sede':             r[5],
+            'meses_adeudados':  int(r[6] or 0),
+            'deuda_total':      float(r[7] or 0),
+            'correo':           r[8] or '',
+            'celular':          r[9] or '',
+            'estado':           'INHABILITADO',
+        } for r in rows]
+
+        return Response(deudores)
+
+
 class AdminBuscarColegiadoView(APIView):
     """Busca colegiados por DNI, nombre o número de colegiado."""
     authentication_classes = []

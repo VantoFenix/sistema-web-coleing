@@ -28,6 +28,7 @@ urlpatterns = [
     path('api/admin/dashboard/', views.AdminDashboardView.as_view(), name='admin-dashboard'),
     path('api/admin/configuracion/', views.AdminConfiguracionView.as_view(), name='admin-configuracion'),
     path('api/admin/deudores/', views.PanelDeudoresView.as_view(), name='admin-deudores'),
+    path('api/admin/deudores/detallado/', views.AdminDeudoresDetalladoView.as_view(), name='admin-deudores-detallado'),
     path('api/admin/deudores/notificar/', views.AdminNotificarDeudoresView.as_view(), name='admin-deudores-notificar'),
     path('api/admin/postulaciones/', views.AdminPostulacionesView.as_view(), name='admin-postulaciones'),
     path('api/admin/postulaciones/<int:pk>/resolver/', views.AdminResolverSolicitudView.as_view(), name='admin-resolver-postulacion'),
