@@ -15,6 +15,15 @@ import AdminPagoPresencial from './pages/admin/AdminPagoPresencial';
 import AdminVouchers from './pages/admin/AdminVouchers';
 import AdminDeudores from './pages/admin/AdminDeudores';
 
+function AdminHomeRedirect() {
+  const rol = localStorage.getItem('adminRole') || 'ADMIN';
+  const destino =
+    rol === 'CAJERO'       ? 'deudores' :
+    rol === 'MASTER_ADMIN' ? 'sedes' :
+                             'postulaciones';
+  return <Navigate to={destino} replace />;
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -34,6 +43,7 @@ function App() {
         {/* Rutas del Portal Administrativo */}
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<AdminHomeRedirect />} />
           <Route path="home" element={<AdminHome />} />
           <Route path="postulaciones" element={<AdminPostulaciones />} />
           <Route path="pagos-presencial" element={<AdminPagoPresencial />} />
