@@ -938,6 +938,7 @@ export default function MisPagos() {
   const [montoCustom, setMontoCustom]     = useState(null); // null = cálculo automático
   const [errPago, setErrPago]             = useState('');
   const [resultadoPago, setResultadoPago] = useState(null);
+  const [vouchersPendientes, setVouchersPendientes] = useState([]);
 
   useEffect(() => { cargarDatos(); }, []);
 
@@ -963,6 +964,7 @@ export default function MisPagos() {
       const data = await res.json();
       setPendientes(data.periodos_pendientes || []);
       setHistorial(data.historial || []);
+      setVouchersPendientes(data.vouchers_pendientes || []);
       setHabilitado(data.habilitado ?? null);
       setMontoUnit(data.monto_mensualidad || '20.00');
       setSeleccionados(new Set((data.periodos_pendientes || []).map(p => p.periodo)));
@@ -986,6 +988,7 @@ export default function MisPagos() {
         const d = await resFresh.json();
         setPendientes(d.periodos_pendientes || []);
         setHistorial(d.historial || []);
+        setVouchersPendientes(d.vouchers_pendientes || []);
         setHabilitado(d.habilitado ?? null);
         setMontoUnit(d.monto_mensualidad || '20.00');
         setSeleccionados(new Set((d.periodos_pendientes || []).map(p => p.periodo)));
@@ -1182,12 +1185,42 @@ export default function MisPagos() {
 
           {/* ── Tab: Historial ── */}
           {tab === 'historial' && (
-            historial.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
-                <Calendar size={40} style={{ margin: '0 auto 0.75rem auto', display: 'block', opacity: 0.3 }} />
-                <p style={{ fontWeight: '600' }}>Sin pagos registrados aún.</p>
-              </div>
-            ) : (
+            <>
+              {vouchersPendientes.length > 0 && (
+                <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', padding: '1.25rem', marginBottom: '1.5rem', color: '#1D4ED8' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <AlertCircle size={20} style={{ color: '#3B82F6' }} />
+                    <strong style={{ fontSize: '1rem', color: '#1E40AF' }}>Pagos Pendientes de Verificación</strong>
+                  </div>
+                  <p style={{ fontSize: '0.875rem', marginBottom: '1rem' }}>
+                    Tienes envíos de comprobantes que están siendo verificados por administración. Una vez aprobados, pasarán a tu historial como "PAGADOS".
+                  </p>
+                  <table style={{ width: '100%', fontSize: '0.875rem', borderCollapse: 'collapse', background: 'rgba(255,255,255,0.7)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(59,130,246,0.1)', borderBottom: '1px solid #93C5FD', textAlign: 'left' }}>
+                        <th style={{ padding: '0.5rem', fontWeight: '600' }}>Fecha Envío</th>
+                        <th style={{ padding: '0.5rem', fontWeight: '600' }}>Método</th>
+                        <th style={{ padding: '0.5rem', fontWeight: '600', textAlign: 'right' }}>Monto</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vouchersPendientes.map((vp) => (
+                        <tr key={vp.id} style={{ borderBottom: '1px solid #DBEAFE' }}>
+                          <td style={{ padding: '0.5rem' }}>{vp.fecha}</td>
+                          <td style={{ padding: '0.5rem', fontWeight: '500' }}>{vp.metodo}</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: '600' }}>S/ {parseFloat(vp.monto).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {historial.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
+                  <Calendar size={40} style={{ margin: '0 auto 0.75rem auto', display: 'block', opacity: 0.3 }} />
+                  <p style={{ fontWeight: '600' }}>Sin pagos registrados aún.</p>
+                </div>
+              ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                   <thead>
@@ -1237,7 +1270,8 @@ export default function MisPagos() {
                   </tbody>
                 </table>
               </div>
-            )
+            )}
+            </>
           )}
         </div>
       </div>

@@ -238,7 +238,7 @@ class PublicPostulacionView(APIView):
             )
             
         # Verificar que el número de operación no haya sido usado en otra solicitud activa o aprobada
-        if Solicitud.objects.filter(numero_operacion=numero_operacion).exclude(estado='RECHAZADO').exists():
+        if Solicitud.objects.filter(numero_operacion=numero_operacion).exclude(estado='RECHAZADA').exists():
             return Response(
                 {'error': 'Este número de operación ya ha sido registrado en otra postulación. Por favor verifique sus datos.'},
                 status=status.HTTP_409_CONFLICT
@@ -650,9 +650,33 @@ class PortalPagosView(APIView):
                 print(f"[PAGOS] Error calculando pendientes: {e}", file=sys.stderr)
                 pendientes = []
 
+            # ── Vouchers Pendientes ───────────────────────────────────────────
+            vouchers_pendientes = []
+            try:
+                import json
+                from .models import PagoVoucherPendiente
+                vps = PagoVoucherPendiente.objects.filter(colegiado=col, estado='PENDIENTE').order_by('-creado_en')
+                for vp in vps:
+                    periodos_list = []
+                    try:
+                        periodos_list = json.loads(vp.periodos_json)
+                    except Exception:
+                        periodos_list = [vp.periodos_json]
+                    
+                    vouchers_pendientes.append({
+                        'id': vp.id,
+                        'metodo': vp.metodo,
+                        'monto': str(vp.monto),
+                        'periodos': periodos_list,
+                        'fecha': _fmt_date(vp.creado_en, '%Y-%m-%d %H:%M')
+                    })
+            except Exception as e:
+                print(f"[PAGOS] Error obteniendo vouchers pendientes: {e}", file=sys.stderr)
+
             return Response({
                 'historial': historial,
                 'periodos_pendientes': pendientes,
+                'vouchers_pendientes': vouchers_pendientes,
                 'habilitado': _get_habilitado(col.id),
                 'monto_mensualidad': str(_get_monto_mensualidad()),
             })
