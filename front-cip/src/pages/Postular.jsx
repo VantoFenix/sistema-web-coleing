@@ -287,7 +287,7 @@ export default function Postular() {
 
       <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'center', marginBottom: '2.5rem' }}>
         <h1 style={{ color: 'var(--cip-blue)', fontSize: '2.25rem', fontWeight: '800' }}>
-          {subsanarId ? 'Subsanación de Expediente' : 'Formulario de Colegiatura'}
+          Formulario de Colegiatura
         </h1>
         <p className="text-muted" style={{ fontSize: '1.125rem', marginTop: '0.5rem' }}>
           Inicie su trámite de inscripción adjuntando los documentos requeridos.
