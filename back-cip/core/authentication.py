@@ -24,7 +24,7 @@ class CustomJWTAuthentication(authentication.BaseAuthentication):
         if not user_id or not role:
             raise exceptions.AuthenticationFailed('Token malformado')
 
-        if role == 'ADMIN':
+        if role in ['MASTER_ADMIN', 'ADMIN', 'CAJERO']:
             user = Administrador.objects.filter(id=user_id).first()
         elif role == 'COLEGIADO':
             user = Colegiado.objects.filter(id=user_id).first()
