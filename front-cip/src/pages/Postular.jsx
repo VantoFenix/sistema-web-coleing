@@ -248,14 +248,14 @@ export default function Postular() {
       <div className="card" style={{ maxWidth: '1000px', margin: '0 auto' }}>
         <form onSubmit={handleSubmit}>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '2rem', alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem', alignItems: 'start' }}>
 
-            {/* COLUMNA 1: DOCS */}
+            {/* COLUMNA IZQUIERDA: DOCS 1-3 */}
             <div style={shadedStyle}>
-              <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Documentos</h3>
+              <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Documentos Adjuntos</h3>
 
               {/* 1. Foto */}
-              <div className="form-group">
+              <div className="form-group" style={{ marginTop: '0.5rem' }}>
                 <label className="form-label">1. Fotografía Tamaño Pasaporte</label>
                 <div className="upload-box">
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
@@ -283,13 +283,10 @@ export default function Postular() {
                   <label htmlFor="file-titulo" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
                 </div>
               </div>
-            </div>
 
-            {/* COLUMNA 2: PAGO */}
-            <div style={shadedStyle}>
-              <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Información de Pago</h3>
+              {/* 3. Recibo */}
               <div className="form-group">
-                <label className="form-label">Recibo de Caja (S/ 1500.00)</label>
+                <label className="form-label">3. Recibo de Pago (S/ 1500.00)</label>
                 <div className="upload-box" style={{ marginBottom: '1rem' }}>
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
                   <p style={fileNameStyle}>{recibo ? recibo.name : 'Clic para subir comprobante (PDF/JPG)'}</p>
@@ -297,7 +294,7 @@ export default function Postular() {
                   <label htmlFor="file-recibo" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
                 </div>
                 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'white', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'white', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <div>
                     <label className="form-label" style={{ fontSize: '0.8rem' }}>N° Operación (Banco Nación)</label>
                     <input type="text" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem' }} placeholder="Ej: 111111" value={numeroOperacion} onChange={e => setNumeroOperacion(e.target.value)} />
@@ -310,12 +307,12 @@ export default function Postular() {
               </div>
             </div>
 
-            {/* COLUMNA 3: DATOS PERSONALES */}
+            {/* COLUMNA DERECHA: DATOS + FIRMA */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
 
               {/* Datos personales */}
-              <div style={{ padding: '0 0' }}>
-                <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Datos Personales</h3>
+              <div style={{ padding: '2rem 0' }}>
+                <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Datos Personales y Académicos</h3>
 
                 <div className="form-group">
                   <label className="form-label">Número de DNI</label>
@@ -413,7 +410,7 @@ export default function Postular() {
           border-color: #991b1b;
           box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.18);
         }
-        @media (max-width: 992px) {
+        @media (max-width: 768px) {
           .card > form > div:first-child { grid-template-columns: 1fr !important; gap: 2rem !important; }
         }
       ` }} />
