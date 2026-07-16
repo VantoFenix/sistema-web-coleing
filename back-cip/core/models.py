@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 
 class Carrera(models.Model):
@@ -6,7 +7,6 @@ class Carrera(models.Model):
     activo = models.BooleanField(default=True)
 
     class Meta:
-        managed = False
         db_table = 'carrera'
 
     def __str__(self):
@@ -18,7 +18,6 @@ class Sede(models.Model):
     activo = models.BooleanField(default=True)
 
     class Meta:
-        managed = False
         db_table = 'sede'
 
     def __str__(self):
@@ -26,15 +25,20 @@ class Sede(models.Model):
 
 
 class Administrador(models.Model):
+    ROLES = [
+        ('ADMIN', 'Administrador general'),
+        ('CAJERO', 'Cajero'),
+    ]
     usuario      = models.CharField(max_length=60, unique=True)
     correo       = models.EmailField(max_length=160, unique=True)
     password_hash = models.CharField(max_length=255)
     nombres      = models.CharField(max_length=160)
+    rol          = models.CharField(max_length=20, choices=ROLES, default='ADMIN')
+    sede         = models.ForeignKey(Sede, on_delete=models.DO_NOTHING, null=True, blank=True)
     activo       = models.BooleanField(default=True)
-    creado_en    = models.DateTimeField(auto_now_add=True)
+    creado_en    = models.DateTimeField(default=timezone.now)
 
     class Meta:
-        managed = False
         db_table = 'administrador'
 
 
@@ -46,18 +50,17 @@ class Solicitud(models.Model):
     ]
     dni             = models.CharField(max_length=8)
     nombres         = models.CharField(max_length=160)
-    carrera         = models.ForeignKey(Carrera, on_delete=models.DO_NOTHING)
+    carrera         = models.ForeignKey(Carrera, on_delete=models.DO_NOTHING, null=True, blank=True)
     sede            = models.ForeignKey(Sede, on_delete=models.DO_NOTHING, null=True, blank=True)
     foto_url        = models.CharField(max_length=500)
     titulo_pdf_url  = models.CharField(max_length=500)
     recibo_pago_url = models.CharField(max_length=500)
     estado          = models.CharField(max_length=20, choices=ESTADOS, default='EN_REVISION')
     motivo_rechazo  = models.TextField(null=True, blank=True)
-    creado_en       = models.DateTimeField(auto_now_add=True)
+    creado_en       = models.DateTimeField(default=timezone.now)
     resuelto_en     = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        managed = False
         db_table = 'solicitud'
 
 
@@ -65,16 +68,15 @@ class Colegiado(models.Model):
     dni             = models.CharField(max_length=8, unique=True)
     nombres         = models.CharField(max_length=160)
     foto_url        = models.CharField(max_length=500)
-    carrera         = models.ForeignKey(Carrera, on_delete=models.DO_NOTHING)
+    carrera         = models.ForeignKey(Carrera, on_delete=models.DO_NOTHING, null=True, blank=True)
     nro_colegiado   = models.CharField(max_length=5)
     sede            = models.ForeignKey(Sede, on_delete=models.DO_NOTHING, null=True, blank=True)
     solicitud       = models.ForeignKey(Solicitud, on_delete=models.DO_NOTHING, null=True, blank=True)
     colegiado_desde = models.DateField()
     activo          = models.BooleanField(default=True)
-    creado_en       = models.DateTimeField(auto_now_add=True)
+    creado_en       = models.DateTimeField(default=timezone.now)
 
     class Meta:
-        managed = False
         db_table = 'colegiado'
         unique_together = ('carrera', 'sede', 'nro_colegiado')
 
@@ -97,10 +99,9 @@ class Pago(models.Model):
     metodo        = models.CharField(max_length=30, null=True, blank=True)
     nro_operacion = models.CharField(max_length=40, null=True, blank=True)
     fecha_pago    = models.DateField()
-    creado_en     = models.DateTimeField(auto_now_add=True)
+    creado_en     = models.DateTimeField(default=timezone.now)
 
     class Meta:
-        managed = False
         db_table = 'pago'
         unique_together = ('colegiado', 'periodo')
 
@@ -125,7 +126,7 @@ class PagoVoucherPendiente(models.Model):
     estado         = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='PENDIENTE')
     nro_referencia = models.CharField(max_length=40, blank=True)
     observacion    = models.TextField(blank=True)
-    creado_en      = models.DateTimeField(auto_now_add=True)
+    creado_en      = models.DateTimeField(default=timezone.now)
 
     class Meta:
         db_table = 'pago_voucher_pendiente'
