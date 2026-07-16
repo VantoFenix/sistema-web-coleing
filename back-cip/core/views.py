@@ -17,7 +17,7 @@ from django.conf import settings
 
 from .models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago, PagoVoucherPendiente, Configuracion
 from rest_framework.parsers import MultiPartParser, FormParser
-from .serializers import AdministradorSerializer, ColegiadoSerializer, SolicitudSerializer, CarreraSerializer, SedeSerializer
+from .serializers import AdministradorSerializer, AdministradorCRUDSerializer, ColegiadoSerializer, SolicitudSerializer, CarreraSerializer, SedeSerializer
 
 def generate_jwt(user_id, role):
     payload = {
@@ -735,6 +735,27 @@ class PanelDeudoresView(APIView):
                     deudores.append({'dni': c.dni, 'nombre': c.nombres, 'estado': 'INHABILITADO'})
 
         return Response(deudores)
+
+from rest_framework.viewsets import ModelViewSet
+
+class MasterAdminPermission(IsAuthenticated):
+    def has_permission(self, request, view):
+        return super().has_permission(request, view) and getattr(request.user, 'rol', None) == 'MASTER_ADMIN'
+
+class SedeViewSet(ModelViewSet):
+    queryset = Sede.objects.all()
+    serializer_class = SedeSerializer
+    permission_classes = [MasterAdminPermission]
+
+class CarreraViewSet(ModelViewSet):
+    queryset = Carrera.objects.all()
+    serializer_class = CarreraSerializer
+    permission_classes = [MasterAdminPermission]
+
+class AdministradorViewSet(ModelViewSet):
+    queryset = Administrador.objects.all()
+    serializer_class = AdministradorCRUDSerializer
+    permission_classes = [MasterAdminPermission]
 
 class AdminBuscarColegiadoView(APIView):
     """Busca colegiados por DNI, nombre o número de colegiado."""
