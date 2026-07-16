@@ -46,10 +46,9 @@ class BancoNacionMockService:
                     "estado": "PROCESADO"
                 }
             }
-            
         except PagoBancoNacionMock.DoesNotExist:
             return {
                 "valido": False,
-                "mensaje": "El número de operación NO figura en los registros del Banco de la Nación. Posible comprobante falso.",
+                "mensaje": "El número de operación NO figura en los registros del Banco de la Nación.",
                 "datos_banco": None
             }

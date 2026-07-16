@@ -43,6 +43,7 @@ export default function Postular() {
   const [enviando, setEnviando] = useState(false);
   const [success, setSuccess] = useState(false);
   const [dniError, setDniError] = useState('');
+  const [pagoError, setPagoError] = useState('');
   const [submitError, setSubmitError] = useState('');
 
   const handleValidarDNI = async (e) => {
@@ -135,6 +136,7 @@ export default function Postular() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError('');
+    setPagoError('');
 
     if (dni.length !== 8) {
       setSubmitError("El DNI debe tener 8 dígitos.");
@@ -191,6 +193,11 @@ export default function Postular() {
         let errorMsg = "Hubo un error al enviar la solicitud.";
         try {
           const errData = await response.json();
+          if (errData.error && errData.error.includes("número de operación NO figura")) {
+            setPagoError(errData.error);
+            setSubmitError("Por favor revise los datos de su comprobante de pago.");
+            return;
+          }
           errorMsg = errData.error || errorMsg;
         } catch {
           errorMsg = `Error del servidor (código ${response.status}). Intente nuevamente.`;
@@ -327,13 +334,18 @@ export default function Postular() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'white', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <div>
                     <label className="form-label" style={{ fontSize: '0.8rem' }}>N° Operación (Banco Nación)</label>
-                    <input type="text" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem' }} placeholder="Ej: 111111" value={numeroOperacion} onChange={e => setNumeroOperacion(e.target.value)} />
+                    <input type="text" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem', borderColor: pagoError ? '#DC2626' : '' }} placeholder="Ej: 111111" value={numeroOperacion} onChange={e => { setNumeroOperacion(e.target.value); setPagoError(''); }} />
                   </div>
                   <div>
                     <label className="form-label" style={{ fontSize: '0.8rem' }}>Fecha de Pago</label>
-                    <input type="date" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem' }} value={fechaPago} onChange={e => setFechaPago(e.target.value)} />
+                    <input type="date" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem', borderColor: pagoError ? '#DC2626' : '' }} value={fechaPago} onChange={e => { setFechaPago(e.target.value); setPagoError(''); }} />
                   </div>
                 </div>
+                {pagoError && (
+                  <div style={{ color: '#DC2626', fontSize: '0.8rem', marginTop: '0.75rem', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <AlertCircle size={14} /> {pagoError}
+                  </div>
+                )}
               </div>
             </div>
 
