@@ -12,6 +12,14 @@ from apps.finanzas.models import Sede, Carrera
 # ENUMERADOS Y CONSTANTES
 # ==============================================================================
 
+class BancoChoices(models.TextChoices):
+    BN = 'BN', 'Banco de la Nación'
+    BCP = 'BCP', 'Banco de Crédito del Perú (BCP)'
+    BBVA = 'BBVA', 'BBVA'
+    SCOTIABANK = 'SCOTIABANK', 'Scotiabank'
+    INTERBANK = 'INTERBANK', 'Interbank'
+    OTROS = 'OTROS', 'Otros'
+
 class EstadoTramiteChoices(models.TextChoices):
     """Estados permitidos para un trámite"""
     PENDIENTE = 'PENDIENTE', 'Pendiente de revisión'
@@ -96,6 +104,23 @@ class TramiteInscripcion(models.Model):
         null=True,
         blank=True
     )
+    numero_operacion = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text='Número de operación del comprobante'
+    )
+    banco = models.CharField(
+        max_length=20,
+        choices=BancoChoices.choices,
+        default=BancoChoices.BN,
+        help_text='Banco donde se realizó el pago'
+    )
+    fecha_pago = models.DateField(
+        blank=True,
+        null=True,
+        help_text='Fecha en la que se realizó el pago'
+    )
 
     # URLs alternativas para documentos (en caso de almacenamiento externo)
     foto_url = models.URLField(
@@ -157,9 +182,35 @@ class TramiteInscripcion(models.Model):
             models.Index(fields=['fecha_solicitud']),
             models.Index(fields=['carrera', 'sede']),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['numero_operacion', 'banco', 'fecha_pago'],
+                name='unique_comprobante_tramite'
+            )
+        ]
 
     def __str__(self):
         return f"{self.nombre_completo} ({self.dni}) - {self.get_estado_display()}"
+
+
+class PagoBancoNacionMock(models.Model):
+    """
+    Tabla que simula la base de datos interna del Banco de la Nación.
+    Solo los números de operación que existan en esta tabla serán
+    considerados como VÁLIDOS por la Mock API.
+    """
+    numero_operacion = models.CharField(max_length=50, unique=True, help_text="Número de operación generado por el banco")
+    fecha_pago = models.DateField(help_text="Fecha en que se realizó el depósito")
+    monto = models.DecimalField(max_digits=8, decimal_places=2, help_text="Monto depositado")
+    usado = models.BooleanField(default=False, help_text="Indica si este pago ya fue reclamado en el sistema")
+
+    class Meta:
+        verbose_name = "Mock Pago Banco de la Nación"
+        verbose_name_plural = "Mock Pagos Banco de la Nación"
+        db_table = 'mock_banco_nacion'
+
+    def __str__(self):
+        return f"Operación {self.numero_operacion} - S/ {self.monto}"
 
     def marcar_aprobado(self):
         """Marca el trámite como aprobado"""

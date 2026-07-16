@@ -9,6 +9,8 @@ export default function Postular() {
   const [nombres, setNombres] = useState('');
   const [carrera, setCarrera] = useState('');
   const [sede, setSede] = useState('');
+  const [numeroOperacion, setNumeroOperacion] = useState('');
+  const [fechaPago, setFechaPago] = useState('');
 
   const [carrerasOptions, setCarrerasOptions] = useState([]);
   const [sedesOptions, setSedesOptions] = useState([]);
@@ -140,6 +142,10 @@ export default function Postular() {
       setSubmitError("El Recibo de Caja debe ser un PDF o una imagen.");
       return;
     }
+    if (!numeroOperacion.trim() || !fechaPago) {
+      setSubmitError("Debe ingresar el número de operación y la fecha de pago del voucher.");
+      return;
+    }
 
     setEnviando(true);
 
@@ -151,6 +157,9 @@ export default function Postular() {
     formData.append('foto', foto);
     formData.append('titulo', titulo);
     formData.append('recibo', recibo);
+    formData.append('numero_operacion', numeroOperacion);
+    formData.append('fecha_pago', fechaPago);
+    formData.append('banco', 'BN');
 
     try {
       const response = await fetch('/api/postulaciones/', {
@@ -282,11 +291,22 @@ export default function Postular() {
               {/* 3. Recibo */}
               <div className="form-group">
                 <label className="form-label">3. Recibo de Pago (S/ 1500.00)</label>
-                <div className="upload-box">
+                <div className="upload-box" style={{ marginBottom: '1rem' }}>
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
                   <p style={fileNameStyle}>{recibo ? recibo.name : 'Clic para subir comprobante (PDF/JPG)'}</p>
                   <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-recibo" onChange={(e) => handleFileChange(e, setRecibo)} />
                   <label htmlFor="file-recibo" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'white', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>N° Operación (Banco Nación)</label>
+                    <input type="text" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem' }} placeholder="Ej: 111111" value={numeroOperacion} onChange={e => setNumeroOperacion(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Fecha de Pago</label>
+                    <input type="date" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem' }} value={fechaPago} onChange={e => setFechaPago(e.target.value)} />
+                  </div>
                 </div>
               </div>
             </div>

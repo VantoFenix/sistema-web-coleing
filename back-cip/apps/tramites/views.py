@@ -3,7 +3,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q, Count
+from rest_framework.views import APIView
 from .models import TramiteInscripcion, EstadoTramiteChoices
+from .services import BancoNacionMockService
 from .serializers import (
     TramiteInscripcionSerializer,
     TramiteInscripcionListSerializer,
@@ -188,3 +190,22 @@ class TramiteInscripcionViewSet(viewsets.ModelViewSet):
         }
 
         return Response(estadisticas)
+
+class VerificarOperacionBancoView(APIView):
+    """
+    Endpoint (Mock) para verificar números de operación del Banco de la Nación.
+    Endpoint: GET /tramites/mock-banco/?numero_operacion=123456
+    """
+    def get(self, request):
+        numero = request.query_params.get('numero_operacion')
+        if not numero:
+            return Response(
+                {"error": "Debe proveer el parámetro 'numero_operacion'"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        resultado = BancoNacionMockService.verificar_operacion(numero)
+        if resultado["valido"]:
+            return Response(resultado, status=status.HTTP_200_OK)
+        else:
+            return Response(resultado, status=status.HTTP_400_BAD_REQUEST)

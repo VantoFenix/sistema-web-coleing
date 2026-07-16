@@ -36,6 +36,8 @@ INSTALLED_APPS = [
     
     # --- NUESTRAS APPS ---
     'core.apps.CoreConfig',
+    'apps.finanzas',
+    'apps.tramites',
 ]
 
 MIDDLEWARE = [
