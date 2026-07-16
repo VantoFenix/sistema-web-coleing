@@ -789,8 +789,6 @@ def _meses_entre(inicio, fin):
 
 
 class PanelDeudoresView(APIView):
-    """Lista de colegiados con deuda vigente, filtrada por la sede del cajero.
-    Fuente: vista SQL v_estado_colegiado (meses_adeudados > 0 -> deudor)."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -798,39 +796,23 @@ class PanelDeudoresView(APIView):
         if getattr(admin, 'rol', None) != 'CAJERO':
             return Response({'error': 'Solo el cajero puede ver deudores'}, status=403)
 
-        sede_id = admin.sede_id if getattr(admin, 'sede_id', None) else None
+        colegiados = Colegiado.objects.all()
+        if admin.sede:
+            colegiados = colegiados.filter(sede=admin.sede)
 
-        sql = """
-            SELECT v.colegiado_id, v.dni, v.nombres, v.nro_colegiado,
-                   v.carrera, v.sede, v.meses_adeudados, v.deuda_total,
-                   c.correo, c.celular
-            FROM v_estado_colegiado v
-            JOIN colegiado c ON c.id = v.colegiado_id
-            WHERE v.meses_adeudados > 0
-        """
-        params = []
-        if sede_id:
-            sql += " AND c.sede_id = %s"
-            params.append(sede_id)
-        sql += " ORDER BY v.meses_adeudados DESC, v.nombres"
+        from django.utils import timezone
+        now = timezone.now()
+        mes_actual = now.month
+        anio_actual = now.year
 
-        with connection.cursor() as cursor:
-            cursor.execute(sql, params)
-            rows = cursor.fetchall()
-
-        deudores = [{
-            'id':               r[0],
-            'dni':              r[1],
-            'nombre':           r[2],
-            'nro_colegiado':    r[3],
-            'carrera':          r[4],
-            'sede':             r[5],
-            'meses_adeudados':  int(r[6] or 0),
-            'deuda_total':      float(r[7] or 0),
-            'correo':           r[8] or '',
-            'celular':          r[9] or '',
-            'estado':           'INHABILITADO',
-        } for r in rows]
+        deudores = []
+        for c in colegiados:
+            ultimo_pago = Pago.objects.filter(colegiado=c, concepto__icontains='Mensualidad', pagado=True).order_by('-fecha_pago').first()
+            if not ultimo_pago:
+                deudores.append({'dni': c.dni, 'nombre': f'{c.apellidos} {c.nombres}'.strip(), 'estado': 'INHABILITADO'})
+            else:
+                if ultimo_pago.fecha_pago.month < mes_actual and ultimo_pago.fecha_pago.year <= anio_actual:
+                    deudores.append({'dni': c.dni, 'nombre': f'{c.apellidos} {c.nombres}'.strip(), 'estado': 'INHABILITADO'})
 
         return Response(deudores)
 
