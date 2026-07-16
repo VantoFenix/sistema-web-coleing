@@ -232,6 +232,13 @@ class PublicPostulacionView(APIView):
                 {'error': 'El DNI ya está registrado como colegiado. Si ya es colegiado, ingrese a su portal.'},
                 status=status.HTTP_409_CONFLICT
             )
+            
+        # Verificar que el número de operación no haya sido usado en otra solicitud activa o aprobada
+        if Solicitud.objects.filter(numero_operacion=numero_operacion).exclude(estado='RECHAZADO').exists():
+            return Response(
+                {'error': 'Este número de operación ya ha sido registrado en otra postulación. Por favor verifique sus datos.'},
+                status=status.HTTP_409_CONFLICT
+            )
 
         # Verificar que no exista ya una solicitud activa para ese DNI
         if Solicitud.objects.filter(dni=dni, estado__in=['EN_REVISION', 'APROBADA']).exists():
@@ -270,6 +277,8 @@ class PublicPostulacionView(APIView):
                 foto_url=f"/media/{foto_name}",
                 titulo_pdf_url=f"/media/{titulo_name}",
                 recibo_pago_url=f"/media/{recibo_name}",
+                numero_operacion=numero_operacion,
+                fecha_pago=fecha_pago,
                 estado='EN_REVISION'
             )
         except Exception as e:

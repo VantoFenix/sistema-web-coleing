@@ -193,7 +193,7 @@ export default function Postular() {
         let errorMsg = "Hubo un error al enviar la solicitud.";
         try {
           const errData = await response.json();
-          if (errData.error && errData.error.includes("número de operación NO figura")) {
+          if (errData.error && (errData.error.includes("número de operación NO figura") || errData.error.includes("ya ha sido registrado"))) {
             setPagoError(errData.error);
             setSubmitError("Por favor revise los datos de su comprobante de pago.");
             return;
