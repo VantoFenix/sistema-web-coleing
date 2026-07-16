@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Sede, Carrera, Colegiado, Cuota
+from .models import Sede, Carrera, Colegiado, Cuota, Comprobante
 
 
 # ==============================================================================
@@ -151,3 +151,65 @@ class CuotaDetailSerializer(serializers.ModelSerializer):
         model = Cuota
         fields = '__all__'
         read_only_fields = ['id']
+
+
+# ==============================================================================
+# SERIALIZERS PARA COMPROBANTES
+# ==============================================================================
+
+class ComprobanteSerializer(serializers.ModelSerializer):
+    """Serializador para comprobantes de pago"""
+    
+    colegiado_nombre = serializers.CharField(source='colegiado.nombre_completo', read_only=True)
+    colegiado_cip = serializers.CharField(source='colegiado.cip', read_only=True)
+    fecha_hora_pago_formateada = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Comprobante
+        fields = [
+            'id', 'numero_comprobante', 'colegiado', 'colegiado_nombre', 'colegiado_cip',
+            'monto', 'fecha_hora_pago', 'fecha_hora_pago_formateada',
+            'canal', 'metodo_pago', 'estado', 'transaccion_id', 'observaciones'
+        ]
+        read_only_fields = ['id', 'numero_comprobante', 'fecha_hora_pago', 'estado']
+
+    def get_fecha_hora_pago_formateada(self, obj):
+        """Retorna la fecha y hora formateadas"""
+        from datetime import datetime
+        return obj.fecha_hora_pago.strftime('%d/%m/%Y %H:%M:%S') if obj.fecha_hora_pago else None
+
+
+class ComprobanteListSerializer(serializers.ModelSerializer):
+    """Serializador simplificado para listados de comprobantes"""
+    
+    colegiado_nombre = serializers.CharField(source='colegiado.nombre_completo', read_only=True)
+    colegiado_cip = serializers.CharField(source='colegiado.cip', read_only=True)
+    fecha_formateada = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Comprobante
+        fields = [
+            'id', 'numero_comprobante', 'colegiado_cip', 'colegiado_nombre',
+            'monto', 'fecha_formateada', 'canal', 'metodo_pago', 'estado'
+        ]
+
+    def get_fecha_formateada(self, obj):
+        """Retorna la fecha formateada"""
+        return obj.fecha_hora_pago.strftime('%d/%m/%Y') if obj.fecha_hora_pago else None
+
+
+class ComprobanteDetailSerializer(serializers.ModelSerializer):
+    """Serializador detallado para comprobante individual"""
+    
+    colegiado = ColegiadorSerializer(read_only=True)
+    cuota = CuotaSerializer(read_only=True)
+    fecha_hora_pago_formateada = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Comprobante
+        fields = '__all__'
+        read_only_fields = ['id', 'numero_comprobante', 'fecha_hora_pago', 'estado', 'fecha_descarga']
+
+    def get_fecha_hora_pago_formateada(self, obj):
+        """Retorna la fecha y hora formateadas"""
+        return obj.fecha_hora_pago.strftime('%d/%m/%Y %H:%M:%S') if obj.fecha_hora_pago else None

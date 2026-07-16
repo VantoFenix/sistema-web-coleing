@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    SedeViewSet, CarreraViewSet, ColegiadorViewSet, CuotaViewSet
+    SedeViewSet, CarreraViewSet, ColegiadorViewSet, CuotaViewSet, ComprobanteViewSet
 )
 
 # Inicializar el router predeterminado
@@ -12,6 +12,7 @@ router.register(r'sedes', SedeViewSet, basename='sede')
 router.register(r'carreras', CarreraViewSet, basename='carrera')
 router.register(r'colegiados', ColegiadorViewSet, basename='colegiado')
 router.register(r'cuotas', CuotaViewSet, basename='cuota')
+router.register(r'comprobantes', ComprobanteViewSet, basename='comprobante')
 
 # Las URLs se generan automáticamente por el router
 urlpatterns = [

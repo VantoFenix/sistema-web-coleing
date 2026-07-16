@@ -161,3 +161,83 @@ class Cuota(models.Model):
     def __str__(self):
         estado = "Pagada" if self.pagado else "Pendiente"
         return f"Cuota {self.mes_cobro}/{self.anio_cobro} - {self.colegiado.nombre_completo} ({estado})"
+
+
+# ==============================================================================
+# COMPROBANTES DE PAGO
+# ==============================================================================
+
+class Comprobante(models.Model):
+    """Registro de comprobantes de pago emitidos a colegiados"""
+    
+    ESTADO_CHOICES = [
+        ('GENERADO', 'Generado'),
+        ('DESCARGADO', 'Descargado'),
+        ('ENVIADO', 'Enviado'),
+    ]
+
+    CANAL_PAGO_CHOICES = [
+        ('PRESENCIAL', 'Pago Presencial'),
+        ('ONLINE', 'Pago Online'),
+    ]
+
+    colegiado = models.ForeignKey(
+        Colegiado,
+        on_delete=models.CASCADE,
+        related_name='comprobantes'
+    )
+    cuota = models.ForeignKey(
+        Cuota,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='comprobantes'
+    )
+    
+    # Información del pago
+    numero_comprobante = models.CharField(max_length=20, unique=True)
+    monto = models.DecimalField(max_digits=10, decimal_places=2)
+    fecha_hora_pago = models.DateTimeField(auto_now_add=True)
+    
+    # Métodos de pago
+    canal = models.CharField(
+        max_length=20,
+        choices=CANAL_PAGO_CHOICES,
+        default='PRESENCIAL'
+    )
+    metodo_pago = models.CharField(
+        max_length=50,
+        default='EFECTIVO',
+        help_text='EFECTIVO, TARJETA, TRANSFERENCIA, YAPE, PLIN, etc.'
+    )
+    
+    # Estado y seguimiento
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADO_CHOICES,
+        default='GENERADO'
+    )
+    fecha_descarga = models.DateTimeField(null=True, blank=True)
+    
+    # Transacción
+    transaccion_id = models.CharField(max_length=100, null=True, blank=True)
+    observaciones = models.TextField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Comprobante"
+        verbose_name_plural = "Comprobantes"
+        ordering = ['-fecha_hora_pago']
+        indexes = [
+            models.Index(fields=['colegiado', '-fecha_hora_pago']),
+            models.Index(fields=['numero_comprobante']),
+        ]
+
+    def __str__(self):
+        return f"Comprobante {self.numero_comprobante} - {self.colegiado.nombre_completo}"
+
+    def marcar_como_descargado(self):
+        """Marca el comprobante como descargado"""
+        from django.utils import timezone
+        self.estado = 'DESCARGADO'
+        self.fecha_descarga = timezone.now()
+        self.save(update_fields=['estado', 'fecha_descarga'])
