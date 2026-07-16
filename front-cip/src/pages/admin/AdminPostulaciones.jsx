@@ -236,6 +236,14 @@ export default function AdminPostulaciones() {
             <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>DNI</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.dni}</p></div>
             <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Especialidad / Carrera</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.carrera?.nombre}</p></div>
             <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Sede</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.sede?.nombre || '—'}</p></div>
+            <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '1rem', marginTop: '0.5rem' }}>
+              <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>N° Operación (Banco de la Nación)</p>
+              <p style={{ fontWeight: '600', color: 'var(--text-main)', fontFamily: 'monospace', fontSize: '1rem' }}>{expediente.numero_operacion || 'No registrado'}</p>
+            </div>
+            <div>
+              <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Fecha de Pago</p>
+              <p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.fecha_pago || 'No registrada'}</p>
+            </div>
           </div>
         </div>
 
