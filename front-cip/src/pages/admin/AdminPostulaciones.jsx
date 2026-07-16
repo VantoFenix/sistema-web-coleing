@@ -386,10 +386,10 @@ export default function AdminPostulaciones() {
                 <div style={{ marginBottom: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem', background: obsRecibo.checked ? '#EFF6FF' : 'white' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: '600', cursor: 'pointer', margin: 0 }}>
                     <input type="checkbox" style={{ width: '20px', height: '20px' }} checked={obsRecibo.checked} onChange={(e) => setObsRecibo({...obsRecibo, checked: e.target.checked})} />
-                    3. Recibo de Pago (S/ 1500)
+                    3. Recibo de Pago (S/ 1500) y N° de Operación
                   </label>
                   {obsRecibo.checked && (
-                    <textarea className="form-input" placeholder="Especifique el error (Ej. Monto incorrecto)..." style={{ marginTop: '1rem', minHeight: '80px', resize: 'vertical' }} value={obsRecibo.text} onChange={(e) => setObsRecibo({...obsRecibo, text: e.target.value})} />
+                    <textarea className="form-input" placeholder="Especifique el error (Ej. El número de operación no coincide con el voucher, monto incorrecto o documento ilegible)..." style={{ marginTop: '1rem', minHeight: '80px', resize: 'vertical' }} value={obsRecibo.text} onChange={(e) => setObsRecibo({...obsRecibo, text: e.target.value})} />
                   )}
                 </div>
 
