@@ -124,11 +124,11 @@ export default function MiCarnet() {
                   {colegiado.nombres}
                 </div>
 
-                <div style={{ color: '#444', fontWeight: '600', fontSize: '0.75rem', marginTop: '0.8rem', lineHeight: 1.2 }}>
+                <div style={{ color: '#444', fontWeight: '600', fontSize: '0.9rem', marginTop: '0.8rem', lineHeight: 1.2 }}>
                   Ing. {colegiado.carrera?.nombre?.toUpperCase()}
                 </div>
 
-                <div style={{ color: '#444', fontWeight: '600', fontSize: '0.75rem', marginTop: '0.5rem' }}>
+                <div style={{ color: '#444', fontWeight: '600', fontSize: '0.9rem', marginTop: '0.5rem' }}>
                   DNI: <span style={{ fontWeight: '400' }}>{colegiado.dni}</span>
                 </div>
 
