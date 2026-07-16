@@ -73,6 +73,9 @@ export default function AdminPostulaciones() {
   };
 
   const handleAprobar = async () => {
+    if (!window.confirm("¿Está seguro de que desea aprobar este expediente y generar la colegiatura?")) {
+      return;
+    }
     setProcesando(true);
     try {
       const token = localStorage.getItem('adminToken');

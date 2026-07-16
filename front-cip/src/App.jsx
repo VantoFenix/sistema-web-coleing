@@ -14,6 +14,9 @@ import AdminPresencial from './pages/admin/AdminPresencial';
 import AdminPagoPresencial from './pages/admin/AdminPagoPresencial';
 import AdminVouchers from './pages/admin/AdminVouchers';
 import AdminDeudores from './pages/admin/AdminDeudores';
+import AdminSedes from './pages/admin/AdminSedes';
+import AdminCarreras from './pages/admin/AdminCarreras';
+import AdminUsuarios from './pages/admin/AdminUsuarios';
 
 function AdminHomeRedirect() {
   const rol = localStorage.getItem('adminRole') || 'ADMIN';
@@ -50,6 +53,9 @@ function App() {
           <Route path="presencial" element={<AdminPresencial />} />
           <Route path="vouchers" element={<AdminVouchers />} />
           <Route path="deudores" element={<AdminDeudores />} />
+          <Route path="sedes" element={<AdminSedes />} />
+          <Route path="carreras" element={<AdminCarreras />} />
+          <Route path="usuarios" element={<AdminUsuarios />} />
         </Route>
       </Routes>
     </BrowserRouter>

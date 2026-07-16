@@ -333,13 +333,13 @@ export default function PublicHome() {
                         <p style={{ marginLeft: '1rem', marginBottom: '1rem', fontWeight: '500', color: 'var(--cip-red)' }}>
                           {motivoRechazo || "Documentación inconsistente o ilegible."}
                         </p>
-                        <p style={{ fontSize: '0.875rem', marginBottom: '1rem' }}>* Puede corregir su expediente para que vuelva a ser revisado por nuestro equipo de colegiatura.</p>
+                        <p style={{ fontSize: '0.875rem', marginBottom: '1rem' }}>* Por motivos de seguridad y privacidad, no puede editar este trámite. Deberá crear una nueva solicitud desde cero anexando los documentos correctos.</p>
                         <button 
                           className="btn btn-primary" 
                           style={{ background: '#10B981', borderColor: '#10B981' }} 
-                          onClick={() => navigate(`/postular?subsanar=${solicitudId}`)}
+                          onClick={() => navigate(`/postular`)}
                         >
-                          Subsanar Expediente
+                          <FileText size={18} style={{ marginRight: '5px', verticalAlign: 'middle' }} /> Nueva Postulación
                         </button>
                       </div>
                     </div>

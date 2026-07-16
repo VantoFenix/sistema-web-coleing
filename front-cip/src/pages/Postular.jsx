@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, UploadCloud, CheckCircle2, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 
 export default function Postular() {
@@ -15,9 +15,7 @@ export default function Postular() {
   const [celular, setCelular] = useState('');
   const [terminos, setTerminos] = useState(false);
 
-  const [searchParams] = useSearchParams();
-  const subsanarId = searchParams.get('subsanar');
-  const [motivoRechazo, setMotivoRechazo] = useState('');
+
 
   const [carrerasOptions, setCarrerasOptions] = useState([]);
   const [sedesOptions, setSedesOptions] = useState([]);
@@ -38,27 +36,7 @@ export default function Postular() {
     fetchCatalogos();
   }, []);
 
-  useEffect(() => {
-    if (subsanarId) {
-      const fetchSubsanar = async () => {
-        try {
-          const res = await fetch(`/api/postulaciones/${subsanarId}/`);
-          if (res.ok) {
-            const data = await res.json();
-            setMotivoRechazo(data.motivo_rechazo);
-            setFotoInfo('Adjunte nueva fotografía si fue observada');
-            setTituloInfo('Adjunte nuevo título si fue observado');
-            setReciboInfo('Adjunte nuevo comprobante si fue observado');
-          } else {
-            setSubmitError("No se pudo cargar la solicitud. Asegúrese que exista y esté en estado Rechazada.");
-          }
-        } catch (e) {
-          setSubmitError("Error de conexión al cargar la solicitud para subsanación.");
-        }
-      };
-      fetchSubsanar();
-    }
-  }, [subsanarId]);
+
 
   const [foto, setFoto] = useState(null);
   const [fotoInfo, setFotoInfo] = useState('');
@@ -195,7 +173,7 @@ export default function Postular() {
       setSubmitError("El Recibo de Caja debe ser un PDF o una imagen.");
       return;
     }
-    if (!subsanarId && (!numeroOperacion.trim() || !fechaPago)) {
+    if (!numeroOperacion.trim() || !fechaPago) {
       setSubmitError("Debe ingresar el número de operación y la fecha de pago del voucher.");
       return;
     }
@@ -207,7 +185,6 @@ export default function Postular() {
     setEnviando(true);
 
     const formData = new FormData();
-    if (!subsanarId) {
       formData.append('dni', dni);
       formData.append('nombres', nombres);
       formData.append('carrera', carrera);
@@ -216,10 +193,6 @@ export default function Postular() {
       formData.append('celular', celular);
       formData.append('numero_operacion', numeroOperacion);
       formData.append('fecha_pago', fechaPago);
-    } else {
-      if (numeroOperacion.trim()) formData.append('numero_operacion', numeroOperacion);
-      if (fechaPago) formData.append('fecha_pago', fechaPago);
-    }
     
     if (foto) formData.append('foto', foto);
     if (titulo) formData.append('titulo', titulo);
@@ -227,11 +200,10 @@ export default function Postular() {
     formData.append('banco', 'BN');
 
     try {
-      const url = subsanarId ? `/api/postulaciones/${subsanarId}/` : '/api/postulaciones/';
-      const method = subsanarId ? 'PUT' : 'POST';
+      const url = '/api/postulaciones/';
       
       const response = await fetch(url, {
-        method: method,
+        method: 'POST',
         body: formData,
       });
 
@@ -315,29 +287,20 @@ export default function Postular() {
 
       <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'center', marginBottom: '2.5rem' }}>
         <h1 style={{ color: 'var(--cip-blue)', fontSize: '2.25rem', fontWeight: '800' }}>
-          {subsanarId ? 'Subsanación de Expediente' : 'Formulario de Colegiatura'}
+          Formulario de Colegiatura
         </h1>
         <p className="text-muted" style={{ fontSize: '1.125rem', marginTop: '0.5rem' }}>
-          {subsanarId ? 'Corrija los datos o documentos observados y vuelva a enviar su solicitud.' : 'Inicie su trámite de inscripción adjuntando los documentos requeridos.'}
+          Inicie su trámite de inscripción adjuntando los documentos requeridos.
         </p>
       </div>
-
-      {subsanarId && motivoRechazo && (
-        <div style={{ maxWidth: '1000px', margin: '0 auto 2rem auto', padding: '1.5rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '8px' }}>
-          <h3 style={{ color: '#991B1B', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '1.125rem' }}>
-            <AlertCircle size={20} /> Motivo de Observación / Rechazo
-          </h3>
-          <p style={{ color: '#7F1D1D', fontWeight: '500', marginLeft: '1.75rem' }}>{motivoRechazo}</p>
-        </div>
-      )}
 
       <div className="card" style={{ maxWidth: '1000px', margin: '0 auto' }}>
         <form onSubmit={handleSubmit}>
 
-          <div style={{ display: 'grid', gridTemplateColumns: subsanarId ? '1fr' : '1fr 1fr', gap: '3rem', alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem', alignItems: 'start' }}>
 
             {/* COLUMNA IZQUIERDA: DOCS 1-3 */}
-            <div style={{ ...shadedStyle, maxWidth: subsanarId ? '600px' : 'none', margin: subsanarId ? '0 auto' : '0' }}>
+            <div style={{ ...shadedStyle, margin: '0' }}>
               <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Documentos Adjuntos</h3>
 
               {/* 1. Foto */}
@@ -394,11 +357,11 @@ export default function Postular() {
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'white', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>N° Operación {subsanarId && '(Opcional)'}</label>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>N° Operación</label>
                     <input type="text" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem', borderColor: pagoError ? '#DC2626' : '' }} placeholder="Ej: 111111 o 2226AA4" maxLength={15} value={numeroOperacion} onChange={e => { setNumeroOperacion(e.target.value.toUpperCase()); setPagoError(''); }} />
                   </div>
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Fecha de Pago {subsanarId && '(Opcional)'}</label>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Fecha de Pago</label>
                     <input type="date" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem', borderColor: pagoError ? '#DC2626' : '' }} value={fechaPago} onChange={e => { setFechaPago(e.target.value); setPagoError(''); }} />
                   </div>
                 </div>
@@ -410,9 +373,8 @@ export default function Postular() {
               </div>
             </div>
 
-            {/* COLUMNA DERECHA: DATOS PERSONALES (Solo si NO es subsanación) */}
-            {!subsanarId && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+            {/* COLUMNA DERECHA: DATOS PERSONALES */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
 
               {/* Datos personales */}
               <div style={{ padding: '2rem 0' }}>
@@ -499,7 +461,6 @@ export default function Postular() {
                 )}
               </div>
             </div>
-            )}
           </div>
 
           <div style={{ marginTop: '3rem', paddingTop: '2rem', borderTop: '1px solid var(--border-color)', textAlign: 'center' }}>
@@ -524,7 +485,7 @@ export default function Postular() {
               style={{ padding: '1rem 3rem', fontSize: '1.25rem' }}
               disabled={enviando}
             >
-              {enviando ? <Loader2 size={24} className="spin" /> : (subsanarId ? 'Enviar Corrección' : 'Enviar Expediente a Revisión')}
+              {enviando ? <Loader2 size={24} className="spin" /> : 'Enviar Expediente a Revisión'}
             </button>
           </div>
 
