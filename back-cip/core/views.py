@@ -47,11 +47,12 @@ class AuthLoginView(APIView):
             admin = (Administrador.objects.filter(correo=username).first()
                      or Administrador.objects.filter(usuario=username).first())
             if admin and check_password(password, admin.password_hash):
-                token = generate_jwt(admin.id, 'ADMIN')
+                token = generate_jwt(admin.id, admin.rol)
                 return Response({
                     'token': token,
                     'user': AdministradorSerializer(admin).data,
-                    'role': 'ADMIN'
+                    'role': admin.rol,
+                    'sede_nombre': admin.sede.nombre if admin.sede else 'Sede Global'
                 })
             return Response({'error': 'Credenciales inválidas'}, status=status.HTTP_401_UNAUTHORIZED)
 

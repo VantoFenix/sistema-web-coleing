@@ -22,6 +22,8 @@ export default function AdminLogin() {
         if (response.ok) {
           localStorage.setItem('adminToken', data.token);
           localStorage.setItem('adminUser', JSON.stringify(data.user));
+          localStorage.setItem('adminRole', data.role);
+          localStorage.setItem('adminSede', data.sede_nombre);
           navigate('/admin/home');
         } else {
           setErrorMsg(data.error || 'Credenciales inválidas');
