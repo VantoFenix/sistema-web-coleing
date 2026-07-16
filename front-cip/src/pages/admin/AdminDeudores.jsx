@@ -20,7 +20,7 @@ export default function AdminDeudores() {
     setErrorFetch('');
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch('/api/admin/deudores/', {
+      const res = await fetch('/api/admin/deudores/detallado/', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
