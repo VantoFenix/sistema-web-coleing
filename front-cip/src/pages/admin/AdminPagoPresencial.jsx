@@ -890,9 +890,7 @@ const handleNuevoPago = () => {
                 </div>
               )}
 
-              {/* Botón confirmar */}
               <button
-<<<<<<< HEAD
                 onClick={handleRegistrar}
                 disabled={enviando || periodosSeleccionados.size === 0}
                 className="btn btn-block"
@@ -912,27 +910,6 @@ const handleNuevoPago = () => {
                   : <><CheckCircle2 size={18} /> Confirmar y Registrar</>
                 }
               </button>
-=======
-                  onClick={handleRegistrar}
-                  disabled={enviando || periodosSeleccionados.size === 0}
-                  className="btn btn-block"
-                  style={{
-                    padding: '0.9rem', fontSize: '0.95rem',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                    background: (enviando || periodosSeleccionados.size === 0) ? '#94A3B8' : '#10B981',
-                    border: 'none', borderRadius: '10px', color: 'white',
-                    fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0) ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#059669'; }}
-                  onMouseLeave={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#10B981'; }}
-                >
-                  {enviando
-                    ? <><Loader2 size={18} className="spin" /> Registrando…</>
-                    : <><CheckCircle2 size={18} /> Confirmar y Registrar</>
-                  }
-                </button>
->>>>>>> feature/final
             </div>
           )}
         </div>
