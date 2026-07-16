@@ -834,6 +834,76 @@ class PanelDeudoresView(APIView):
 
         return Response(deudores)
 
+
+class AdminNotificarDeudoresView(APIView):
+    """Envía correos de recordatorio a los colegiados indicados en `ids`.
+    Body: {"ids": [1, 2, 3]}. Si `ids` está vacío, notifica a todos los deudores
+    de la sede del cajero."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        admin = request.user
+        if getattr(admin, 'rol', None) != 'CAJERO':
+            return Response({'error': 'Solo el cajero puede enviar recordatorios'}, status=403)
+
+        from .emails import enviar_recordatorio_deuda
+
+        ids = request.data.get('ids') or []
+        sede_id = admin.sede_id if getattr(admin, 'sede_id', None) else None
+
+        sql = """
+            SELECT v.colegiado_id, v.nombres, v.nro_colegiado,
+                   v.meses_adeudados, v.deuda_total, c.correo
+            FROM v_estado_colegiado v
+            JOIN colegiado c ON c.id = v.colegiado_id
+            WHERE v.meses_adeudados > 0
+        """
+        params = []
+        if ids:
+            placeholders = ','.join(['%s'] * len(ids))
+            sql += f" AND v.colegiado_id IN ({placeholders})"
+            params.extend(ids)
+        if sede_id:
+            sql += " AND c.sede_id = %s"
+            params.append(sede_id)
+
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+
+        enviados, fallidos, sin_correo = 0, 0, 0
+        detalles = []
+        for r in rows:
+            col_id, nombres, nro_col, meses, deuda, correo = r
+            if not correo:
+                sin_correo += 1
+                detalles.append({'id': col_id, 'estado': 'SIN_CORREO'})
+                continue
+            try:
+                enviar_recordatorio_deuda(
+                    correo=correo,
+                    nombres=nombres,
+                    nro_colegiado=nro_col,
+                    meses_adeudados=int(meses or 0),
+                    deuda_total=float(deuda or 0),
+                )
+                enviados += 1
+                detalles.append({'id': col_id, 'estado': 'ENVIADO'})
+            except Exception as e:
+                import sys
+                print(f"[NOTIF] Fallo envio a {correo}: {e}", file=sys.stderr)
+                fallidos += 1
+                detalles.append({'id': col_id, 'estado': 'FALLIDO', 'error': str(e)})
+
+        return Response({
+            'enviados':    enviados,
+            'fallidos':    fallidos,
+            'sin_correo':  sin_correo,
+            'total':       len(rows),
+            'detalles':    detalles,
+        })
+
+
 class AdminBuscarColegiadoView(APIView):
     """Busca colegiados por DNI, nombre o número de colegiado."""
     authentication_classes = []
