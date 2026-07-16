@@ -15,6 +15,7 @@ export default function PublicHome() {
   const [showModal, setShowModal] = useState(false);
   const [dniConsulta, setDniConsulta] = useState('');
   const [estadoConsulta, setEstadoConsulta] = useState(null); // null, 'EN_REVISION', 'APROBADA', 'RECHAZADA'
+  const [solicitudId, setSolicitudId] = useState(null);
   const [motivoRechazo, setMotivoRechazo] = useState('');
   const [consultaError, setConsultaError] = useState('');
   const [consultando, setConsultando] = useState(false);
@@ -87,6 +88,7 @@ export default function PublicHome() {
       if (res.ok) {
         const data = await res.json();
         setEstadoConsulta(data.estado);
+        setSolicitudId(data.id || null);
         setMotivoRechazo(data.motivo_rechazo || '');
       } else {
         setConsultaError("No se encontró ninguna solicitud de colegiatura para este DNI.");
@@ -103,7 +105,9 @@ export default function PublicHome() {
     setShowModal(false);
     setDniConsulta('');
     setEstadoConsulta(null);
+    setSolicitudId(null);
     setConsultaError('');
+    setMotivoRechazo('');
   };
 
   return (
@@ -329,7 +333,14 @@ export default function PublicHome() {
                         <p style={{ marginLeft: '1rem', marginBottom: '1rem', fontWeight: '500', color: 'var(--cip-red)' }}>
                           {motivoRechazo || "Documentación inconsistente o ilegible."}
                         </p>
-                        <p style={{ fontSize: '0.875rem' }}>* Por motivos de seguridad y privacidad, no puede editar este trámite. Deberá crear una nueva solicitud desde cero anexando los documentos correctos.</p>
+                        <p style={{ fontSize: '0.875rem', marginBottom: '1rem' }}>* Puede corregir su expediente para que vuelva a ser revisado por nuestro equipo de colegiatura.</p>
+                        <button 
+                          className="btn btn-primary" 
+                          style={{ background: '#10B981', borderColor: '#10B981' }} 
+                          onClick={() => navigate(`/postular?subsanar=${solicitudId}`)}
+                        >
+                          Subsanar Expediente
+                        </button>
                       </div>
                     </div>
                   )}

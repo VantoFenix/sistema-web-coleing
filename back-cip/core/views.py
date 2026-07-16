@@ -187,6 +187,7 @@ class PublicConsultaSolicitudView(APIView):
             return Response({'error': 'No se encontró ninguna solicitud con ese DNI'}, status=status.HTTP_404_NOT_FOUND)
         
         return Response({
+            'id': sol.id,
             'estado': sol.estado,
             'motivo_rechazo': sol.motivo_rechazo
         })
@@ -203,12 +204,14 @@ class PublicPostulacionView(APIView):
         numero_operacion = request.data.get('numero_operacion')
         fecha_pago = request.data.get('fecha_pago')
         banco = request.data.get('banco')
+        correo = request.data.get('correo')
+        celular = request.data.get('celular')
 
         foto = request.FILES.get('foto')
         titulo = request.FILES.get('titulo')
         recibo = request.FILES.get('recibo')
 
-        if not all([dni, nombres, carrera_nombre, sede_nombre, foto, titulo, recibo, numero_operacion, fecha_pago]):
+        if not all([dni, nombres, carrera_nombre, sede_nombre, foto, titulo, recibo, numero_operacion, fecha_pago, correo, celular]):
             return Response({'error': 'Faltan campos o documentos requeridos'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validacion de formatos de archivo
@@ -279,6 +282,8 @@ class PublicPostulacionView(APIView):
                 recibo_pago_url=f"/media/{recibo_name}",
                 numero_operacion=numero_operacion,
                 fecha_pago=fecha_pago,
+                correo=correo,
+                celular=celular,
                 estado='EN_REVISION'
             )
         except Exception as e:
@@ -286,6 +291,90 @@ class PublicPostulacionView(APIView):
             print(f"[ERROR] Fallo al crear solicitud en BD: {e}", file=sys.stderr)
             return Response({'error': f'Error al registrar la solicitud: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+        return Response({'success': True, 'solicitud_id': solicitud.id})
+
+class PublicActualizarPostulacionView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk):
+        try:
+            sol = Solicitud.objects.get(pk=pk, estado='RECHAZADA')
+            return Response({
+                'dni': sol.dni,
+                'nombres': sol.nombres,
+                'carrera': sol.carrera.nombre if sol.carrera else '',
+                'sede': sol.sede.nombre if sol.sede else '',
+                'numero_operacion': sol.numero_operacion,
+                'fecha_pago': sol.fecha_pago,
+                'correo': sol.correo,
+                'celular': sol.celular,
+                'foto_url': sol.foto_url,
+                'titulo_pdf_url': sol.titulo_pdf_url,
+                'recibo_pago_url': sol.recibo_pago_url,
+                'motivo_rechazo': sol.motivo_rechazo
+            })
+        except Solicitud.DoesNotExist:
+            return Response({'error': 'Solicitud no encontrada o no está rechazada'}, status=status.HTTP_404_NOT_FOUND)
+
+    def put(self, request, pk):
+        try:
+            solicitud = Solicitud.objects.get(pk=pk, estado='RECHAZADA')
+        except Solicitud.DoesNotExist:
+            return Response({'error': 'Solicitud no encontrada o no está rechazada'}, status=status.HTTP_404_NOT_FOUND)
+
+        solicitud.correo = request.data.get('correo', solicitud.correo)
+        solicitud.celular = request.data.get('celular', solicitud.celular)
+        carrera_nombre = request.data.get('carrera')
+        sede_nombre = request.data.get('sede')
+        if carrera_nombre:
+            carrera = Carrera.objects.filter(nombre=carrera_nombre).first()
+            if carrera: solicitud.carrera = carrera
+        if sede_nombre:
+            sede = Sede.objects.filter(nombre=sede_nombre).first()
+            if sede: solicitud.sede = sede
+
+        numero_operacion = request.data.get('numero_operacion')
+        fecha_pago = request.data.get('fecha_pago')
+        if numero_operacion: solicitud.numero_operacion = numero_operacion
+        if fecha_pago: solicitud.fecha_pago = fecha_pago
+
+        # Check unique operation number
+        if numero_operacion and Solicitud.objects.filter(numero_operacion=numero_operacion).exclude(id=solicitud.id).exclude(estado='RECHAZADA').exists():
+            return Response({'error': 'Este número de operación ya ha sido registrado en otra postulación. Por favor verifique sus datos.'}, status=status.HTTP_409_CONFLICT)
+
+        foto = request.FILES.get('foto')
+        titulo = request.FILES.get('titulo')
+        recibo = request.FILES.get('recibo')
+        base_path = 'postulaciones/'
+
+        try:
+            if foto:
+                if not foto.content_type.startswith('image/'):
+                    return Response({'error': 'La foto debe ser imagen válida.'}, status=status.HTTP_400_BAD_REQUEST)
+                fn = f"{base_path}{uuid.uuid4()}_{foto.name}"
+                default_storage.save(fn, foto)
+                solicitud.foto_url = f"/media/{fn}"
+
+            if titulo:
+                if titulo.content_type != 'application/pdf':
+                    return Response({'error': 'El Título debe ser PDF.'}, status=status.HTTP_400_BAD_REQUEST)
+                tn = f"{base_path}{uuid.uuid4()}_{titulo.name}"
+                default_storage.save(tn, titulo)
+                solicitud.titulo_pdf_url = f"/media/{tn}"
+
+            if recibo:
+                if not (recibo.content_type.startswith('image/') or recibo.content_type == 'application/pdf'):
+                    return Response({'error': 'El Recibo debe ser PDF o imagen.'}, status=status.HTTP_400_BAD_REQUEST)
+                rn = f"{base_path}{uuid.uuid4()}_{recibo.name}"
+                default_storage.save(rn, recibo)
+                solicitud.recibo_pago_url = f"/media/{rn}"
+        except Exception as e:
+            return Response({'error': f'Error guardando archivos: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        solicitud.estado = 'EN_REVISION'
+        solicitud.save()
 
         return Response({'success': True, 'solicitud_id': solicitud.id})
 
@@ -417,6 +506,8 @@ class AdminResolverSolicitudView(APIView):
                         sede=solicitud.sede,
                         nro_colegiado=siguiente_nro,
                         solicitud=solicitud,
+                        correo=solicitud.correo,
+                        celular=solicitud.celular,
                         colegiado_desde=datetime.utcnow().date()
                     )
 

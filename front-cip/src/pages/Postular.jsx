@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, UploadCloud, CheckCircle2, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 
 export default function Postular() {
@@ -11,6 +11,13 @@ export default function Postular() {
   const [sede, setSede] = useState('');
   const [numeroOperacion, setNumeroOperacion] = useState('');
   const [fechaPago, setFechaPago] = useState('');
+  const [correo, setCorreo] = useState('');
+  const [celular, setCelular] = useState('');
+  const [terminos, setTerminos] = useState(false);
+
+  const [searchParams] = useSearchParams();
+  const subsanarId = searchParams.get('subsanar');
+  const [motivoRechazo, setMotivoRechazo] = useState('');
 
   const [carrerasOptions, setCarrerasOptions] = useState([]);
   const [sedesOptions, setSedesOptions] = useState([]);
@@ -30,6 +37,37 @@ export default function Postular() {
     };
     fetchCatalogos();
   }, []);
+
+  useEffect(() => {
+    if (subsanarId) {
+      const fetchSubsanar = async () => {
+        try {
+          const res = await fetch(`/api/postulaciones/${subsanarId}/`);
+          if (res.ok) {
+            const data = await res.json();
+            setDni(data.dni);
+            setNombres(data.nombres);
+            setCarrera(data.carrera);
+            setSede(data.sede);
+            setNumeroOperacion(data.numero_operacion);
+            setFechaPago(data.fecha_pago);
+            setCorreo(data.correo || '');
+            setCelular(data.celular || '');
+            setMotivoRechazo(data.motivo_rechazo);
+            setDniValidado(true);
+            setFotoInfo('✓ Archivo previamente subido (suba uno nuevo para reemplazar)');
+            setTituloInfo('✓ Archivo previamente subido (suba uno nuevo para reemplazar)');
+            setReciboInfo('✓ Archivo previamente subido (suba uno nuevo para reemplazar)');
+          } else {
+            setSubmitError("No se pudo cargar la solicitud. Asegúrese que exista y esté en estado Rechazada.");
+          }
+        } catch (e) {
+          setSubmitError("Error de conexión al cargar la solicitud para subsanación.");
+        }
+      };
+      fetchSubsanar();
+    }
+  }, [subsanarId]);
 
   const [foto, setFoto] = useState(null);
   const [fotoInfo, setFotoInfo] = useState('');
@@ -150,20 +188,28 @@ export default function Postular() {
       setSubmitError("Complete la sede y carrera académica.");
       return;
     }
-    if (!foto || !titulo || !recibo) {
+    if (!correo || !celular) {
+      setSubmitError("Debe ingresar un correo electrónico y celular de contacto.");
+      return;
+    }
+    if (!subsanarId && (!foto || !titulo || !recibo)) {
       setSubmitError("Debe adjuntar todos los documentos requeridos: Foto, Título Profesional y Recibo de Pago.");
       return;
     }
-    if (titulo.type !== 'application/pdf') {
+    if (titulo && titulo.type !== 'application/pdf') {
       setSubmitError("El Título Profesional debe ser un archivo PDF.");
       return;
     }
-    if (!recibo.type.startsWith('image/') && recibo.type !== 'application/pdf') {
+    if (recibo && !recibo.type.startsWith('image/') && recibo.type !== 'application/pdf') {
       setSubmitError("El Recibo de Caja debe ser un PDF o una imagen.");
       return;
     }
     if (!numeroOperacion.trim() || !fechaPago) {
       setSubmitError("Debe ingresar el número de operación y la fecha de pago del voucher.");
+      return;
+    }
+    if (!terminos) {
+      setSubmitError("Debe aceptar la Declaración Jurada para poder enviar su solicitud.");
       return;
     }
 
@@ -174,16 +220,21 @@ export default function Postular() {
     formData.append('nombres', nombres);
     formData.append('carrera', carrera);
     formData.append('sede', sede);
-    formData.append('foto', foto);
-    formData.append('titulo', titulo);
-    formData.append('recibo', recibo);
+    formData.append('correo', correo);
+    formData.append('celular', celular);
+    if (foto) formData.append('foto', foto);
+    if (titulo) formData.append('titulo', titulo);
+    if (recibo) formData.append('recibo', recibo);
     formData.append('numero_operacion', numeroOperacion);
     formData.append('fecha_pago', fechaPago);
     formData.append('banco', 'BN');
 
     try {
-      const response = await fetch('/api/postulaciones/', {
-        method: 'POST',
+      const url = subsanarId ? `/api/postulaciones/${subsanarId}/` : '/api/postulaciones/';
+      const method = subsanarId ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method: method,
         body: formData,
       });
 
@@ -266,9 +317,22 @@ export default function Postular() {
       </button>
 
       <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'center', marginBottom: '2.5rem' }}>
-        <h1 style={{ color: 'var(--cip-blue)', fontSize: '2.25rem', fontWeight: '800' }}>Formulario de Colegiatura</h1>
-        <p className="text-muted" style={{ fontSize: '1.125rem', marginTop: '0.5rem' }}>Inicie su trámite de inscripción adjuntando los documentos requeridos.</p>
+        <h1 style={{ color: 'var(--cip-blue)', fontSize: '2.25rem', fontWeight: '800' }}>
+          {subsanarId ? 'Subsanación de Expediente' : 'Formulario de Colegiatura'}
+        </h1>
+        <p className="text-muted" style={{ fontSize: '1.125rem', marginTop: '0.5rem' }}>
+          {subsanarId ? 'Corrija los datos o documentos observados y vuelva a enviar su solicitud.' : 'Inicie su trámite de inscripción adjuntando los documentos requeridos.'}
+        </p>
       </div>
+
+      {subsanarId && motivoRechazo && (
+        <div style={{ maxWidth: '1000px', margin: '0 auto 2rem auto', padding: '1.5rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '8px' }}>
+          <h3 style={{ color: '#991B1B', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '1.125rem' }}>
+            <AlertCircle size={20} /> Motivo de Observación / Rechazo
+          </h3>
+          <p style={{ color: '#7F1D1D', fontWeight: '500', marginLeft: '1.75rem' }}>{motivoRechazo}</p>
+        </div>
+      )}
 
       <div className="card" style={{ maxWidth: '1000px', margin: '0 auto' }}>
         <form onSubmit={handleSubmit}>
@@ -407,6 +471,29 @@ export default function Postular() {
                   </select>
                 </div>
 
+                <div className="form-group" style={{ marginTop: '1.5rem' }}>
+                  <label className="form-label">Correo Electrónico</label>
+                  <input
+                    type="email"
+                    className="form-input"
+                    placeholder="ejemplo@correo.com"
+                    value={correo}
+                    onChange={(e) => setCorreo(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Teléfono / Celular</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ej. 999888777"
+                    maxLength={15}
+                    value={celular}
+                    onChange={(e) => setCelular(e.target.value.replace(/\D/g, ''))}
+                  />
+                </div>
+
                 {submitError && (
                   <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.75rem', borderRadius: '8px', marginTop: '1.5rem', fontSize: '0.875rem', fontWeight: '500' }}>
                     {submitError}
@@ -420,17 +507,29 @@ export default function Postular() {
           </div>
 
           <div style={{ marginTop: '3rem', paddingTop: '2rem', borderTop: '1px solid var(--border-color)', textAlign: 'center' }}>
+            <div style={{ maxWidth: '600px', margin: '0 auto 2rem auto', textAlign: 'left', background: '#F8FAFC', padding: '1.5rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer', margin: 0 }}>
+                <input 
+                  type="checkbox" 
+                  style={{ width: '24px', height: '24px', marginTop: '0.1rem' }} 
+                  checked={terminos} 
+                  onChange={(e) => setTerminos(e.target.checked)} 
+                />
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-main)', lineHeight: '1.4' }}>
+                  Declaro bajo juramento que los datos y documentos proporcionados son verdaderos. 
+                  Autorizo el tratamiento de mis datos personales según la <strong>Ley N° 29733 (Ley de Protección de Datos Personales)</strong> para los fines inherentes a mi trámite de colegiatura.
+                </span>
+              </label>
+            </div>
+            
             <button
               type="submit"
               className="btn btn-primary"
               style={{ padding: '1rem 3rem', fontSize: '1.25rem' }}
               disabled={enviando}
             >
-              {enviando ? <Loader2 size={24} className="spin" /> : 'Enviar Expediente a Revisión'}
+              {enviando ? <Loader2 size={24} className="spin" /> : (subsanarId ? 'Enviar Corrección' : 'Enviar Expediente a Revisión')}
             </button>
-            <p className="text-muted" style={{ fontSize: '0.875rem', marginTop: '1rem' }}>
-              Al enviar esta solicitud, declaro bajo juramento que toda la información y documentos adjuntos son verdaderos.
-            </p>
           </div>
 
         </form>

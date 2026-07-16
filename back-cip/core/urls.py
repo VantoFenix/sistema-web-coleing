@@ -20,6 +20,7 @@ urlpatterns = [
     path('api/public/padron/', views.PublicPadronView.as_view(), name='public-padron'),
     path('api/public/solicitudes/', views.PublicConsultaSolicitudView.as_view(), name='public-consultar-solicitud'),
     path('api/postulaciones/', views.PublicPostulacionView.as_view(), name='crear-postulacion'),
+    path('api/postulaciones/<int:pk>/', views.PublicActualizarPostulacionView.as_view(), name='actualizar-postulacion'),
     # Tramites
     path('api/tramites/', include('apps.tramites.urls')),
 

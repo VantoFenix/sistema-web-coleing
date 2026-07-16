@@ -59,6 +59,8 @@ class Solicitud(models.Model):
     motivo_rechazo  = models.TextField(null=True, blank=True)
     numero_operacion= models.CharField(max_length=50, null=True, blank=True)
     fecha_pago      = models.DateField(null=True, blank=True)
+    correo          = models.EmailField(null=True, blank=True)
+    celular         = models.CharField(max_length=15, null=True, blank=True)
     creado_en       = models.DateTimeField(default=timezone.now)
     resuelto_en     = models.DateTimeField(null=True, blank=True)
 
@@ -74,6 +76,8 @@ class Colegiado(models.Model):
     nro_colegiado   = models.CharField(max_length=5)
     sede            = models.ForeignKey(Sede, on_delete=models.DO_NOTHING, null=True, blank=True)
     solicitud       = models.ForeignKey(Solicitud, on_delete=models.DO_NOTHING, null=True, blank=True)
+    correo          = models.EmailField(null=True, blank=True)
+    celular         = models.CharField(max_length=15, null=True, blank=True)
     colegiado_desde = models.DateField()
     activo          = models.BooleanField(default=True)
     creado_en       = models.DateTimeField(default=timezone.now)
