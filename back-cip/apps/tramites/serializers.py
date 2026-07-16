@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import TramiteInscripcion, EstadoTramiteChoices
+from .services import BancoNacionMockService
 
 
 # ==============================================================================
@@ -24,6 +25,7 @@ class TramiteInscripcionSerializer(serializers.ModelSerializer):
             'carrera', 'carrera_nombre', 'sede', 'sede_nombre',
             'foto', 'titulo_pdf', 'voucher',
             'foto_url', 'titulo_pdf_url', 'voucher_url',
+            'numero_operacion', 'banco', 'fecha_pago',
             'estado', 'estado_display', 'observacion',
             'fecha_solicitud', 'fecha_actualizacion'
         ]
@@ -81,8 +83,26 @@ class TramiteInscripcionSerializer(serializers.ModelSerializer):
         # Validar que exista al menos un voucher (local o URL)
         if not data.get('voucher') and not data.get('voucher_url'):
             raise serializers.ValidationError(
-                "Debe proporcionar el comprobante de pago (archivo o URL)."
+                {"voucher": "Debe proporcionar el comprobante de pago (archivo o URL)."}
             )
+            
+        # Validar campos de pago requeridos
+        numero_operacion = data.get('numero_operacion')
+        fecha_pago = data.get('fecha_pago')
+        banco = data.get('banco')
+        
+        if not numero_operacion:
+            raise serializers.ValidationError({"numero_operacion": "El número de operación es obligatorio."})
+        if not fecha_pago:
+            raise serializers.ValidationError({"fecha_pago": "La fecha de pago es obligatoria."})
+            
+        # Llamar al Mock API del Banco de la Nación para validación en tiempo real
+        if banco == 'BN':
+            resultado = BancoNacionMockService.verificar_operacion(numero_operacion, fecha_pago)
+            if not resultado["valido"]:
+                raise serializers.ValidationError({
+                    "numero_operacion": resultado["mensaje"]
+                })
 
         return data
 
@@ -102,6 +122,7 @@ class TramiteInscripcionListSerializer(serializers.ModelSerializer):
         model = TramiteInscripcion
         fields = [
             'id', 'dni', 'nombre_completo', 'carrera_nombre', 'sede_nombre',
+            'numero_operacion', 'banco', 'fecha_pago',
             'estado', 'estado_display', 'fecha_solicitud'
         ]
 

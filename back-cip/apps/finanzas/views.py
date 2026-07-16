@@ -3,12 +3,14 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q, Sum, Count
-from .models import Sede, Carrera, Colegiado, Cuota
+from django.http import FileResponse
+from .models import Sede, Carrera, Colegiado, Cuota, Comprobante
 from .serializers import (
     SedeSerializer, CarreraSerializer, ColegiadorSerializer,
-    CuotaSerializer, CuotaListSerializer, CuotaDetailSerializer
+    CuotaSerializer, CuotaListSerializer, CuotaDetailSerializer,
+    ComprobanteSerializer, ComprobanteListSerializer, ComprobanteDetailSerializer
 )
-from .services import marcar_cuota_como_pagada, CuotaNoPendienteException
+from .services import marcar_cuota_como_pagada, CuotaNoPendienteException, generar_pdf_comprobante
 from .selectors import calcular_deuda_colegiado, obtener_resumen_financiero
 
 
@@ -224,3 +226,94 @@ class CuotaViewSet(viewsets.ModelViewSet):
         """
         datos_resumen = obtener_resumen_financiero()
         return Response(datos_resumen)
+
+
+# ==============================================================================
+# VIEWSET PARA COMPROBANTES
+# ==============================================================================
+
+class ComprobanteViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet para gestionar comprobantes de pago.
+    
+    Operaciones disponibles:
+    - GET /comprobantes/: Listar comprobantes con filtrado y búsqueda
+    - GET /comprobantes/{id}/: Obtener detalle de un comprobante
+    
+    Acciones adicionales:
+    - GET /comprobantes/{id}/descargar_pdf/: Descargar comprobante en PDF
+    - GET /comprobantes/colegiado/{colegiado_id}/historial/: Historial de comprobantes de un colegiado
+    """
+    queryset = Comprobante.objects.select_related('colegiado', 'cuota').order_by('-fecha_hora_pago')
+    serializer_class = ComprobanteSerializer
+    pagination_class = StandardPagination
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['numero_comprobante', 'colegiado__nombre_completo', 'colegiado__cip']
+    ordering_fields = ['fecha_hora_pago', 'monto', 'estado']
+
+    def get_serializer_class(self):
+        """Retorna el serializador apropiado según la acción"""
+        if self.action == 'list':
+            return ComprobanteListSerializer
+        elif self.action == 'retrieve':
+            return ComprobanteDetailSerializer
+        return ComprobanteSerializer
+
+    @action(detail=True, methods=['get'])
+    def descargar_pdf(self, request, pk=None):
+        """
+        Descarga el comprobante en formato PDF.
+        Endpoint: GET /comprobantes/{id}/descargar_pdf/
+        """
+        comprobante = self.get_object()
+        
+        try:
+            # Generar PDF
+            pdf_buffer = generar_pdf_comprobante(comprobante)
+            
+            # Marcar como descargado
+            comprobante.marcar_como_descargado()
+            
+            # Retornar el PDF como descarga
+            nombre_archivo = f"comprobante_{comprobante.numero_comprobante}.pdf"
+            response = FileResponse(pdf_buffer, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+            
+            return response
+        except Exception as e:
+            return Response(
+                {'error': f'Error al generar PDF: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def historial(self, request):
+        """
+        Retorna el historial de comprobantes de un colegiado.
+        Endpoint: GET /comprobantes/historial/?colegiado_id={id}
+        """
+        colegiado_id = request.query_params.get('colegiado_id')
+        
+        if not colegiado_id:
+            return Response(
+                {'error': 'El parámetro colegiado_id es requerido'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            colegiado = Colegiado.objects.get(id=colegiado_id)
+        except Colegiado.DoesNotExist:
+            return Response(
+                {'error': 'Colegiado no encontrado'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        queryset = Comprobante.objects.filter(colegiado=colegiado).order_by('-fecha_hora_pago')
+        page = self.paginate_queryset(queryset)
+        
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Search, User, CheckCircle2, XCircle, Loader2,
-  Calendar, CreditCard, AlertCircle, BadgeCheck,
+  Calendar, AlertCircle, BadgeCheck, CreditCard,
   Banknote, Smartphone, Building2, Wallet, ChevronRight,
 } from 'lucide-react';
 
@@ -314,6 +314,8 @@ export default function AdminPagoPresencial() {
     // Auto-trigger print dialog after a short delay
     setTimeout(() => win.print(), 600);
   };
+=======
+>>>>>>> feature/final
 
 const handleNuevoPago = () => {
     setColegiado(null); setDeuda(null); setResultado(null);
@@ -610,7 +612,7 @@ const handleNuevoPago = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div>
               <h3 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--cip-blue)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <Calendar size={18} /> Periodos del Año {new Date().getFullYear()}
+                <Calendar size={18} /> Periodos del Año
               </h3>
               {periodosSeleccionados.size > 0 && (
                 <p style={{ fontSize: '0.78rem', color: '#059669', fontWeight: '600', marginTop: '0.25rem', margin: '0.25rem 0 0 0' }}>
@@ -890,6 +892,7 @@ const handleNuevoPago = () => {
 
               {/* Botón confirmar */}
               <button
+<<<<<<< HEAD
                 onClick={handleRegistrar}
                 disabled={enviando || periodosSeleccionados.size === 0}
                 className="btn btn-block"
@@ -909,6 +912,27 @@ const handleNuevoPago = () => {
                   : <><CheckCircle2 size={18} /> Confirmar y Registrar</>
                 }
               </button>
+=======
+                  onClick={handleRegistrar}
+                  disabled={enviando || periodosSeleccionados.size === 0}
+                  className="btn btn-block"
+                  style={{
+                    padding: '0.9rem', fontSize: '0.95rem',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                    background: (enviando || periodosSeleccionados.size === 0) ? '#94A3B8' : '#10B981',
+                    border: 'none', borderRadius: '10px', color: 'white',
+                    fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0) ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#059669'; }}
+                  onMouseLeave={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#10B981'; }}
+                >
+                  {enviando
+                    ? <><Loader2 size={18} className="spin" /> Registrando…</>
+                    : <><CheckCircle2 size={18} /> Confirmar y Registrar</>
+                  }
+                </button>
+>>>>>>> feature/final
             </div>
           )}
         </div>

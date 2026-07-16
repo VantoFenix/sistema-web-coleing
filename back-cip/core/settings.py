@@ -6,11 +6,12 @@ import os
 from dotenv import load_dotenv
 import dj_database_url
 
-# Cargar las variables del archivo .env
-load_dotenv()
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Cargar las variables del archivo .env desde la raíz del proyecto
+env_path = BASE_DIR.parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-ip*qg4%=ko-)+2kw@+v5s#l+c4%#db*)bocmukvafc3)(ot+k0'
@@ -35,6 +36,8 @@ INSTALLED_APPS = [
     
     # --- NUESTRAS APPS ---
     'core.apps.CoreConfig',
+    'apps.finanzas',
+    'apps.tramites',
 ]
 
 MIDDLEWARE = [
@@ -72,23 +75,25 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 # Por defecto dj_database_url buscará la variable 'DATABASE_URL' en el entorno.
 # Si no existe, armamos una a partir de las otras variables, previniendo 'None' si no existen.
-db_user = os.getenv('DB_USER', '')
-db_pass = os.getenv('DB_PASSWORD', '')
-db_host = os.getenv('DB_HOST', 'localhost')
-db_port = os.getenv('DB_PORT', '5432')
-db_name = os.getenv('DB_NAME', 'postgres')
-
-default_db_url = f"postgres://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}" if db_user else f"sqlite:///{BASE_DIR}/db.sqlite3"
-
-# conn_max_age=0 → libera la conexión después de cada request.
-# Necesario para el session pooler de Supabase (pool_size=15).
-# Con conn_max_age=600 Django mantiene conexiones abiertas y agota el pool rápidamente.
-DATABASES = {
-    'default': dj_database_url.config(
-        default=default_db_url,
-        conn_max_age=0
-    )
-}
+if os.getenv('DB_USER'):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME', 'postgres'),
+            'USER': os.getenv('DB_USER', ''),
+            'PASSWORD': os.getenv('DB_PASSWORD', ''),
+            'HOST': os.getenv('DB_HOST', 'localhost'),
+            'PORT': os.getenv('DB_PORT', '5432'),
+            'CONN_MAX_AGE': 0,
+        }
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

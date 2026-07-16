@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import TramiteInscripcion, EstadoTramiteChoices
+from .models import TramiteInscripcion, EstadoTramiteChoices, PagoBancoNacionMock
 
 
 @admin.register(TramiteInscripcion)
@@ -8,7 +8,7 @@ class TramiteInscripcionAdmin(admin.ModelAdmin):
     
     list_display = [
         'id', 'nombre_completo', 'dni', 'carrera', 'sede',
-        'estado', 'fecha_solicitud'
+        'numero_operacion', 'banco', 'estado', 'fecha_solicitud'
     ]
     
     list_filter = [
@@ -16,7 +16,7 @@ class TramiteInscripcionAdmin(admin.ModelAdmin):
     ]
     
     search_fields = [
-        'nombre_completo', 'dni', 'correo', 'carrera__nombre', 'sede__nombre'
+        'nombre_completo', 'dni', 'correo', 'carrera__nombre', 'sede__nombre', 'numero_operacion'
     ]
     
     readonly_fields = [
@@ -30,11 +30,13 @@ class TramiteInscripcionAdmin(admin.ModelAdmin):
         ('Información Académica', {
             'fields': ('carrera', 'sede')
         }),
-        ('Documentos', {
+        ('Información de Pago', {
+            'fields': ('numero_operacion', 'banco', 'fecha_pago', 'voucher', 'voucher_url')
+        }),
+        ('Documentos Adicionales', {
             'fields': (
                 'foto', 'foto_preview', 'foto_url',
-                'titulo_pdf', 'titulo_preview', 'titulo_pdf_url',
-                'voucher', 'voucher_url'
+                'titulo_pdf', 'titulo_preview', 'titulo_pdf_url'
             )
         }),
         ('Estado del Trámite', {
@@ -88,3 +90,11 @@ class TramiteInscripcionAdmin(admin.ModelAdmin):
             observacion='Rechazado desde el admin'
         )
         self.message_user(request, f'{updated} trámite(s) marcado(s) como RECHAZADO.')
+
+@admin.register(PagoBancoNacionMock)
+class PagoBancoNacionMockAdmin(admin.ModelAdmin):
+    """Administrador para los pagos simulados del Banco de la Nación"""
+    list_display = ('numero_operacion', 'fecha_pago', 'monto', 'usado')
+    search_fields = ('numero_operacion',)
+    list_filter = ('usado', 'fecha_pago')
+    ordering = ('-fecha_pago',)

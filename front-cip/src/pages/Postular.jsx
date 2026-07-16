@@ -9,6 +9,8 @@ export default function Postular() {
   const [nombres, setNombres] = useState('');
   const [carrera, setCarrera] = useState('');
   const [sede, setSede] = useState('');
+  const [numeroOperacion, setNumeroOperacion] = useState('');
+  const [fechaPago, setFechaPago] = useState('');
 
   const [carrerasOptions, setCarrerasOptions] = useState([]);
   const [sedesOptions, setSedesOptions] = useState([]);
@@ -32,13 +34,16 @@ export default function Postular() {
   const [foto, setFoto] = useState(null);
   const [fotoInfo, setFotoInfo] = useState('');
   const [titulo, setTitulo] = useState(null);
+  const [tituloInfo, setTituloInfo] = useState('');
   const [recibo, setRecibo] = useState(null);
+  const [reciboInfo, setReciboInfo] = useState('');
 
   const [isValidando, setIsValidando] = useState(false);
   const [dniValidado, setDniValidado] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [success, setSuccess] = useState(false);
   const [dniError, setDniError] = useState('');
+  const [pagoError, setPagoError] = useState('');
   const [submitError, setSubmitError] = useState('');
 
   const handleValidarDNI = async (e) => {
@@ -90,49 +95,48 @@ export default function Postular() {
     }
   };
 
-  const handleFileChange = (e, setter) => {
-    if (e.target.files && e.target.files[0]) {
-      setter(e.target.files[0]);
+  const handleFileChange = (e, setFile, setInfo, maxSizeMB, allowedTypes, fileDescription) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setInfo('');
+    setSubmitError('');
+
+    if (allowedTypes && !allowedTypes.some(type => file.type.startsWith(type))) {
+      setInfo('Formato de archivo no permitido.');
+      setFile(null);
+      return;
     }
+
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      setInfo(`El archivo supera el límite de ${maxSizeMB} MB.`);
+      setFile(null);
+      return;
+    }
+
+    setFile(file);
+    setInfo(`✓ ${file.name} · ${(file.size / 1024 / 1024).toFixed(1)} MB`);
   };
 
   const handleFotoChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setFotoInfo('');
-    setFoto(null);
     setSubmitError('');
 
-    if (file.type !== 'image/jpeg') {
-      setFotoInfo('Solo se aceptan imágenes JPG.');
-      return;
-    }
     if (file.size > 2 * 1024 * 1024) {
       setFotoInfo('La imagen supera el límite de 2 MB.');
+      setFoto(null);
       return;
     }
 
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      if (img.width !== 413 || img.height !== 531) {
-        setFotoInfo(`Dimensiones incorrectas (${img.width}×${img.height} px). Debe ser exactamente 413×531 px.`);
-      } else {
-        setFoto(file);
-        setFotoInfo(`✓ 413×531 px · ${(file.size / 1024).toFixed(0)} KB`);
-      }
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      setFotoInfo('No se pudo leer la imagen.');
-    };
-    img.src = url;
+    setFoto(file);
+    setFotoInfo(`✓ ${file.name} · ${(file.size / 1024).toFixed(0)} KB`);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError('');
+    setPagoError('');
 
     if (dni.length !== 8) {
       setSubmitError("El DNI debe tener 8 dígitos.");
@@ -150,16 +154,16 @@ export default function Postular() {
       setSubmitError("Debe adjuntar todos los documentos requeridos: Foto, Título Profesional y Recibo de Pago.");
       return;
     }
-    if (foto.type !== 'image/jpeg') {
-      setSubmitError("La foto debe ser un archivo JPG.");
-      return;
-    }
     if (titulo.type !== 'application/pdf') {
       setSubmitError("El Título Profesional debe ser un archivo PDF.");
       return;
     }
     if (!recibo.type.startsWith('image/') && recibo.type !== 'application/pdf') {
       setSubmitError("El Recibo de Caja debe ser un PDF o una imagen.");
+      return;
+    }
+    if (!numeroOperacion.trim() || !fechaPago) {
+      setSubmitError("Debe ingresar el número de operación y la fecha de pago del voucher.");
       return;
     }
 
@@ -173,6 +177,9 @@ export default function Postular() {
     formData.append('foto', foto);
     formData.append('titulo', titulo);
     formData.append('recibo', recibo);
+    formData.append('numero_operacion', numeroOperacion);
+    formData.append('fecha_pago', fechaPago);
+    formData.append('banco', 'BN');
 
     try {
       const response = await fetch('/api/postulaciones/', {
@@ -186,6 +193,11 @@ export default function Postular() {
         let errorMsg = "Hubo un error al enviar la solicitud.";
         try {
           const errData = await response.json();
+          if (errData.error && errData.error.includes("número de operación NO figura")) {
+            setPagoError(errData.error);
+            setSubmitError("Por favor revise los datos de su comprobante de pago.");
+            return;
+          }
           errorMsg = errData.error || errorMsg;
         } catch {
           errorMsg = `Error del servidor (código ${response.status}). Intente nuevamente.`;
@@ -267,49 +279,73 @@ export default function Postular() {
             <div style={shadedStyle}>
               <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Documentos Adjuntos</h3>
 
-              <div className="alert alert-warning" style={{ padding: '0.75rem', fontSize: '0.875rem' }}>
-                <AlertCircle size={16} /> Asegúrese de que los archivos sean legibles.
-              </div>
-
               {/* 1. Foto */}
-              <div className="form-group" style={{ marginTop: '1.5rem' }}>
+              <div className="form-group" style={{ marginTop: '0.5rem' }}>
                 <label className="form-label">1. Fotografía Tamaño Pasaporte</label>
                 <div className="upload-box">
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={fileNameStyle}>{foto ? foto.name : 'Solo JPG · 413×531 px'}</p>
+                  <p style={fileNameStyle}>{foto ? foto.name : 'Seleccione su foto (máx. 2 MB)'}</p>
                   <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                    Exactamente 413×531 px · máx. 2 MB
+                    Imagen de identificación · máx. 2 MB
                   </p>
                   {fotoInfo && (
                     <p style={{ fontSize: '0.72rem', color: fotoInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
                       {fotoInfo}
                     </p>
                   )}
-                  <input type="file" accept=".jpg,.jpeg" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-foto" onChange={handleFotoChange} />
+                  <input type="file" accept="image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-foto" onChange={handleFotoChange} />
                   <label htmlFor="file-foto" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
                 </div>
               </div>
 
               {/* 2. Título Profesional */}
-              <div className="form-group">
+              <div className="form-group" style={{ marginTop: '1.5rem' }}>
                 <label className="form-label">2. Título Profesional</label>
                 <div className="upload-box">
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
                   <p style={fileNameStyle}>{titulo ? titulo.name : 'Clic para subir documento (PDF)'}</p>
-                  <input type="file" accept=".pdf" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-titulo" onChange={(e) => handleFileChange(e, setTitulo)} />
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Solo formato PDF · máx. 5 MB</p>
+                  {tituloInfo && (
+                    <p style={{ fontSize: '0.72rem', color: tituloInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
+                      {tituloInfo}
+                    </p>
+                  )}
+                  <input type="file" accept=".pdf" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-titulo" onChange={(e) => handleFileChange(e, setTitulo, setTituloInfo, 5, ['application/pdf'], 'Título Profesional')} />
                   <label htmlFor="file-titulo" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
                 </div>
               </div>
 
               {/* 3. Recibo */}
-              <div className="form-group">
+              <div className="form-group" style={{ marginTop: '1.5rem' }}>
                 <label className="form-label">3. Recibo de Pago (S/ 1500.00)</label>
-                <div className="upload-box">
+                <div className="upload-box" style={{ marginBottom: '1rem' }}>
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
                   <p style={fileNameStyle}>{recibo ? recibo.name : 'Clic para subir comprobante (PDF/JPG)'}</p>
-                  <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-recibo" onChange={(e) => handleFileChange(e, setRecibo)} />
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>PDF o Imagen · máx. 5 MB</p>
+                  {reciboInfo && (
+                    <p style={{ fontSize: '0.72rem', color: reciboInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
+                      {reciboInfo}
+                    </p>
+                  )}
+                  <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-recibo" onChange={(e) => handleFileChange(e, setRecibo, setReciboInfo, 5, ['application/pdf', 'image/'], 'Recibo de Pago')} />
                   <label htmlFor="file-recibo" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
                 </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'white', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>N° Operación (Banco Nación)</label>
+                    <input type="text" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem', borderColor: pagoError ? '#DC2626' : '' }} placeholder="Ej: 111111" value={numeroOperacion} onChange={e => { setNumeroOperacion(e.target.value); setPagoError(''); }} />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Fecha de Pago</label>
+                    <input type="date" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem', borderColor: pagoError ? '#DC2626' : '' }} value={fechaPago} onChange={e => { setFechaPago(e.target.value); setPagoError(''); }} />
+                  </div>
+                </div>
+                {pagoError && (
+                  <div style={{ color: '#DC2626', fontSize: '0.8rem', marginTop: '0.75rem', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <AlertCircle size={14} /> {pagoError}
+                  </div>
+                )}
               </div>
             </div>
 

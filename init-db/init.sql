@@ -97,7 +97,7 @@ CREATE TABLE pago (
     tipo          VARCHAR(20) NOT NULL,          -- INCORPORACION | MENSUALIDAD
     periodo       DATE NOT NULL,
     monto         NUMERIC NOT NULL,
-    canal         VARCHAR(30) NOT NULL,          -- CAJA | PORTAL | ARCHIVO_RECAUDACION
+    canal         VARCHAR(30) NOT NULL,          -- CAJA | PORTAL | 
     metodo        VARCHAR(30),                   -- TARJETA | YAPE | PLIN | EFECTIVO | TRANSFERENCIA
     nro_operacion VARCHAR(40),
     fecha_pago    DATE NOT NULL,

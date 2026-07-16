@@ -21,19 +21,7 @@ export default function AdminLayout() {
         </div>
 
         <nav style={{ flex: 1, padding: '1.5rem 0' }}>
-          <NavLink 
-            to="/admin/home" 
-            className={({isActive}) => isActive ? "admin-nav active" : "admin-nav"}
-            style={({isActive}) => ({
-              display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.5rem', color: isActive ? 'white' : 'rgba(255,255,255,0.7)',
-              background: isActive ? 'rgba(255,255,255,0.1)' : 'transparent', textDecoration: 'none', borderLeft: isActive ? '4px solid var(--cip-red)' : '4px solid transparent', transition: 'all 0.2s'
-            })}
-          >
-            <LayoutDashboard size={20} />
-            <span>Inicio</span>
-          </NavLink>
-
-          <NavLink 
+          <NavLink
             to="/admin/postulaciones" 
             className={({isActive}) => isActive ? "admin-nav active" : "admin-nav"}
             style={({isActive}) => ({
@@ -80,6 +68,18 @@ export default function AdminLayout() {
           >
             <ShieldCheck size={20} />
             <span>Verificar Vouchers</span>
+          </NavLink>
+
+          <NavLink
+            to="/admin/home"
+            className={({isActive}) => isActive ? "admin-nav active" : "admin-nav"}
+            style={({isActive}) => ({
+              display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.5rem', color: isActive ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.35)',
+              background: isActive ? 'rgba(255,255,255,0.06)' : 'transparent', textDecoration: 'none', borderLeft: isActive ? '4px solid rgba(255,255,255,0.2)' : '4px solid transparent', transition: 'all 0.2s'
+            })}
+          >
+            <LayoutDashboard size={18} />
+            <span style={{ fontSize: '0.875rem' }}>Configuración</span>
           </NavLink>
         </nav>
 
