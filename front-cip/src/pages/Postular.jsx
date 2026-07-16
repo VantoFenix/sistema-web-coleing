@@ -34,7 +34,9 @@ export default function Postular() {
   const [foto, setFoto] = useState(null);
   const [fotoInfo, setFotoInfo] = useState('');
   const [titulo, setTitulo] = useState(null);
+  const [tituloInfo, setTituloInfo] = useState('');
   const [recibo, setRecibo] = useState(null);
+  const [reciboInfo, setReciboInfo] = useState('');
 
   const [isValidando, setIsValidando] = useState(false);
   const [dniValidado, setDniValidado] = useState(false);
@@ -92,10 +94,26 @@ export default function Postular() {
     }
   };
 
-  const handleFileChange = (e, setter) => {
-    if (e.target.files && e.target.files[0]) {
-      setter(e.target.files[0]);
+  const handleFileChange = (e, setFile, setInfo, maxSizeMB, allowedTypes, fileDescription) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setInfo('');
+    setSubmitError('');
+
+    if (allowedTypes && !allowedTypes.some(type => file.type.startsWith(type))) {
+      setInfo('Formato de archivo no permitido.');
+      setFile(null);
+      return;
     }
+
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      setInfo(`El archivo supera el límite de ${maxSizeMB} MB.`);
+      setFile(null);
+      return;
+    }
+
+    setFile(file);
+    setInfo(`✓ ${file.name} · ${(file.size / 1024 / 1024).toFixed(1)} MB`);
   };
 
   const handleFotoChange = (e) => {
@@ -274,23 +292,35 @@ export default function Postular() {
               </div>
 
               {/* 2. Título Profesional */}
-              <div className="form-group">
+              <div className="form-group" style={{ marginTop: '1.5rem' }}>
                 <label className="form-label">2. Título Profesional</label>
                 <div className="upload-box">
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
                   <p style={fileNameStyle}>{titulo ? titulo.name : 'Clic para subir documento (PDF)'}</p>
-                  <input type="file" accept=".pdf" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-titulo" onChange={(e) => handleFileChange(e, setTitulo)} />
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Solo formato PDF · máx. 5 MB</p>
+                  {tituloInfo && (
+                    <p style={{ fontSize: '0.72rem', color: tituloInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
+                      {tituloInfo}
+                    </p>
+                  )}
+                  <input type="file" accept=".pdf" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-titulo" onChange={(e) => handleFileChange(e, setTitulo, setTituloInfo, 5, ['application/pdf'], 'Título Profesional')} />
                   <label htmlFor="file-titulo" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
                 </div>
               </div>
 
               {/* 3. Recibo */}
-              <div className="form-group">
+              <div className="form-group" style={{ marginTop: '1.5rem' }}>
                 <label className="form-label">3. Recibo de Pago (S/ 1500.00)</label>
                 <div className="upload-box" style={{ marginBottom: '1rem' }}>
                   <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
                   <p style={fileNameStyle}>{recibo ? recibo.name : 'Clic para subir comprobante (PDF/JPG)'}</p>
-                  <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-recibo" onChange={(e) => handleFileChange(e, setRecibo)} />
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>PDF o Imagen · máx. 5 MB</p>
+                  {reciboInfo && (
+                    <p style={{ fontSize: '0.72rem', color: reciboInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
+                      {reciboInfo}
+                    </p>
+                  )}
+                  <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-recibo" onChange={(e) => handleFileChange(e, setRecibo, setReciboInfo, 5, ['application/pdf', 'image/'], 'Recibo de Pago')} />
                   <label htmlFor="file-recibo" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
                 </div>
                 

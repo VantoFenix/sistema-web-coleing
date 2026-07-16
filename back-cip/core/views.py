@@ -200,12 +200,15 @@ class PublicPostulacionView(APIView):
         nombres = request.data.get('nombres')
         carrera_nombre = request.data.get('carrera')
         sede_nombre = request.data.get('sede')
+        numero_operacion = request.data.get('numero_operacion')
+        fecha_pago = request.data.get('fecha_pago')
+        banco = request.data.get('banco')
 
         foto = request.FILES.get('foto')
         titulo = request.FILES.get('titulo')
         recibo = request.FILES.get('recibo')
 
-        if not all([dni, nombres, carrera_nombre, sede_nombre, foto, titulo, recibo]):
+        if not all([dni, nombres, carrera_nombre, sede_nombre, foto, titulo, recibo, numero_operacion, fecha_pago]):
             return Response({'error': 'Faltan campos o documentos requeridos'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validacion de formatos de archivo
@@ -215,6 +218,13 @@ class PublicPostulacionView(APIView):
             return Response({'error': 'El Título Profesional debe ser un archivo PDF.'}, status=status.HTTP_400_BAD_REQUEST)
         if not (recibo.content_type.startswith('image/') or recibo.content_type == 'application/pdf'):
             return Response({'error': 'El Recibo de Caja debe ser un PDF o una imagen.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validar el comprobante con el Mock del Banco de la Nación
+        if banco == 'BN':
+            from apps.tramites.services import BancoNacionMockService
+            resultado = BancoNacionMockService.verificar_operacion(numero_operacion, fecha_pago)
+            if not resultado["valido"]:
+                return Response({'error': resultado["mensaje"]}, status=status.HTTP_400_BAD_REQUEST)
 
         # Verificar que el DNI no pertenezca a un colegiado ya registrado
         if Colegiado.objects.filter(dni=dni).exists():
