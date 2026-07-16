@@ -55,7 +55,7 @@ export default function Postular() {
     try {
       const response = await fetch(`/api/public/reniec/?dni=${dni}`);
       let data = {};
-      try { data = await response.json(); } catch (_) {}
+      try { data = await response.json(); } catch (_) { }
 
       if (response.ok) {
         setNombres(data.nombre_completo);
@@ -250,34 +250,32 @@ export default function Postular() {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem', alignItems: 'start' }}>
 
-            {/* COLUMNA IZQUIERDA: DOCS 1-3 */}
-            <div style={shadedStyle}>
-              <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Documentos Adjuntos</h3>
+            {/* COLUMNA IZQUIERDA: DOCS 1-2 */}
+            <div style={{ ...shadedStyle, display: 'flex', flexDirection: 'column', gap: '1.5rem', justifyContent: 'space-between' }}>
+              <div>
+                <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Documentos Adjuntos</h3>
 
-              <div className="alert alert-warning" style={{ padding: '0.75rem', fontSize: '0.875rem' }}>
-                <AlertCircle size={16} /> Asegúrese de que los archivos sean legibles.
-              </div>
-
-              {/* 1. Foto */}
-              <div className="form-group" style={{ marginTop: '1.5rem' }}>
-                <label className="form-label">1. Fotografía Tamaño Pasaporte</label>
-                <div className="upload-box">
-                  <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={fileNameStyle}>{foto ? foto.name : 'Seleccione su foto (máx. 2 MB)'}</p>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                    Imagen de identificación · máx. 2 MB
-                  </p>
-                  {fotoInfo && (
-                    <p style={{ fontSize: '0.72rem', color: fotoInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
-                      {fotoInfo}
+                {/* 1. Foto */}
+                <div className="form-group">
+                  <label className="form-label">1. Fotografía Tamaño Pasaporte</label>
+                  <div className="upload-box">
+                    <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
+                    <p style={fileNameStyle}>{foto ? foto.name : 'Seleccione su foto (máx. 2 MB)'}</p>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                      Imagen de identificación · máx. 2 MB
                     </p>
-                  )}
-                  <input type="file" accept="image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-foto" onChange={handleFotoChange} />
-                  <label htmlFor="file-foto" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
+                    {fotoInfo && (
+                      <p style={{ fontSize: '0.72rem', color: fotoInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
+                        {fotoInfo}
+                      </p>
+                    )}
+                    <input type="file" accept="image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-foto" onChange={handleFotoChange} />
+                    <label htmlFor="file-foto" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
+                  </div>
                 </div>
-              </div>
+              </div> {/* <-- AQUÍ SE CIERRA EL DIV ENVOLTORIO DE H3 Y FOTO */}
 
-              {/* 2. Título Profesional */}
+              {/* 2. Título Profesional (Alineado hacia abajo por el flex) */}
               <div className="form-group">
                 <label className="form-label">2. Título Profesional</label>
                 <div className="upload-box">
@@ -285,28 +283,6 @@ export default function Postular() {
                   <p style={fileNameStyle}>{titulo ? titulo.name : 'Clic para subir documento (PDF)'}</p>
                   <input type="file" accept=".pdf" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-titulo" onChange={(e) => handleFileChange(e, setTitulo)} />
                   <label htmlFor="file-titulo" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
-                </div>
-              </div>
-
-              {/* 3. Recibo */}
-              <div className="form-group">
-                <label className="form-label">3. Recibo de Pago (S/ 1500.00)</label>
-                <div className="upload-box" style={{ marginBottom: '1rem' }}>
-                  <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={fileNameStyle}>{recibo ? recibo.name : 'Clic para subir comprobante (PDF/JPG)'}</p>
-                  <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-recibo" onChange={(e) => handleFileChange(e, setRecibo)} />
-                  <label htmlFor="file-recibo" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
-                </div>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'white', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                  <div>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>N° Operación (Banco Nación)</label>
-                    <input type="text" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem' }} placeholder="Ej: 111111" value={numeroOperacion} onChange={e => setNumeroOperacion(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Fecha de Pago</label>
-                    <input type="date" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem' }} value={fechaPago} onChange={e => setFechaPago(e.target.value)} />
-                  </div>
                 </div>
               </div>
             </div>
@@ -375,10 +351,33 @@ export default function Postular() {
                   </div>
                 )}
               </div>
-
-
             </div>
 
+          </div>
+
+          {/* 3. Recibo (Centrado Abajo) */}
+          <div style={{ ...shadedStyle, padding: '1.5rem', marginTop: '3rem', maxWidth: '700px', marginLeft: 'auto', marginRight: 'auto', textAlign: 'center' }}>
+            <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>3. Información de Pago</h3>
+            <div className="form-group" style={{ textAlign: 'left' }}>
+              <label className="form-label">Recibo de Caja (S/ 1500.00)</label>
+              <div className="upload-box" style={{ marginBottom: '1.5rem' }}>
+                <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
+                <p style={fileNameStyle}>{recibo ? recibo.name : 'Clic para subir comprobante (PDF/JPG)'}</p>
+                <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-recibo" onChange={(e) => handleFileChange(e, setRecibo)} />
+                <label htmlFor="file-recibo" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', background: 'white', padding: '1.5rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>N° Operación (Banco Nación)</label>
+                  <input type="text" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem' }} placeholder="Ej: 111111" value={numeroOperacion} onChange={e => setNumeroOperacion(e.target.value)} />
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>Fecha de Pago</label>
+                  <input type="date" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem' }} value={fechaPago} onChange={e => setFechaPago(e.target.value)} />
+                </div>
+              </div>
+            </div>
           </div>
 
           <div style={{ marginTop: '3rem', paddingTop: '2rem', borderTop: '1px solid var(--border-color)', textAlign: 'center' }}>
@@ -398,7 +397,8 @@ export default function Postular() {
         </form>
       </div>
 
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
         .upload-box {
