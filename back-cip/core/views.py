@@ -729,10 +729,10 @@ class PanelDeudoresView(APIView):
         for c in colegiados:
             ultimo_pago = Pago.objects.filter(colegiado=c, tipo='MENSUALIDAD').order_by('-periodo').first()
             if not ultimo_pago:
-                deudores.append({'dni': c.dni, 'nombre': f'{c.apellidos} {c.nombres}'.strip(), 'estado': 'INHABILITADO'})
+                deudores.append({'dni': c.dni, 'nombre': c.nombres, 'estado': 'INHABILITADO'})
             else:
                 if ultimo_pago.periodo.month < mes_actual and ultimo_pago.periodo.year <= anio_actual:
-                    deudores.append({'dni': c.dni, 'nombre': f'{c.apellidos} {c.nombres}'.strip(), 'estado': 'INHABILITADO'})
+                    deudores.append({'dni': c.dni, 'nombre': c.nombres, 'estado': 'INHABILITADO'})
 
         return Response(deudores)
 
