@@ -4,6 +4,13 @@ from django.conf import settings
 from django.conf.urls.static import static
 from . import views
 
+from rest_framework.routers import DefaultRouter
+
+router = DefaultRouter()
+router.register(r'api/master/sedes', views.SedeViewSet, basename='master-sedes')
+router.register(r'api/master/carreras', views.CarreraViewSet, basename='master-carreras')
+router.register(r'api/master/usuarios', views.AdministradorViewSet, basename='master-usuarios')
+
 urlpatterns = [
     path('django-admin/', admin.site.urls),
     
@@ -59,3 +66,4 @@ urlpatterns = [
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+urlpatterns += router.urls
