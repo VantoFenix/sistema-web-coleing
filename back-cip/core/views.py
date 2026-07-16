@@ -463,6 +463,9 @@ class AdminResolverSolicitudView(APIView):
             return Response({'success': True, 'estado': 'RECHAZADA'})
 
         elif accion == 'APROBAR':
+            if solicitud.numero_operacion and Solicitud.objects.filter(numero_operacion=solicitud.numero_operacion, estado='APROBADA').exclude(pk=solicitud.pk).exists():
+                return Response({'error': 'El número de operación de este voucher ya fue validado en otra solicitud aprobada. Debe rechazar esta solicitud.'}, status=status.HTTP_409_CONFLICT)
+                
             import sys
 
             try:
