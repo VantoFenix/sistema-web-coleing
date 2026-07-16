@@ -237,10 +237,10 @@ class PublicPostulacionView(APIView):
                 status=status.HTTP_409_CONFLICT
             )
             
-        # Verificar que el número de operación no haya sido usado en otra solicitud activa o aprobada
-        if Solicitud.objects.filter(numero_operacion=numero_operacion).exclude(estado='RECHAZADA').exists():
+        # Verificar que el número de operación no haya sido usado y validado en una postulación aprobada
+        if Solicitud.objects.filter(numero_operacion=numero_operacion, estado='APROBADA').exists():
             return Response(
-                {'error': 'Este número de operación ya ha sido registrado en otra postulación. Por favor verifique sus datos.'},
+                {'error': 'Este número de operación ya ha sido validado y utilizado en una postulación exitosa.'},
                 status=status.HTTP_409_CONFLICT
             )
 
