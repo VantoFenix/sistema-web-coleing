@@ -707,6 +707,34 @@ def _meses_entre(inicio, fin):
     return resultado
 
 
+class PanelDeudoresView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        admin = request.user
+        if getattr(admin, 'rol', None) != 'CAJERO':
+            return Response({'error': 'Solo el cajero puede ver deudores'}, status=403)
+
+        colegiados = Colegiado.objects.all()
+        if admin.sede:
+            colegiados = colegiados.filter(sede=admin.sede)
+
+        from django.utils import timezone
+        now = timezone.now()
+        mes_actual = now.month
+        anio_actual = now.year
+
+        deudores = []
+        for c in colegiados:
+            ultimo_pago = Pago.objects.filter(colegiado=c, concepto__icontains='Mensualidad', pagado=True).order_by('-fecha_pago').first()
+            if not ultimo_pago:
+                deudores.append({'dni': c.dni, 'nombre': f'{c.apellidos} {c.nombres}'.strip(), 'estado': 'INHABILITADO'})
+            else:
+                if ultimo_pago.fecha_pago.month < mes_actual and ultimo_pago.fecha_pago.year <= anio_actual:
+                    deudores.append({'dni': c.dni, 'nombre': f'{c.apellidos} {c.nombres}'.strip(), 'estado': 'INHABILITADO'})
+
+        return Response(deudores)
+
 class AdminBuscarColegiadoView(APIView):
     """Busca colegiados por DNI, nombre o número de colegiado."""
     authentication_classes = []
