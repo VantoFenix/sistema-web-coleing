@@ -38,8 +38,8 @@ export default function AdminUsuarios() {
       if (resUsuarios.ok && resSedes.ok) {
         const dataUsuarios = await resUsuarios.json();
         const dataSedes = await resSedes.json();
-        setUsuarios(dataUsuarios);
-        setSedes(dataSedes);
+        setUsuarios(dataUsuarios.results ? dataUsuarios.results : dataUsuarios);
+        setSedes(dataSedes.results ? dataSedes.results : dataSedes);
       } else {
         setErrorFetch('Error al cargar los datos.');
       }

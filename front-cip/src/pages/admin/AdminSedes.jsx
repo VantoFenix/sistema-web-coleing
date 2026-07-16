@@ -25,7 +25,7 @@ export default function AdminSedes() {
       });
       if (res.ok) {
         const data = await res.json();
-        setSedes(data);
+        setSedes(data.results ? data.results : data);
       } else {
         setErrorFetch('Error al cargar las sedes.');
       }

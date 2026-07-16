@@ -25,7 +25,7 @@ export default function AdminCarreras() {
       });
       if (res.ok) {
         const data = await res.json();
-        setCarreras(data);
+        setCarreras(data.results ? data.results : data);
       } else {
         setErrorFetch('Error al cargar las carreras.');
       }
