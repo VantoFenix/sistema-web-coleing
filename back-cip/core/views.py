@@ -303,17 +303,6 @@ class PublicActualizarPostulacionView(APIView):
         try:
             sol = Solicitud.objects.get(pk=pk, estado='RECHAZADA')
             return Response({
-                'dni': sol.dni,
-                'nombres': sol.nombres,
-                'carrera': sol.carrera.nombre if sol.carrera else '',
-                'sede': sol.sede.nombre if sol.sede else '',
-                'numero_operacion': sol.numero_operacion,
-                'fecha_pago': sol.fecha_pago,
-                'correo': sol.correo,
-                'celular': sol.celular,
-                'foto_url': sol.foto_url,
-                'titulo_pdf_url': sol.titulo_pdf_url,
-                'recibo_pago_url': sol.recibo_pago_url,
                 'motivo_rechazo': sol.motivo_rechazo
             })
         except Solicitud.DoesNotExist:
