@@ -314,10 +314,8 @@ export default function AdminPagoPresencial() {
     // Auto-trigger print dialog after a short delay
     setTimeout(() => win.print(), 600);
   };
-=======
->>>>>>> feature/final
 
-const handleNuevoPago = () => {
+  const handleNuevoPago = () => {
     setColegiado(null); setDeuda(null); setResultado(null);
     setQuery(''); setResultados(null); setErrBusqueda(''); setErrForm('');
     setTimeout(() => searchRef.current?.focus(), 100);
