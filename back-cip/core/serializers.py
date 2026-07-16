@@ -4,12 +4,12 @@ from .models import Carrera, Sede, Colegiado, Administrador, Solicitud
 class SedeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sede
-        fields = ['id', 'nombre']
+        fields = ['id', 'nombre', 'activo']
 
 class CarreraSerializer(serializers.ModelSerializer):
     class Meta:
         model = Carrera
-        fields = ['id', 'nombre']
+        fields = ['id', 'nombre', 'activo']
 
 class ColegiadoSerializer(serializers.ModelSerializer):
     carrera = CarreraSerializer(read_only=True)

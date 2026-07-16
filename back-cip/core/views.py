@@ -746,16 +746,19 @@ class SedeViewSet(ModelViewSet):
     queryset = Sede.objects.all()
     serializer_class = SedeSerializer
     permission_classes = [MasterAdminPermission]
+    pagination_class = None
 
 class CarreraViewSet(ModelViewSet):
     queryset = Carrera.objects.all()
     serializer_class = CarreraSerializer
     permission_classes = [MasterAdminPermission]
+    pagination_class = None
 
 class AdministradorViewSet(ModelViewSet):
     queryset = Administrador.objects.all()
     serializer_class = AdministradorCRUDSerializer
     permission_classes = [MasterAdminPermission]
+    pagination_class = None
 
 class AdminBuscarColegiadoView(APIView):
     """Busca colegiados por DNI, nombre o número de colegiado."""

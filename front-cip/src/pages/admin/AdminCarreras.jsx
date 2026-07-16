@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, Plus, Loader2 } from 'lucide-react';
+import { BookOpen, Plus, Loader2, Edit, Power, PowerOff } from 'lucide-react';
 
 export default function AdminCarreras() {
   const [carreras, setCarreras] = useState([]);
@@ -8,6 +8,7 @@ export default function AdminCarreras() {
   
   // Modal state
   const [showModal, setShowModal] = useState(false);
+  const [carreraEditando, setCarreraEditando] = useState(null);
   const [nombreCarrera, setNombreCarrera] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [errorGuardar, setErrorGuardar] = useState('');
@@ -36,7 +37,14 @@ export default function AdminCarreras() {
     }
   };
 
-  const handleCrearCarrera = async (e) => {
+  const handleOpenModal = (carrera = null) => {
+    setCarreraEditando(carrera);
+    setNombreCarrera(carrera ? carrera.nombre : '');
+    setErrorGuardar('');
+    setShowModal(true);
+  };
+
+  const handleGuardarCarrera = async (e) => {
     e.preventDefault();
     if (!nombreCarrera.trim()) return;
 
@@ -45,8 +53,11 @@ export default function AdminCarreras() {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch('/api/master/carreras/', {
-        method: 'POST',
+      const url = carreraEditando ? `/api/master/carreras/${carreraEditando.id}/` : '/api/master/carreras/';
+      const method = carreraEditando ? 'PATCH' : 'POST';
+      
+      const res = await fetch(url, {
+        method,
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -55,16 +66,39 @@ export default function AdminCarreras() {
       });
 
       if (res.ok) {
-        setNombreCarrera('');
         setShowModal(false);
         fetchCarreras();
       } else {
-        setErrorGuardar('Error al crear la carrera.');
+        setErrorGuardar(carreraEditando ? 'Error al actualizar la carrera.' : 'Error al crear la carrera.');
       }
     } catch (e) {
       setErrorGuardar('Error de conexión.');
     } finally {
       setGuardando(false);
+    }
+  };
+
+  const handleToggleEstado = async (carrera) => {
+    if (!window.confirm(`¿Seguro que deseas ${carrera.activo ? 'deshabilitar' : 'habilitar'} la carrera "${carrera.nombre}"?`)) return;
+    
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`/api/master/carreras/${carrera.id}/`, {
+        method: 'PATCH',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ activo: !carrera.activo })
+      });
+
+      if (res.ok) {
+        fetchCarreras();
+      } else {
+        alert('Error al cambiar el estado de la carrera.');
+      }
+    } catch (e) {
+      alert('Error de conexión.');
     }
   };
 
@@ -80,7 +114,7 @@ export default function AdminCarreras() {
             Administra las ingenierías y especialidades registradas.
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <button className="btn btn-primary" onClick={() => handleOpenModal()} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Plus size={20} />
           Nueva Carrera
         </button>
@@ -101,20 +135,47 @@ export default function AdminCarreras() {
               <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0' }}>
                 <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600', color: 'var(--cip-blue)' }}>ID</th>
                 <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600', color: 'var(--cip-blue)' }}>Nombre de Carrera</th>
+                <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600', color: 'var(--cip-blue)' }}>Estado</th>
+                <th style={{ padding: '1rem', textAlign: 'right', fontWeight: '600', color: 'var(--cip-blue)' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {carreras.length === 0 ? (
                 <tr>
-                  <td colSpan="2" style={{ padding: '2rem', textAlign: 'center', color: '#64748B' }}>
+                  <td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: '#64748B' }}>
                     No hay carreras registradas.
                   </td>
                 </tr>
               ) : (
                 carreras.map(carrera => (
-                  <tr key={carrera.id} style={{ borderBottom: '1px solid #E2E8F0' }}>
+                  <tr key={carrera.id} style={{ borderBottom: '1px solid #E2E8F0', opacity: carrera.activo ? 1 : 0.6 }}>
                     <td style={{ padding: '1rem', color: '#64748B' }}>#{carrera.id}</td>
                     <td style={{ padding: '1rem', fontWeight: '500' }}>{carrera.nombre}</td>
+                    <td style={{ padding: '1rem' }}>
+                      {carrera.activo ? (
+                        <span style={{ background: '#D1FAE5', color: '#065F46', padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '600' }}>ACTIVA</span>
+                      ) : (
+                        <span style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '600' }}>INACTIVA</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '1rem', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                        <button 
+                          onClick={() => handleOpenModal(carrera)}
+                          style={{ background: '#E0F2FE', color: '#0369A1', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                          title="Editar"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button 
+                          onClick={() => handleToggleEstado(carrera)}
+                          style={{ background: carrera.activo ? '#FEE2E2' : '#D1FAE5', color: carrera.activo ? '#991B1B' : '#065F46', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                          title={carrera.activo ? 'Deshabilitar' : 'Habilitar'}
+                        >
+                          {carrera.activo ? <PowerOff size={16} /> : <Power size={16} />}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -130,7 +191,7 @@ export default function AdminCarreras() {
         }}>
           <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', color: 'var(--cip-blue)' }}>
-              Registrar Nueva Carrera
+              {carreraEditando ? 'Editar Carrera' : 'Registrar Nueva Carrera'}
             </h2>
             
             {errorGuardar && (
@@ -139,7 +200,7 @@ export default function AdminCarreras() {
               </div>
             )}
 
-            <form onSubmit={handleCrearCarrera}>
+            <form onSubmit={handleGuardarCarrera}>
               <div className="form-group" style={{ marginBottom: '1.5rem' }}>
                 <label className="form-label">Nombre de la Carrera</label>
                 <input 
@@ -157,7 +218,7 @@ export default function AdminCarreras() {
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={guardando}>
-                  {guardando ? 'Guardando...' : 'Guardar Carrera'}
+                  {guardando ? 'Guardando...' : (carreraEditando ? 'Actualizar' : 'Guardar Carrera')}
                 </button>
               </div>
             </form>

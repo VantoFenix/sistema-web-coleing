@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Plus, Loader2 } from 'lucide-react';
+import { Users, Plus, Loader2, Edit, Power, PowerOff } from 'lucide-react';
 
 export default function AdminUsuarios() {
   const [usuarios, setUsuarios] = useState([]);
@@ -9,6 +9,7 @@ export default function AdminUsuarios() {
   
   // Modal state
   const [showModal, setShowModal] = useState(false);
+  const [usuarioEditando, setUsuarioEditando] = useState(null);
   const [formData, setFormData] = useState({
     usuario: '',
     password: '',
@@ -50,31 +51,54 @@ export default function AdminUsuarios() {
     }
   };
 
+  const handleOpenModal = (user = null) => {
+    setUsuarioEditando(user);
+    if (user) {
+      setFormData({
+        usuario: user.usuario,
+        password: '', // Never show hashed password
+        nombres: user.nombres,
+        correo: user.correo,
+        rol: user.rol,
+        sede: user.sede || ''
+      });
+    } else {
+      setFormData({ usuario: '', password: '', nombres: '', correo: '', rol: 'ADMIN', sede: '' });
+    }
+    setErrorGuardar('');
+    setShowModal(true);
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleCrearUsuario = async (e) => {
+  const handleGuardarUsuario = async (e) => {
     e.preventDefault();
     setGuardando(true);
     setErrorGuardar('');
 
-    // Preparamos payload (sede puede ser nula)
     const payload = {
       usuario: formData.usuario.trim(),
-      password: formData.password,
       nombres: formData.nombres.trim(),
       correo: formData.correo.trim(),
       rol: formData.rol,
       sede: formData.sede ? parseInt(formData.sede) : null,
-      activo: true
     };
+    
+    // Solo enviamos password si es nuevo o si se escribio algo para cambiarlo
+    if (formData.password) {
+      payload.password = formData.password;
+    }
 
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch('/api/master/usuarios/', {
-        method: 'POST',
+      const url = usuarioEditando ? `/api/master/usuarios/${usuarioEditando.id}/` : '/api/master/usuarios/';
+      const method = usuarioEditando ? 'PATCH' : 'POST';
+      
+      const res = await fetch(url, {
+        method,
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -84,11 +108,10 @@ export default function AdminUsuarios() {
 
       if (res.ok) {
         setShowModal(false);
-        setFormData({ usuario: '', password: '', nombres: '', correo: '', rol: 'ADMIN', sede: '' });
-        fetchData(); // Recargamos para ver el nuevo usuario
+        fetchData();
       } else {
         const errData = await res.json();
-        setErrorGuardar(JSON.stringify(errData) || 'Error al crear el usuario.');
+        setErrorGuardar(JSON.stringify(errData) || 'Error al guardar el usuario.');
       }
     } catch (e) {
       setErrorGuardar('Error de conexión.');
@@ -97,7 +120,30 @@ export default function AdminUsuarios() {
     }
   };
 
-  // Helper para buscar nombre de sede
+  const handleToggleEstado = async (user) => {
+    if (!window.confirm(`¿Seguro que deseas ${user.activo ? 'deshabilitar' : 'habilitar'} al usuario "${user.usuario}"?`)) return;
+    
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`/api/master/usuarios/${user.id}/`, {
+        method: 'PATCH',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ activo: !user.activo })
+      });
+
+      if (res.ok) {
+        fetchData();
+      } else {
+        alert('Error al cambiar el estado del usuario.');
+      }
+    } catch (e) {
+      alert('Error de conexión.');
+    }
+  };
+
   const getSedeNombre = (sedeId) => {
     if (!sedeId) return 'Global (Sin Sede)';
     const s = sedes.find(x => x.id === sedeId);
@@ -116,7 +162,7 @@ export default function AdminUsuarios() {
             Administra a los jefes de sede y cajeros del sistema.
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <button className="btn btn-primary" onClick={() => handleOpenModal()} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Plus size={20} />
           Nuevo Usuario
         </button>
@@ -140,18 +186,19 @@ export default function AdminUsuarios() {
                 <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600', color: 'var(--cip-blue)' }}>Rol</th>
                 <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600', color: 'var(--cip-blue)' }}>Sede</th>
                 <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600', color: 'var(--cip-blue)' }}>Estado</th>
+                <th style={{ padding: '1rem', textAlign: 'right', fontWeight: '600', color: 'var(--cip-blue)' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {usuarios.length === 0 ? (
                 <tr>
-                  <td colSpan="5" style={{ padding: '2rem', textAlign: 'center', color: '#64748B' }}>
+                  <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: '#64748B' }}>
                     No hay usuarios registrados.
                   </td>
                 </tr>
               ) : (
                 usuarios.map(user => (
-                  <tr key={user.id} style={{ borderBottom: '1px solid #E2E8F0' }}>
+                  <tr key={user.id} style={{ borderBottom: '1px solid #E2E8F0', opacity: user.activo ? 1 : 0.6 }}>
                     <td style={{ padding: '1rem', fontWeight: '500' }}>{user.usuario}</td>
                     <td style={{ padding: '1rem' }}>{user.nombres}<br/><span style={{fontSize: '0.875rem', color: '#64748B'}}>{user.correo}</span></td>
                     <td style={{ padding: '1rem' }}>
@@ -166,9 +213,29 @@ export default function AdminUsuarios() {
                     <td style={{ padding: '1rem', color: '#64748B' }}>{getSedeNombre(user.sede)}</td>
                     <td style={{ padding: '1rem' }}>
                       {user.activo ? 
-                        <span style={{ color: '#10B981', fontWeight: '500' }}>Activo</span> : 
-                        <span style={{ color: '#EF4444', fontWeight: '500' }}>Inactivo</span>
+                        <span style={{ color: '#10B981', fontWeight: '500', fontSize: '0.875rem' }}>Activo</span> : 
+                        <span style={{ color: '#EF4444', fontWeight: '500', fontSize: '0.875rem' }}>Inactivo</span>
                       }
+                    </td>
+                    <td style={{ padding: '1rem', textAlign: 'right' }}>
+                      {user.rol !== 'MASTER_ADMIN' && (
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                          <button 
+                            onClick={() => handleOpenModal(user)}
+                            style={{ background: '#E0F2FE', color: '#0369A1', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                            title="Editar"
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleToggleEstado(user)}
+                            style={{ background: user.activo ? '#FEE2E2' : '#D1FAE5', color: user.activo ? '#991B1B' : '#065F46', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                            title={user.activo ? 'Deshabilitar' : 'Habilitar'}
+                          >
+                            {user.activo ? <PowerOff size={16} /> : <Power size={16} />}
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -185,7 +252,7 @@ export default function AdminUsuarios() {
         }}>
           <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '100%', maxWidth: '500px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', maxHeight: '90vh', overflowY: 'auto' }}>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', color: 'var(--cip-blue)' }}>
-              Registrar Nuevo Usuario
+              {usuarioEditando ? 'Editar Usuario' : 'Registrar Nuevo Usuario'}
             </h2>
             
             {errorGuardar && (
@@ -194,15 +261,25 @@ export default function AdminUsuarios() {
               </div>
             )}
 
-            <form onSubmit={handleCrearUsuario}>
+            <form onSubmit={handleGuardarUsuario}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div className="form-group">
                   <label className="form-label">Usuario</label>
                   <input type="text" name="usuario" className="form-input" value={formData.usuario} onChange={handleChange} required />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Contraseña</label>
-                  <input type="password" name="password" className="form-input" value={formData.password} onChange={handleChange} required />
+                  <label className="form-label">
+                    Contraseña {usuarioEditando && <span style={{fontSize: '0.75rem', fontWeight: 'normal', color: '#64748B'}}>(Dejar en blanco para no cambiar)</span>}
+                  </label>
+                  <input 
+                    type="password" 
+                    name="password" 
+                    className="form-input" 
+                    value={formData.password} 
+                    onChange={handleChange} 
+                    required={!usuarioEditando} 
+                    placeholder={usuarioEditando ? '******' : ''}
+                  />
                 </div>
               </div>
 
@@ -229,7 +306,7 @@ export default function AdminUsuarios() {
                   <label className="form-label">Sede Asignada</label>
                   <select name="sede" className="form-input" value={formData.sede} onChange={handleChange}>
                     <option value="">-- Global / Sin Sede --</option>
-                    {sedes.map(s => (
+                    {sedes.filter(s => s.activo).map(s => (
                       <option key={s.id} value={s.id}>{s.nombre}</option>
                     ))}
                   </select>
@@ -241,7 +318,7 @@ export default function AdminUsuarios() {
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={guardando}>
-                  {guardando ? 'Guardando...' : 'Crear Usuario'}
+                  {guardando ? 'Guardando...' : (usuarioEditando ? 'Actualizar' : 'Crear Usuario')}
                 </button>
               </div>
             </form>
