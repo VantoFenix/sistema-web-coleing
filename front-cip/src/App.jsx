@@ -13,6 +13,7 @@ import AdminPostulaciones from './pages/admin/AdminPostulaciones';
 import AdminPresencial from './pages/admin/AdminPresencial';
 import AdminPagoPresencial from './pages/admin/AdminPagoPresencial';
 import AdminVouchers from './pages/admin/AdminVouchers';
+import AdminDeudores from './pages/admin/AdminDeudores';
 
 function App() {
   return (
@@ -38,6 +39,7 @@ function App() {
           <Route path="pagos-presencial" element={<AdminPagoPresencial />} />
           <Route path="presencial" element={<AdminPresencial />} />
           <Route path="vouchers" element={<AdminVouchers />} />
+          <Route path="deudores" element={<AdminDeudores />} />
         </Route>
       </Routes>
     </BrowserRouter>
