@@ -57,7 +57,6 @@ export default function AdminLayout() {
             <>
               <NavItem to="/admin/postulaciones" icon={FileText} label="Postulaciones" />
               <NavItem to="/admin/vouchers" icon={ShieldCheck} label="Verificar Vouchers" />
-              <NavItem to="/admin/home" icon={LayoutDashboard} label="Configuración" />
             </>
           )}
 

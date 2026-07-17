@@ -24,7 +24,16 @@ export default function AdminLogin() {
           localStorage.setItem('adminUser', JSON.stringify(data.user));
           localStorage.setItem('adminRole', data.role);
           localStorage.setItem('adminSede', data.sede_nombre);
-          navigate('/admin/home');
+          
+          if (data.role === 'MASTER_ADMIN') {
+            navigate('/admin/home');
+          } else if (data.role === 'ADMIN') {
+            navigate('/admin/postulaciones');
+          } else if (data.role === 'CAJERO') {
+            navigate('/admin/deudores');
+          } else {
+            navigate('/admin/home');
+          }
         } else {
           setErrorMsg('Credenciales inválidas o cuenta inhabilitada. Contacte al administrador.');
         }
