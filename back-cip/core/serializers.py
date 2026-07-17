@@ -21,18 +21,35 @@ class ColegiadoSerializer(serializers.ModelSerializer):
                   'sede', 'foto_url', 'activo', 'colegiado_desde']
 
 class AdministradorSerializer(serializers.ModelSerializer):
+    estado_display = serializers.SerializerMethodField()
+
     class Meta:
         model = Administrador
-        fields = ['id', 'usuario', 'correo', 'nombres']
+        fields = ['id', 'usuario', 'correo', 'nombres', 'estado_display']
+
+    def get_estado_display(self, obj):
+        if not obj.cuenta_confirmada:
+            return 'PENDIENTE'
+        if obj.activo:
+            return 'ACTIVO'
+        return 'INHABILITADO'
 
 from django.contrib.auth.hashers import make_password
 
 class AdministradorCRUDSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False)
+    estado_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Administrador
-        fields = ['id', 'usuario', 'correo', 'nombres', 'rol', 'sede', 'activo', 'password']
+        fields = ['id', 'usuario', 'correo', 'nombres', 'rol', 'sede', 'activo', 'cuenta_confirmada', 'estado_display', 'password']
+        
+    def get_estado_display(self, obj):
+        if not obj.cuenta_confirmada:
+            return 'PENDIENTE'
+        if obj.activo:
+            return 'ACTIVO'
+        return 'INHABILITADO'
         
     def create(self, validated_data):
         if 'password' in validated_data:

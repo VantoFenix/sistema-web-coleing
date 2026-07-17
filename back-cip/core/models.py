@@ -36,6 +36,7 @@ class Administrador(models.Model):
     rol          = models.CharField(max_length=20, choices=ROLES, default='ADMIN')
     sede         = models.ForeignKey(Sede, on_delete=models.DO_NOTHING, null=True, blank=True)
     activo       = models.BooleanField(default=True)
+    cuenta_confirmada = models.BooleanField(default=True)
     creado_en    = models.DateTimeField(default=timezone.now)
 
     class Meta:

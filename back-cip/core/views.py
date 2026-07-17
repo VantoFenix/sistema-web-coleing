@@ -819,7 +819,9 @@ class PasswordResetConfirmView(APIView):
             token_user = _prepare_user_for_token(user)
             if default_token_generator.check_token(token_user, token):
                 user.password_hash = make_password(new_password)
-                user.save(update_fields=['password_hash'])
+                user.activo = True
+                user.cuenta_confirmada = True
+                user.save(update_fields=['password_hash', 'activo', 'cuenta_confirmada'])
                 return Response({'success': 'Contraseña actualizada correctamente.'})
 
         return Response({'error': 'Enlace inválido o expirado'}, status=status.HTTP_400_BAD_REQUEST)
@@ -832,7 +834,7 @@ class AdministradorViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         random_pwd = uuid.uuid4().hex
-        user = serializer.save(password_hash=make_password(random_pwd), activo=False)
+        user = serializer.save(password_hash=make_password(random_pwd), activo=False, cuenta_confirmada=False)
         
         token_user = _prepare_user_for_token(user)
         token = default_token_generator.make_token(token_user)
