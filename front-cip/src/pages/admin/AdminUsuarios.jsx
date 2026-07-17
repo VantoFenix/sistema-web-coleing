@@ -156,17 +156,28 @@ export default function AdminUsuarios() {
     
     try {
       const token = localStorage.getItem('adminToken');
+      const nuevoEstado = !user.activo;
       const res = await fetch(`/api/master/usuarios/${user.id}/`, {
         method: 'PATCH',
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ activo: !user.activo })
+        body: JSON.stringify({ activo: nuevoEstado })
       });
 
       if (res.ok) {
-        fetchData();
+        setUsuarios(prev => prev.map(u => {
+          if (u.id === user.id) {
+            return {
+              ...u,
+              activo: nuevoEstado,
+              sede: nuevoEstado ? u.sede : null,
+              estado_display: nuevoEstado ? 'ACTIVO' : 'INHABILITADO'
+            };
+          }
+          return u;
+        }));
       } else {
         alert('Error al cambiar el estado del usuario.');
       }
