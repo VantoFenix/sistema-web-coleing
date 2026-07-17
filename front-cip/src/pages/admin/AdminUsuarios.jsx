@@ -242,7 +242,7 @@ export default function AdminUsuarios() {
                       {user.estado_display === 'INHABILITADO' && <span style={{ color: '#EF4444', fontWeight: '500', fontSize: '0.875rem' }}>INHABILITADO</span>}
                     </td>
                     <td style={{ padding: '1rem', textAlign: 'right' }}>
-                      {user.rol !== 'MASTER_ADMIN' && (
+                      {user.rol !== 'MASTER_ADMIN' && user.estado_display !== 'PENDIENTE' && (
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                           <button 
                             onClick={() => handleOpenModal(user)}
@@ -251,15 +251,13 @@ export default function AdminUsuarios() {
                           >
                             <Edit size={16} />
                           </button>
-                          {user.estado_display !== 'PENDIENTE' && (
-                            <button 
-                              onClick={() => handleToggleEstado(user)}
-                              style={{ background: user.activo ? '#FEE2E2' : '#D1FAE5', color: user.activo ? '#991B1B' : '#065F46', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                              title={user.activo ? 'Deshabilitar' : 'Habilitar'}
-                            >
-                              {user.activo ? <PowerOff size={16} /> : <Power size={16} />}
-                            </button>
-                          )}
+                          <button 
+                            onClick={() => handleToggleEstado(user)}
+                            style={{ background: user.activo ? '#FEE2E2' : '#D1FAE5', color: user.activo ? '#991B1B' : '#065F46', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                            title={user.activo ? 'Deshabilitar' : 'Habilitar'}
+                          >
+                            {user.activo ? <PowerOff size={16} /> : <Power size={16} />}
+                          </button>
                         </div>
                       )}
                     </td>
