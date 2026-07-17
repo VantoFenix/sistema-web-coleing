@@ -47,6 +47,8 @@ class AuthLoginView(APIView):
             admin = (Administrador.objects.filter(correo=username).first()
                      or Administrador.objects.filter(usuario=username).first())
             if admin and check_password(password, admin.password_hash):
+                if not admin.activo:
+                    return Response({"detail": "Su cuenta está inhabilitada. Contacte al administrador."}, status=status.HTTP_401_UNAUTHORIZED)
                 token = generate_jwt(admin.id, admin.rol)
                 return Response({
                     'token': token,
