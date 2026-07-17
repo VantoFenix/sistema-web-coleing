@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Plus, Loader2, Edit, Power, PowerOff } from 'lucide-react';
+import { Users, Plus, Loader2, Edit, Power, PowerOff, Trash2 } from 'lucide-react';
 
 export default function AdminUsuarios() {
   const [usuarios, setUsuarios] = useState([]);
@@ -186,6 +186,35 @@ export default function AdminUsuarios() {
     }
   };
 
+  const esExpirado = (fecha_creacion) => {
+    if (!fecha_creacion) return false;
+    const past = new Date(fecha_creacion).getTime();
+    const now = Date.now();
+    return (now - past) > 10 * 60 * 1000;
+  };
+
+  const handleEliminarUsuario = async (user) => {
+    if (!window.confirm(`¿Seguro que deseas ELIMINAR permanentemente la invitación expirada de "${user.usuario}"?`)) return;
+    
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`/api/master/usuarios/${user.id}/`, {
+        method: 'DELETE',
+        headers: { 
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (res.ok) {
+        setUsuarios(prev => prev.filter(u => u.id !== user.id));
+      } else {
+        alert('Error al eliminar el usuario.');
+      }
+    } catch (e) {
+      alert('Error de conexión.');
+    }
+  };
+
   const getSedeNombre = (sedeId) => {
     if (!sedeId) return 'Global (Sin Sede)';
     const s = sedes.find(x => x.id === sedeId);
@@ -254,27 +283,48 @@ export default function AdminUsuarios() {
                     </td>
                     <td style={{ padding: '1rem', color: '#64748B' }}>{getSedeNombre(user.sede)}</td>
                     <td style={{ padding: '1rem' }}>
-                      {user.estado_display === 'PENDIENTE' && <span style={{ background: '#FEF3C7', color: '#92400E', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 'bold' }}>PENDIENTE</span>}
+                      {user.estado_display === 'PENDIENTE' && (
+                        <span style={{ 
+                          background: esExpirado(user.fecha_creacion) ? '#FEE2E2' : '#FEF3C7', 
+                          color: esExpirado(user.fecha_creacion) ? '#991B1B' : '#92400E', 
+                          padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 'bold' 
+                        }}>
+                          {esExpirado(user.fecha_creacion) ? 'EXPIRADO' : 'PENDIENTE'}
+                        </span>
+                      )}
                       {user.estado_display === 'ACTIVO' && <span style={{ color: '#10B981', fontWeight: '500', fontSize: '0.875rem' }}>ACTIVO</span>}
                       {user.estado_display === 'INHABILITADO' && <span style={{ color: '#EF4444', fontWeight: '500', fontSize: '0.875rem' }}>INHABILITADO</span>}
                     </td>
                     <td style={{ padding: '1rem', textAlign: 'right' }}>
-                      {user.rol !== 'MASTER_ADMIN' && user.estado_display !== 'PENDIENTE' && (
+                      {user.rol !== 'MASTER_ADMIN' && (
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                          <button 
-                            onClick={() => handleOpenModal(user)}
-                            style={{ background: '#E0F2FE', color: '#0369A1', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                            title="Editar"
-                          >
-                            <Edit size={16} />
-                          </button>
-                          <button 
-                            onClick={() => handleToggleEstado(user)}
-                            style={{ background: user.activo ? '#FEE2E2' : '#D1FAE5', color: user.activo ? '#991B1B' : '#065F46', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                            title={user.activo ? 'Deshabilitar' : 'Habilitar'}
-                          >
-                            {user.activo ? <PowerOff size={16} /> : <Power size={16} />}
-                          </button>
+                          {user.estado_display !== 'PENDIENTE' && (
+                            <>
+                              <button 
+                                onClick={() => handleOpenModal(user)}
+                                style={{ background: '#E0F2FE', color: '#0369A1', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                title="Editar"
+                              >
+                                <Edit size={16} />
+                              </button>
+                              <button 
+                                onClick={() => handleToggleEstado(user)}
+                                style={{ background: user.activo ? '#FEE2E2' : '#D1FAE5', color: user.activo ? '#991B1B' : '#065F46', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                title={user.activo ? 'Deshabilitar' : 'Habilitar'}
+                              >
+                                {user.activo ? <PowerOff size={16} /> : <Power size={16} />}
+                              </button>
+                            </>
+                          )}
+                          {user.estado_display === 'PENDIENTE' && esExpirado(user.fecha_creacion) && (
+                            <button 
+                              onClick={() => handleEliminarUsuario(user)}
+                              style={{ background: '#FEE2E2', color: '#991B1B', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                              title="Eliminar expirado"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         </div>
                       )}
                     </td>
