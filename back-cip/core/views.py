@@ -14,6 +14,11 @@ import os
 import uuid
 from datetime import datetime, date
 from django.conf import settings
+from django.core.mail import send_mail
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
+from django.contrib.auth.hashers import make_password
 
 from .models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago, PagoVoucherPendiente, Configuracion
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -756,11 +761,91 @@ class CarreraViewSet(ModelViewSet):
     permission_classes = [MasterAdminPermission]
     pagination_class = None
 
+def _prepare_user_for_token(user):
+    user.password = user.password_hash
+    user.last_login = None
+    user.get_email_field_name = lambda: 'correo'
+    return user
+
+class PasswordResetRequestView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        correo = request.data.get('correo')
+        if not correo:
+            return Response({'error': 'Correo requerido'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user = Administrador.objects.filter(correo=correo).first()
+        if user:
+            token_user = _prepare_user_for_token(user)
+            token = default_token_generator.make_token(token_user)
+            uid = urlsafe_base64_encode(force_bytes(user.id))
+            link = f"http://localhost:5173/reset-password/{uid}/{token}/"
+            
+            try:
+                send_mail(
+                    'Restablecer o Configurar Contraseña',
+                    f'Haga clic en el siguiente enlace para configurar su contraseña:\n{link}',
+                    settings.DEFAULT_FROM_EMAIL or 'admin@cip.com',
+                    [correo],
+                    fail_silently=True,
+                )
+            except Exception as e:
+                import sys
+                print(f"[EMAIL ERROR] {e}", file=sys.stderr)
+
+        return Response({'success': 'Si el correo existe, se enviará un enlace de recuperación.'})
+
+class PasswordResetConfirmView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request, uidb64, token):
+        new_password = request.data.get('new_password')
+        if not new_password:
+            return Response({'error': 'Nueva contraseña requerida'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = Administrador.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, Administrador.DoesNotExist):
+            user = None
+
+        if user is not None:
+            token_user = _prepare_user_for_token(user)
+            if default_token_generator.check_token(token_user, token):
+                user.password_hash = make_password(new_password)
+                user.save(update_fields=['password_hash'])
+                return Response({'success': 'Contraseña actualizada correctamente.'})
+
+        return Response({'error': 'Enlace inválido o expirado'}, status=status.HTTP_400_BAD_REQUEST)
+
 class AdministradorViewSet(ModelViewSet):
     queryset = Administrador.objects.all()
     serializer_class = AdministradorCRUDSerializer
     permission_classes = [MasterAdminPermission]
     pagination_class = None
+
+    def perform_create(self, serializer):
+        random_pwd = uuid.uuid4().hex
+        user = serializer.save(password_hash=make_password(random_pwd))
+        
+        token_user = _prepare_user_for_token(user)
+        token = default_token_generator.make_token(token_user)
+        uid = urlsafe_base64_encode(force_bytes(user.id))
+        link = f"http://localhost:5173/reset-password/{uid}/{token}/"
+        
+        try:
+            send_mail(
+                'Bienvenido al Sistema - Configure su Contraseña',
+                f'Hola {user.nombres},\n\nPara acceder al sistema, por favor configure su contraseña haciendo clic en el siguiente enlace:\n{link}',
+                settings.DEFAULT_FROM_EMAIL or 'admin@cip.com',
+                [user.correo],
+                fail_silently=True,
+            )
+        except Exception:
+            pass
 
 class AdminBuscarColegiadoView(APIView):
     """Busca colegiados por DNI, nombre o número de colegiado."""
