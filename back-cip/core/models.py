@@ -37,7 +37,7 @@ class Administrador(models.Model):
     sede         = models.ForeignKey(Sede, on_delete=models.DO_NOTHING, null=True, blank=True)
     activo       = models.BooleanField(default=True)
     cuenta_confirmada = models.BooleanField(default=True)
-    creado_en    = models.DateTimeField(default=timezone.now)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'administrador'

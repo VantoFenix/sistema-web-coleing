@@ -25,7 +25,7 @@ class AdministradorSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Administrador
-        fields = ['id', 'usuario', 'correo', 'nombres', 'estado_display']
+        fields = ['id', 'usuario', 'correo', 'nombres', 'estado_display', 'fecha_creacion']
 
     def get_estado_display(self, obj):
         if not obj.cuenta_confirmada:
@@ -42,7 +42,7 @@ class AdministradorCRUDSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Administrador
-        fields = ['id', 'usuario', 'correo', 'nombres', 'rol', 'sede', 'activo', 'cuenta_confirmada', 'estado_display', 'password']
+        fields = ['id', 'usuario', 'correo', 'nombres', 'rol', 'sede', 'activo', 'cuenta_confirmada', 'estado_display', 'fecha_creacion', 'password']
         
     def get_estado_display(self, obj):
         if not obj.cuenta_confirmada:
