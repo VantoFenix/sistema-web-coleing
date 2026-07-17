@@ -11,6 +11,7 @@ export default function AdminUsuarios() {
   const [showModal, setShowModal] = useState(false);
   const [usuarioEditando, setUsuarioEditando] = useState(null);
   const [formData, setFormData] = useState({
+    dni: '',
     usuario: '',
     password: '',
     nombres: '',
@@ -19,6 +20,32 @@ export default function AdminUsuarios() {
     sede: ''
   });
   const [guardando, setGuardando] = useState(false);
+  const [buscandoReniec, setBuscandoReniec] = useState(false);
+
+  const handleBuscarReniec = async () => {
+    if (!formData.dni || formData.dni.length !== 8) {
+      alert("Ingrese un DNI válido de 8 dígitos.");
+      return;
+    }
+    setBuscandoReniec(true);
+    try {
+      const res = await fetch(`/api/public/reniec/?dni=${formData.dni}`);
+      const data = await res.json();
+      if (res.ok && data.nombre_completo) {
+        setFormData(prev => ({
+          ...prev,
+          nombres: data.nombre_completo,
+          usuario: prev.dni
+        }));
+      } else {
+        alert(data.error || "No se encontró el DNI");
+      }
+    } catch (e) {
+      alert("Error al conectar con RENIEC");
+    } finally {
+      setBuscandoReniec(false);
+    }
+  };
   const [errorGuardar, setErrorGuardar] = useState('');
 
   useEffect(() => {
@@ -55,6 +82,7 @@ export default function AdminUsuarios() {
     setUsuarioEditando(user);
     if (user) {
       setFormData({
+        dni: user.dni || '',
         usuario: user.usuario,
         password: '', // Never show hashed password
         nombres: user.nombres,
@@ -63,7 +91,7 @@ export default function AdminUsuarios() {
         sede: user.sede || ''
       });
     } else {
-      setFormData({ usuario: '', password: '', nombres: '', correo: '', rol: 'ADMIN', sede: '' });
+      setFormData({ dni: '', usuario: '', password: '', nombres: '', correo: '', rol: 'ADMIN', sede: '' });
     }
     setErrorGuardar('');
     setShowModal(true);
@@ -87,8 +115,8 @@ export default function AdminUsuarios() {
       sede: formData.sede ? parseInt(formData.sede) : null,
     };
     
-    // Solo enviamos password si es nuevo o si se escribio algo para cambiarlo
-    if (formData.password) {
+    // Solo enviamos password si es nuevo
+    if (!usuarioEditando && formData.password) {
       payload.password = formData.password;
     }
 
@@ -262,30 +290,55 @@ export default function AdminUsuarios() {
             )}
 
             <form onSubmit={handleGuardarUsuario}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="form-label">DNI</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input 
+                    type="text" 
+                    name="dni" 
+                    className="form-input" 
+                    value={formData.dni} 
+                    onChange={handleChange} 
+                    maxLength="8"
+                    disabled={!!usuarioEditando}
+                  />
+                  {!usuarioEditando && (
+                    <button 
+                      type="button" 
+                      className="btn btn-primary" 
+                      onClick={handleBuscarReniec}
+                      disabled={buscandoReniec}
+                      style={{ whiteSpace: 'nowrap' }}
+                    >
+                      {buscandoReniec ? 'Buscando...' : 'Buscar'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: usuarioEditando ? '1fr' : '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div className="form-group">
                   <label className="form-label">Usuario</label>
-                  <input type="text" name="usuario" className="form-input" value={formData.usuario} onChange={handleChange} required />
+                  <input type="text" name="usuario" className="form-input" value={formData.usuario} onChange={handleChange} required disabled={!!usuarioEditando} />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">
-                    Contraseña {usuarioEditando && <span style={{fontSize: '0.75rem', fontWeight: 'normal', color: '#64748B'}}>(Dejar en blanco para no cambiar)</span>}
-                  </label>
-                  <input 
-                    type="password" 
-                    name="password" 
-                    className="form-input" 
-                    value={formData.password} 
-                    onChange={handleChange} 
-                    required={!usuarioEditando} 
-                    placeholder={usuarioEditando ? '******' : ''}
-                  />
-                </div>
+                {!usuarioEditando && (
+                  <div className="form-group">
+                    <label className="form-label">Contraseña</label>
+                    <input 
+                      type="password" 
+                      name="password" 
+                      className="form-input" 
+                      value={formData.password} 
+                      onChange={handleChange} 
+                      required 
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="form-group" style={{ marginBottom: '1rem' }}>
                 <label className="form-label">Nombres Completos</label>
-                <input type="text" name="nombres" className="form-input" value={formData.nombres} onChange={handleChange} required />
+                <input type="text" name="nombres" className="form-input" value={formData.nombres} onChange={handleChange} required disabled={!!usuarioEditando} />
               </div>
 
               <div className="form-group" style={{ marginBottom: '1rem' }}>
