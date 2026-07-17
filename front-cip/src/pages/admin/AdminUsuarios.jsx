@@ -97,7 +97,11 @@ export default function AdminUsuarios() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    if (name === 'rol' && value === 'MASTER_ADMIN') {
+      setFormData(prev => ({ ...prev, [name]: value, sede: '' }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleGuardarUsuario = async (e) => {
@@ -233,10 +237,9 @@ export default function AdminUsuarios() {
                     </td>
                     <td style={{ padding: '1rem', color: '#64748B' }}>{getSedeNombre(user.sede)}</td>
                     <td style={{ padding: '1rem' }}>
-                      {user.activo ? 
-                        <span style={{ color: '#10B981', fontWeight: '500', fontSize: '0.875rem' }}>Activo</span> : 
-                        <span style={{ color: '#EF4444', fontWeight: '500', fontSize: '0.875rem' }}>Inactivo</span>
-                      }
+                      {user.estado_display === 'PENDIENTE' && <span style={{ background: '#FEF3C7', color: '#92400E', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 'bold' }}>PENDIENTE</span>}
+                      {user.estado_display === 'ACTIVO' && <span style={{ color: '#10B981', fontWeight: '500', fontSize: '0.875rem' }}>ACTIVO</span>}
+                      {user.estado_display === 'INHABILITADO' && <span style={{ color: '#EF4444', fontWeight: '500', fontSize: '0.875rem' }}>INHABILITADO</span>}
                     </td>
                     <td style={{ padding: '1rem', textAlign: 'right' }}>
                       {user.rol !== 'MASTER_ADMIN' && (
@@ -248,13 +251,15 @@ export default function AdminUsuarios() {
                           >
                             <Edit size={16} />
                           </button>
-                          <button 
-                            onClick={() => handleToggleEstado(user)}
-                            style={{ background: user.activo ? '#FEE2E2' : '#D1FAE5', color: user.activo ? '#991B1B' : '#065F46', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                            title={user.activo ? 'Deshabilitar' : 'Habilitar'}
-                          >
-                            {user.activo ? <PowerOff size={16} /> : <Power size={16} />}
-                          </button>
+                          {user.estado_display !== 'PENDIENTE' && (
+                            <button 
+                              onClick={() => handleToggleEstado(user)}
+                              style={{ background: user.activo ? '#FEE2E2' : '#D1FAE5', color: user.activo ? '#991B1B' : '#065F46', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                              title={user.activo ? 'Deshabilitar' : 'Habilitar'}
+                            >
+                              {user.activo ? <PowerOff size={16} /> : <Power size={16} />}
+                            </button>
+                          )}
                         </div>
                       )}
                     </td>
@@ -335,7 +340,7 @@ export default function AdminUsuarios() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Sede Asignada</label>
-                  <select name="sede" className="form-input" value={formData.sede} onChange={handleChange}>
+                  <select name="sede" className="form-input" value={formData.sede} onChange={handleChange} disabled={formData.rol === 'MASTER_ADMIN'}>
                     <option value="">-- Global / Sin Sede --</option>
                     {sedes.filter(s => s.activo).map(s => (
                       <option key={s.id} value={s.id}>{s.nombre}</option>
