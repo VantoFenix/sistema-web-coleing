@@ -10,32 +10,33 @@ export default function AdminLogin() {
 
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
-  const [resetMsg, setResetMsg] = useState('');
+  const [resetMsg, setResetMsg] = useState({ text: '', type: '' });
   const [isResetting, setIsResetting] = useState(false);
 
   const handlePasswordReset = async (e) => {
     e.preventDefault();
     if (!resetEmail) return;
     setIsResetting(true);
-    setResetMsg('');
+    setResetMsg({ text: '', type: '' });
     try {
       const res = await fetch('/api/auth/password-reset/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ correo: resetEmail })
       });
+      const data = await res.json();
       if (res.ok) {
-        setResetMsg('Si el correo existe, se ha enviado un enlace de recuperación');
+        setResetMsg({ text: 'Si el correo existe, se ha enviado un enlace de recuperación', type: 'success' });
         setTimeout(() => {
           setShowResetModal(false);
-          setResetMsg('');
+          setResetMsg({ text: '', type: '' });
           setResetEmail('');
         }, 3000);
       } else {
-        setResetMsg('Error al procesar la solicitud.');
+        setResetMsg({ text: data.error || 'Error al procesar la solicitud.', type: 'error' });
       }
     } catch (e) {
-      setResetMsg('Error de conexión.');
+      setResetMsg({ text: 'Error de conexión.', type: 'error' });
     } finally {
       setIsResetting(false);
     }
@@ -195,9 +196,9 @@ export default function AdminLogin() {
         }}>
           <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', color: 'var(--cip-blue)' }}>Recuperar Contraseña</h2>
-            {resetMsg && (
-              <div style={{ background: resetMsg.includes('Error') ? '#FEE2E2' : '#D1FAE5', color: resetMsg.includes('Error') ? '#991B1B' : '#065F46', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem' }}>
-                {resetMsg}
+            {resetMsg.text && (
+              <div style={{ background: resetMsg.type === 'error' ? '#FEE2E2' : '#D1FAE5', color: resetMsg.type === 'error' ? '#991B1B' : '#065F46', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                {resetMsg.text}
               </div>
             )}
             <form onSubmit={handlePasswordReset}>
