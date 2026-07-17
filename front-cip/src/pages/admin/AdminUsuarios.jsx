@@ -136,7 +136,13 @@ export default function AdminUsuarios() {
         fetchData();
       } else {
         const errData = await res.json();
-        setErrorGuardar(JSON.stringify(errData) || 'Error al guardar el usuario.');
+        if (errData.sede) {
+          setErrorGuardar(Array.isArray(errData.sede) ? errData.sede[0] : errData.sede);
+        } else if (errData.detail || errData.error) {
+          setErrorGuardar(errData.detail || errData.error);
+        } else {
+          setErrorGuardar('Error al guardar el usuario. Verifique los datos.');
+        }
       }
     } catch (e) {
       setErrorGuardar('Error de conexión.');
