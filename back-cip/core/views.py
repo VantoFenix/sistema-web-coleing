@@ -853,6 +853,12 @@ class AdministradorViewSet(ModelViewSet):
         except Exception:
             pass
 
+    def perform_update(self, serializer):
+        user = serializer.save()
+        if not user.activo and user.sede is not None:
+            user.sede = None
+            user.save(update_fields=['sede'])
+
 class AdminBuscarColegiadoView(APIView):
     """Busca colegiados por DNI, nombre o número de colegiado."""
     authentication_classes = []
