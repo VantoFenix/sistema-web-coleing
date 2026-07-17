@@ -781,7 +781,8 @@ class PasswordResetRequestView(APIView):
             token_user = _prepare_user_for_token(user)
             token = default_token_generator.make_token(token_user)
             uid = urlsafe_base64_encode(force_bytes(user.id))
-            link = f"http://localhost:5173/reset-password/{uid}/{token}/"
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173').rstrip('/')
+            link = f"{frontend_url}/reset-password/{uid}/{token}/"
             
             try:
                 send_mail(
@@ -795,7 +796,9 @@ class PasswordResetRequestView(APIView):
                 import sys
                 print(f"[EMAIL ERROR] {e}", file=sys.stderr)
 
-        return Response({'success': 'Si el correo existe, se enviará un enlace de recuperación.'})
+            return Response({'success': 'Si el correo existe, se enviará un enlace de recuperación.'})
+        else:
+            return Response({'error': 'No se encontró ningún usuario con este correo.'}, status=status.HTTP_404_NOT_FOUND)
 
 class PasswordResetConfirmView(APIView):
     authentication_classes = []
@@ -829,12 +832,13 @@ class AdministradorViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         random_pwd = uuid.uuid4().hex
-        user = serializer.save(password_hash=make_password(random_pwd))
+        user = serializer.save(password_hash=make_password(random_pwd), activo=False)
         
         token_user = _prepare_user_for_token(user)
         token = default_token_generator.make_token(token_user)
         uid = urlsafe_base64_encode(force_bytes(user.id))
-        link = f"http://localhost:5173/reset-password/{uid}/{token}/"
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173').rstrip('/')
+        link = f"{frontend_url}/reset-password/{uid}/{token}/"
         
         try:
             send_mail(

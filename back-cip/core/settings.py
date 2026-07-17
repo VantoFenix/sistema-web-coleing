@@ -247,3 +247,6 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 MP_PUBLIC_KEY   = os.getenv('MP_PUBLIC_KEY', '')
 MP_ACCESS_TOKEN = os.getenv('MP_ACCESS_TOKEN', '')
 SITE_URL        = os.getenv('SITE_URL', '')   # URL pública del sitio, ej: https://cip.tudominio.com
+
+# URL del Frontend (para enlaces de correos, etc)
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
