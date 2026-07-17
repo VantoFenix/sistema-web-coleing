@@ -8,6 +8,39 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetMsg, setResetMsg] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handlePasswordReset = async (e) => {
+    e.preventDefault();
+    if (!resetEmail) return;
+    setIsResetting(true);
+    setResetMsg('');
+    try {
+      const res = await fetch('/api/auth/password-reset/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ correo: resetEmail })
+      });
+      if (res.ok) {
+        setResetMsg('Si el correo existe, se ha enviado un enlace de recuperación');
+        setTimeout(() => {
+          setShowResetModal(false);
+          setResetMsg('');
+          setResetEmail('');
+        }, 3000);
+      } else {
+        setResetMsg('Error al procesar la solicitud.');
+      }
+    } catch (e) {
+      setResetMsg('Error de conexión.');
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     if (usuario && password) {
@@ -140,10 +173,56 @@ export default function AdminLogin() {
             <button type="submit" className="btn btn-primary btn-block" style={{ padding: '0.875rem', fontSize: '1.125rem' }}>
               Ingresar al Sistema
             </button>
+            <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+              <button 
+                type="button" 
+                onClick={() => setShowResetModal(true)}
+                style={{ background: 'none', border: 'none', color: 'var(--cip-blue)', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            </div>
           </form>
 
         </div>
       </div>
+
+      {/* Reset Password Modal */}
+      {showResetModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+          <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', color: 'var(--cip-blue)' }}>Recuperar Contraseña</h2>
+            {resetMsg && (
+              <div style={{ background: resetMsg.includes('Error') ? '#FEE2E2' : '#D1FAE5', color: resetMsg.includes('Error') ? '#991B1B' : '#065F46', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                {resetMsg}
+              </div>
+            )}
+            <form onSubmit={handlePasswordReset}>
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label className="form-label">Correo Electrónico</label>
+                <input 
+                  type="email" 
+                  className="form-input" 
+                  value={resetEmail} 
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn" style={{ background: '#E2E8F0', color: '#475569' }} onClick={() => setShowResetModal(false)} disabled={isResetting}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={isResetting}>
+                  {isResetting ? 'Enviando...' : 'Enviar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

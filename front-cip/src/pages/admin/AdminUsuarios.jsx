@@ -13,7 +13,6 @@ export default function AdminUsuarios() {
   const [formData, setFormData] = useState({
     dni: '',
     usuario: '',
-    password: '',
     nombres: '',
     correo: '',
     rol: 'ADMIN',
@@ -84,14 +83,13 @@ export default function AdminUsuarios() {
       setFormData({
         dni: user.dni || '',
         usuario: user.usuario,
-        password: '', // Never show hashed password
         nombres: user.nombres,
         correo: user.correo,
         rol: user.rol,
         sede: user.sede || ''
       });
     } else {
-      setFormData({ dni: '', usuario: '', password: '', nombres: '', correo: '', rol: 'ADMIN', sede: '' });
+      setFormData({ dni: '', usuario: '', nombres: '', correo: '', rol: 'ADMIN', sede: '' });
     }
     setErrorGuardar('');
     setShowModal(true);
@@ -114,11 +112,6 @@ export default function AdminUsuarios() {
       rol: formData.rol,
       sede: formData.sede ? parseInt(formData.sede) : null,
     };
-    
-    // Solo enviamos password si es nuevo
-    if (!usuarioEditando && formData.password) {
-      payload.password = formData.password;
-    }
 
     try {
       const token = localStorage.getItem('adminToken');
@@ -316,29 +309,14 @@ export default function AdminUsuarios() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: usuarioEditando ? '1fr' : '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div className="form-group">
-                  <label className="form-label">Usuario</label>
-                  <input type="text" name="usuario" className="form-input" value={formData.usuario} onChange={handleChange} required disabled={!!usuarioEditando} />
-                </div>
-                {!usuarioEditando && (
-                  <div className="form-group">
-                    <label className="form-label">Contraseña</label>
-                    <input 
-                      type="password" 
-                      name="password" 
-                      className="form-input" 
-                      value={formData.password} 
-                      onChange={handleChange} 
-                      required 
-                    />
-                  </div>
-                )}
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="form-label">Usuario</label>
+                <input type="text" name="usuario" className="form-input" value={formData.usuario} onChange={handleChange} required disabled={true} />
               </div>
 
               <div className="form-group" style={{ marginBottom: '1rem' }}>
                 <label className="form-label">Nombres Completos</label>
-                <input type="text" name="nombres" className="form-input" value={formData.nombres} onChange={handleChange} required disabled={!!usuarioEditando} />
+                <input type="text" name="nombres" className="form-input" value={formData.nombres} onChange={handleChange} required disabled={true} />
               </div>
 
               <div className="form-group" style={{ marginBottom: '1rem' }}>
