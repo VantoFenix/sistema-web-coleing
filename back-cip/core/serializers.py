@@ -51,6 +51,19 @@ class AdministradorCRUDSerializer(serializers.ModelSerializer):
             return 'ACTIVO'
         return 'INHABILITADO'
         
+    def validate(self, data):
+        rol = data.get('rol', self.instance.rol if self.instance else None)
+        sede = data.get('sede', self.instance.sede if self.instance else None)
+        
+        if rol == 'ADMIN' and sede:
+            queryset = Administrador.objects.filter(rol='ADMIN', sede=sede)
+            if self.instance:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            if queryset.exists():
+                raise serializers.ValidationError({"sede": "Ya existe un Administrador (Jefe de Sede) asignado a esta sede."})
+                
+        return data
+        
     def create(self, validated_data):
         if 'password' in validated_data:
             validated_data['password_hash'] = make_password(validated_data.pop('password'))
