@@ -787,7 +787,7 @@ class PasswordResetRequestView(APIView):
             try:
                 send_mail(
                     'Restablecer o Configurar Contraseña',
-                    f'Haga clic en el siguiente enlace para configurar su contraseña:\n{link}',
+                    f'Haga clic en el siguiente enlace para configurar su contraseña:\n{link}\n\nAtención: Tiene 10 minutos para confirmar este enlace, de lo contrario su solicitud expirará y será eliminada del sistema.',
                     settings.DEFAULT_FROM_EMAIL or 'admin@cip.com',
                     [correo],
                     fail_silently=True,
@@ -845,7 +845,7 @@ class AdministradorViewSet(ModelViewSet):
         try:
             send_mail(
                 'Bienvenido al Sistema - Configure su Contraseña',
-                f'Hola {user.nombres},\n\nPara acceder al sistema, por favor configure su contraseña haciendo clic en el siguiente enlace:\n{link}',
+                f'Hola {user.nombres},\n\nHaga clic en el siguiente enlace para configurar su contraseña:\n{link}\n\nAtención: Tiene 10 minutos para confirmar este enlace, de lo contrario su solicitud expirará y será eliminada del sistema.',
                 settings.DEFAULT_FROM_EMAIL or 'admin@cip.com',
                 [user.correo],
                 fail_silently=True,
