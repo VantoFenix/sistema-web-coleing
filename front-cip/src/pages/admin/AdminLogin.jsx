@@ -26,7 +26,7 @@ export default function AdminLogin() {
           localStorage.setItem('adminSede', data.sede_nombre);
           navigate('/admin/home');
         } else {
-          setErrorMsg(data.error || 'Credenciales inválidas');
+          setErrorMsg('Credenciales inválidas o cuenta inhabilitada. Contacte al administrador.');
         }
       } catch (err) {
         setErrorMsg('Error al conectar con el servidor.');
