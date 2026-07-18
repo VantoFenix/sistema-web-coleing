@@ -254,12 +254,18 @@ class PublicPostulacionView(APIView):
         base_path = 'postulaciones/'
         foto_name = f"{base_path}{uuid.uuid4()}_{foto.name}"
         titulo_name = f"{base_path}{uuid.uuid4()}_{titulo.name}"
-        recibo_name = f"{base_path}{uuid.uuid4()}_{recibo.name}"
+        
+        recibo_name = None
+        recibo_url = ""
+        if recibo:
+            recibo_name = f"{base_path}{uuid.uuid4()}_{recibo.name}"
+            recibo_url = f"/media/{recibo_name}"
 
         try:
             default_storage.save(foto_name, foto)
             default_storage.save(titulo_name, titulo)
-            default_storage.save(recibo_name, recibo)
+            if recibo:
+                default_storage.save(recibo_name, recibo)
         except Exception as e:
             import sys
             print(f"[ERROR] Fallo al guardar archivos: {e}", file=sys.stderr)
@@ -273,12 +279,15 @@ class PublicPostulacionView(APIView):
                 sede=sede,
                 foto_url=f"/media/{foto_name}",
                 titulo_pdf_url=f"/media/{titulo_name}",
-                recibo_pago_url=f"/media/{recibo_name}",
+                recibo_pago_url=recibo_url,
                 numero_operacion=numero_operacion,
                 fecha_pago=fecha_pago,
                 origen=origen,
                 estado='EN_REVISION'
             )
+            
+            # Nota: si deseas guardar metodo_pago en BD, deberás añadir el campo al modelo Solicitud.
+            
         except Exception as e:
             import sys
             print(f"[ERROR] Fallo al crear solicitud en BD: {e}", file=sys.stderr)

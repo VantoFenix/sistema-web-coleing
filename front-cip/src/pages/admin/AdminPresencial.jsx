@@ -15,7 +15,7 @@ export default function AdminPresencial() {
   const [foto, setFoto] = useState(null);
   const [fotoInfo, setFotoInfo] = useState('');
   const [titulo, setTitulo] = useState(null);
-  const [recibo, setRecibo] = useState(null);
+  const [metodoPago, setMetodoPago] = useState('CAJA'); // 'CAJA' | 'YAPE_PLIN'
 
   const [isValidando, setIsValidando] = useState(false);
   const [dniValidado, setDniValidado] = useState(false);
@@ -104,8 +104,8 @@ export default function AdminPresencial() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!nombres || !carrera || !sede || !foto || !titulo || !recibo) {
-      setErrorMsg("Complete todos los campos y adjunte los documentos.");
+    if (!nombres || !carrera || !sede || !foto || !titulo) {
+      setErrorMsg("Complete todos los campos y adjunte los documentos requeridos.");
       return;
     }
     if (dni.length !== 8) {
@@ -119,13 +119,10 @@ export default function AdminPresencial() {
       return;
     }
     if (titulo.type !== 'application/pdf') {
-      setErrorMsg("El Título Profesional debe ser un archivo PDF.");
+      setErrorMsg("El título debe ser un archivo PDF.");
       return;
     }
-    if (!recibo.type.startsWith('image/') && recibo.type !== 'application/pdf') {
-      setErrorMsg("El Recibo de Caja debe ser un PDF o una imagen.");
-      return;
-    }
+
     setErrorMsg('');
     setEnviando(true);
 
@@ -138,7 +135,7 @@ export default function AdminPresencial() {
       formData.append('sede', sede);
       formData.append('foto', foto);
       formData.append('titulo', titulo);
-      formData.append('recibo', recibo);
+      formData.append('metodo_pago', metodoPago);
       formData.append('origen', 'PRESENCIAL');
 
       const resPost = await fetch('/api/postulaciones/', { method: 'POST', body: formData });
@@ -263,20 +260,51 @@ export default function AdminPresencial() {
               </div>
             </div>
 
-            {/* ── Título y Recibo (sin procesamiento especial) ── */}
-            {[
-              { label: 'Título Profesional', accept: '.pdf', state: titulo, setter: setTitulo },
-              { label: 'Recibo en Caja', accept: '.pdf,image/*', state: recibo, setter: setRecibo },
-            ].map(({ label, accept, state, setter }) => (
-              <div className="form-group" key={label}>
-                <label className="form-label">{label}</label>
-                <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1rem', textAlign: 'center', background: '#f8fafc', cursor: 'pointer', position: 'relative' }}>
-                  <input type="file" accept={accept} onChange={(e) => handleFileChange(e, setter)} style={{ opacity: 0, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', cursor: 'pointer' }} />
-                  <UploadCloud size={24} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px', margin: '0 auto' }}>{state ? state.name : 'Subir archivo'}</p>
-                </div>
+            {/* ── Título (sin procesamiento especial) ── */}
+            <div className="form-group">
+              <label className="form-label">Título Profesional</label>
+              <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1rem', textAlign: 'center', background: '#f8fafc', cursor: 'pointer', position: 'relative' }}>
+                <input type="file" accept=".pdf" onChange={(e) => handleFileChange(e, setTitulo)} style={{ opacity: 0, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', cursor: 'pointer' }} />
+                <UploadCloud size={24} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
+                <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px', margin: '0 auto' }}>{titulo ? titulo.name : 'Subir archivo'}</p>
               </div>
-            ))}
+            </div>
+
+            {/* ── Método de Pago ── */}
+            <div className="form-group">
+              <label className="form-label" style={{ display: 'block', marginBottom: '0.75rem' }}>Método de Pago (S/ 5.00)</label>
+              
+              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                <button 
+                  type="button"
+                  className={`btn ${metodoPago === 'CAJA' ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setMetodoPago('CAJA')}
+                  style={{ flex: 1, padding: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
+                >
+                  <CheckCircle2 size={18} style={{ opacity: metodoPago === 'CAJA' ? 1 : 0 }} />
+                  Efectivo en Caja
+                </button>
+                <button 
+                  type="button"
+                  className={`btn ${metodoPago === 'YAPE_PLIN' ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setMetodoPago('YAPE_PLIN')}
+                  style={{ flex: 1, padding: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
+                >
+                  <CheckCircle2 size={18} style={{ opacity: metodoPago === 'YAPE_PLIN' ? 1 : 0 }} />
+                  QR Yape / Plin
+                </button>
+              </div>
+
+              {metodoPago === 'CAJA' ? (
+                <div style={{ padding: '1.5rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '0.5rem', textAlign: 'center', color: '#166534', fontWeight: '500' }}>
+                  Pago de S/ 5.00 recibido en efectivo.
+                </div>
+              ) : (
+                <div style={{ padding: '1rem', border: '2px dashed #cbd5e1', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80px', background: '#f8fafc', color: '#64748b', textAlign: 'center', fontWeight: '500' }}>
+                  Espacio reservado para API de QR (S/ 5.00)
+                </div>
+              )}
+            </div>
           </div>
 
           {errorMsg && (

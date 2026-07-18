@@ -90,7 +90,8 @@ class SolicitudCreateSerializer(serializers.Serializer):
     
     foto = serializers.ImageField(required=True)
     titulo = serializers.FileField(required=True)
-    recibo = serializers.FileField(required=True)
+    recibo = serializers.FileField(required=False)
+    metodo_pago = serializers.CharField(max_length=50, required=False)
 
     def validate_titulo(self, value):
         if value.content_type != 'application/pdf':
@@ -98,7 +99,7 @@ class SolicitudCreateSerializer(serializers.Serializer):
         return value
 
     def validate_recibo(self, value):
-        if not (value.content_type.startswith('image/') or value.content_type == 'application/pdf'):
+        if value and not (value.content_type.startswith('image/') or value.content_type == 'application/pdf'):
             raise serializers.ValidationError('El Recibo de Caja debe ser un PDF o una imagen.')
         return value
         
