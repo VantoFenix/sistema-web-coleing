@@ -136,6 +136,7 @@ export default function AdminPresencial() {
       formData.append('foto', foto);
       formData.append('titulo', titulo);
       formData.append('recibo', recibo);
+      formData.append('origen', 'PRESENCIAL');
 
       const resPost = await fetch('/api/postulaciones/', { method: 'POST', body: formData });
       if (!resPost.ok) {
