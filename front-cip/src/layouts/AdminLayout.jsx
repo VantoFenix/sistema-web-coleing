@@ -56,7 +56,7 @@ export default function AdminLayout() {
           {adminRole === 'ADMIN' && (
             <>
               <NavItem to="/admin/postulaciones" icon={FileText} label="Postulaciones" />
-              <NavItem to="/admin/vouchers" icon={ShieldCheck} label="Verificar Vouchers" />
+              <NavItem to="/admin/vouchers" icon={ShieldCheck} label="Verificación de Documentos" />
             </>
           )}
 

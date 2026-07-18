@@ -23,7 +23,7 @@ export default function AdminDeudores() {
       });
       if (res.ok) {
         const data = await res.json();
-        setDeudores(data);
+        setDeudores(data.results || data);
       } else {
         let txt = '';
         try { txt = await res.text(); } catch (_) {}

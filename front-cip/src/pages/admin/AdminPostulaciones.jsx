@@ -38,7 +38,7 @@ export default function AdminPostulaciones() {
       });
       if (res.ok) {
         const data = await res.json();
-        setPostulaciones(data);
+        setPostulaciones(data.results || data);
       } else {
         let txt = '';
         try { txt = await res.text(); } catch (_) {}
