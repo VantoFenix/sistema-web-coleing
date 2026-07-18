@@ -271,6 +271,8 @@ class PublicPostulacionView(APIView):
             print(f"[ERROR] Fallo al guardar archivos: {e}", file=sys.stderr)
             return Response({'error': f'Error al guardar los archivos: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+        metodo_pago = valid_data.get('metodo_pago', 'TRANSFERENCIA')
+
         try:
             solicitud = Solicitud.objects.create(
                 dni=dni,
@@ -280,13 +282,12 @@ class PublicPostulacionView(APIView):
                 foto_url=f"/media/{foto_name}",
                 titulo_pdf_url=f"/media/{titulo_name}",
                 recibo_pago_url=recibo_url,
+                metodo_pago=metodo_pago,
                 numero_operacion=numero_operacion,
                 fecha_pago=fecha_pago,
                 origen=origen,
                 estado='EN_REVISION'
             )
-            
-            # Nota: si deseas guardar metodo_pago en BD, deberás añadir el campo al modelo Solicitud.
             
         except Exception as e:
             import sys
