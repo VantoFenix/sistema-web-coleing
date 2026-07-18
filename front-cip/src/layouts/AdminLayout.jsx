@@ -62,7 +62,7 @@ export default function AdminLayout() {
           {/* Vistas de CAJERO */}
           {adminRole === 'CAJERO' && (
             <>
-              <NavItem to="/admin/deudores" icon={AlertTriangle} label="Panel de Deudores" />
+              <NavItem to="/admin/deudores" icon={Wallet} label="Pagos Mensuales" />
               <NavItem to="/admin/presencial" icon={UserPlus} label="Registro Presencial" />
               <NavItem to="/admin/pagos-presencial" icon={Wallet} label="Pagos Presenciales" />
             </>
