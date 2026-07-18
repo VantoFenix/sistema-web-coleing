@@ -15,7 +15,8 @@ export default function AdminPresencial() {
   const [foto, setFoto] = useState(null);
   const [fotoInfo, setFotoInfo] = useState('');
   const [titulo, setTitulo] = useState(null);
-  const [metodoPago, setMetodoPago] = useState('CAJA'); // 'CAJA' | 'YAPE_PLIN'
+  const [metodoPago, setMetodoPago] = useState(''); // '' | 'CAJA' | 'YAPE_PLIN'
+  const [montoEfectivo, setMontoEfectivo] = useState('');
 
   const [isValidando, setIsValidando] = useState(false);
   const [dniValidado, setDniValidado] = useState(false);
@@ -106,6 +107,14 @@ export default function AdminPresencial() {
     e.preventDefault();
     if (!nombres || !carrera || !sede || !foto || !titulo) {
       setErrorMsg("Complete todos los campos y adjunte los documentos requeridos.");
+      return;
+    }
+    if (!metodoPago) {
+      setErrorMsg("Debe seleccionar un método de pago.");
+      return;
+    }
+    if (metodoPago === 'CAJA' && Number(montoEfectivo) !== 5) {
+      setErrorMsg("El monto en efectivo debe ser exactamente S/ 5.00.");
       return;
     }
     if (dni.length !== 8) {
@@ -295,13 +304,26 @@ export default function AdminPresencial() {
                 </button>
               </div>
 
-              {metodoPago === 'CAJA' ? (
-                <div style={{ padding: '1.5rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '0.5rem', textAlign: 'center', color: '#166534', fontWeight: '500' }}>
-                  Pago de S/ 5.00 recibido en efectivo.
+              {metodoPago === 'CAJA' && (
+                <div style={{ padding: '1.5rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>Ingrese el monto recibido</label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    placeholder="S/ 5.00" 
+                    value={montoEfectivo} 
+                    onChange={(e) => setMontoEfectivo(e.target.value)} 
+                  />
+                  {montoEfectivo === '5' ? (
+                    <p style={{ color: '#166534', fontWeight: '500', fontSize: '0.875rem', margin: 0 }}>✅ Monto validado</p>
+                  ) : (
+                    <p style={{ color: '#dc2626', fontWeight: '500', fontSize: '0.875rem', margin: 0 }}>❌ Debe ingresar S/ 5.00 exactos</p>
+                  )}
                 </div>
-              ) : (
-                <div style={{ padding: '1rem', border: '2px dashed #cbd5e1', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80px', background: '#f8fafc', color: '#64748b', textAlign: 'center', fontWeight: '500' }}>
-                  Espacio reservado para API de QR (S/ 5.00)
+              )}
+              {metodoPago === 'YAPE_PLIN' && (
+                <div style={{ padding: '1rem', border: '2px dashed #cbd5e1', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100px', background: '#f8fafc', color: '#64748b', textAlign: 'center', fontWeight: '500' }}>
+                  Espacio reservado para QR de Yape/Plin (S/ 5.00)
                 </div>
               )}
             </div>
@@ -314,8 +336,21 @@ export default function AdminPresencial() {
           )}
 
           <div style={{ marginTop: '2.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end' }}>
-            <button type="submit" className="btn btn-primary" disabled={enviando}
-              style={{ padding: '1rem 2.5rem', fontSize: '1.125rem', background: '#10B981', borderColor: '#10B981', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button type="submit" className="btn btn-primary" 
+              disabled={
+                enviando || 
+                (metodoPago !== 'YAPE_PLIN' && !(metodoPago === 'CAJA' && Number(montoEfectivo) === 5))
+              }
+              style={{ 
+                padding: '1rem 2.5rem', 
+                fontSize: '1.125rem', 
+                background: (metodoPago !== 'YAPE_PLIN' && !(metodoPago === 'CAJA' && Number(montoEfectivo) === 5)) ? '#94a3b8' : '#10B981', 
+                borderColor: (metodoPago !== 'YAPE_PLIN' && !(metodoPago === 'CAJA' && Number(montoEfectivo) === 5)) ? '#94a3b8' : '#10B981', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem',
+                cursor: (metodoPago !== 'YAPE_PLIN' && !(metodoPago === 'CAJA' && Number(montoEfectivo) === 5)) ? 'not-allowed' : 'pointer'
+              }}>
               {enviando ? <><Loader2 size={20} className="spin" /> Procesando...</> : 'Enviar Solicitud a Revisión'}
             </button>
           </div>
