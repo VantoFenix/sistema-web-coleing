@@ -59,7 +59,8 @@ export default function AdminDeudores() {
         const partes = [`Enviados: ${data.enviados}`];
         if (data.sin_correo) partes.push(`sin correo: ${data.sin_correo}`);
         if (data.fallidos)   partes.push(`fallidos: ${data.fallidos}`);
-        setAvisoNotif({ tipo: 'ok', texto: partes.join(' · ') });
+        const hayProblemas = data.enviados === 0 || data.fallidos > 0 || data.sin_correo > 0;
+        setAvisoNotif({ tipo: hayProblemas ? 'err' : 'ok', texto: partes.join(' · ') });
       }
     } catch (e) {
       setAvisoNotif({ tipo: 'err', texto: `Sin conexión: ${e.message}` });
