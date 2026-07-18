@@ -41,8 +41,11 @@ export default function AdminPresencial() {
       try {
         const u = JSON.parse(userStr);
         setAdminUser(u);
-        if (u.sede) {
-          setSede(u.sede);
+        // Usar sede_id (número) que coincide con el value del <option>
+        if (u.sede_id) {
+          setSede(String(u.sede_id));
+        } else if (u.sede) {
+          setSede(String(u.sede));
         }
       } catch(e){}
     }
@@ -222,7 +225,7 @@ export default function AdminPresencial() {
             </div>
             <div className="form-group">
               <label className="form-label">Sede Departamental</label>
-              <select className="form-select" value={sede} onChange={(e) => setSede(e.target.value)} disabled={!!(adminUser && adminUser.sede)}>
+              <select className="form-select" value={sede} onChange={(e) => setSede(e.target.value)} disabled={!!(adminUser && (adminUser.sede_id || adminUser.sede))}>
                 <option value="">Seleccione una sede</option>
                 {sedesOptions.map(s => (
                   <option key={s.id} value={s.id}>{s.nombre}</option>

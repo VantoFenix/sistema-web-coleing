@@ -22,10 +22,12 @@ class ColegiadoSerializer(serializers.ModelSerializer):
 
 class AdministradorSerializer(serializers.ModelSerializer):
     estado_display = serializers.SerializerMethodField()
+    sede_id = serializers.IntegerField(source='sede.id', read_only=True, default=None)
+    sede_nombre = serializers.CharField(source='sede.nombre', read_only=True, default=None)
 
     class Meta:
         model = Administrador
-        fields = ['id', 'usuario', 'correo', 'nombres', 'estado_display', 'fecha_creacion']
+        fields = ['id', 'usuario', 'correo', 'nombres', 'rol', 'sede', 'sede_id', 'sede_nombre', 'estado_display', 'fecha_creacion']
 
     def get_estado_display(self, obj):
         if not obj.cuenta_confirmada:
