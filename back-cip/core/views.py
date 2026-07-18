@@ -22,7 +22,7 @@ from django.contrib.auth.hashers import make_password
 
 from .models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago, PagoVoucherPendiente, Configuracion
 from rest_framework.parsers import MultiPartParser, FormParser
-from .serializers import AdministradorSerializer, AdministradorCRUDSerializer, ColegiadoSerializer, SolicitudSerializer, CarreraSerializer, SedeSerializer
+from .serializers import AdministradorSerializer, AdministradorCRUDSerializer, ColegiadoSerializer, SolicitudSerializer, SolicitudCreateSerializer, CarreraSerializer, SedeSerializer
 
 def generate_jwt(user_id, role):
     payload = {
@@ -204,31 +204,24 @@ class PublicPostulacionView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        dni = request.data.get('dni')
-        nombres = request.data.get('nombres')
-        carrera_nombre = request.data.get('carrera')
-        sede_nombre = request.data.get('sede')
-        numero_operacion = request.data.get('numero_operacion')
-        fecha_pago = request.data.get('fecha_pago')
+        serializer = SolicitudCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        valid_data = serializer.validated_data
+        dni = valid_data['dni']
+        nombres = valid_data['nombres']
+        carrera = valid_data['carrera_obj']
+        sede = valid_data['sede_obj']
+        numero_operacion = valid_data.get('numero_operacion')
+        fecha_pago = valid_data.get('fecha_pago')
+        foto = valid_data['foto']
+        titulo = valid_data['titulo']
+        recibo = valid_data.get('recibo')
         banco = request.data.get('banco')
 
-        foto = request.FILES.get('foto')
-        titulo = request.FILES.get('titulo')
-        recibo = request.FILES.get('recibo')
-
-        if not all([dni, nombres, carrera_nombre, sede_nombre, foto, titulo, recibo, numero_operacion, fecha_pago]):
-            return Response({'error': 'Faltan campos o documentos requeridos'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Validacion de formatos de archivo
-        if not foto.content_type.startswith('image/'):
-            return Response({'error': 'La foto debe ser un archivo de imagen válido (JPG, PNG).'}, status=status.HTTP_400_BAD_REQUEST)
-        if titulo.content_type != 'application/pdf':
-            return Response({'error': 'El Título Profesional debe ser un archivo PDF.'}, status=status.HTTP_400_BAD_REQUEST)
-        if not (recibo.content_type.startswith('image/') or recibo.content_type == 'application/pdf'):
-            return Response({'error': 'El Recibo de Caja debe ser un PDF o una imagen.'}, status=status.HTTP_400_BAD_REQUEST)
-
         # Validar el comprobante con el Mock del Banco de la Nación
-        if banco == 'BN':
+        if banco == 'BN' and numero_operacion and fecha_pago:
             from apps.tramites.services import BancoNacionMockService
             resultado = BancoNacionMockService.verificar_operacion(numero_operacion, fecha_pago)
             if not resultado["valido"]:
@@ -242,7 +235,7 @@ class PublicPostulacionView(APIView):
             )
             
         # Verificar que el número de operación no haya sido usado en otra solicitud activa o aprobada
-        if Solicitud.objects.filter(numero_operacion=numero_operacion).exclude(estado='RECHAZADO').exists():
+        if numero_operacion and Solicitud.objects.filter(numero_operacion=numero_operacion).exclude(estado='RECHAZADO').exists():
             return Response(
                 {'error': 'Este número de operación ya ha sido registrado en otra postulación. Por favor verifique sus datos.'},
                 status=status.HTTP_409_CONFLICT
@@ -254,12 +247,6 @@ class PublicPostulacionView(APIView):
                 {'error': 'Ya existe una solicitud activa para este DNI. Puede consultar su estado en la página principal.'},
                 status=status.HTTP_409_CONFLICT
             )
-
-        # Buscar carrera y sede
-        carrera = Carrera.objects.filter(nombre=carrera_nombre).first()
-        sede = Sede.objects.filter(nombre=sede_nombre).first()
-        if not carrera or not sede:
-            return Response({'error': 'Carrera o Sede no válida'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Guardar archivos
         base_path = 'postulaciones/'

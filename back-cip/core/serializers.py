@@ -77,6 +77,51 @@ class AdministradorCRUDSerializer(serializers.ModelSerializer):
                 validated_data.pop('password')
         return super().update(instance, validated_data)
 
+class SolicitudCreateSerializer(serializers.Serializer):
+    dni = serializers.CharField(max_length=8)
+    nombres = serializers.CharField(max_length=160)
+    carrera = serializers.CharField(max_length=100)
+    sede = serializers.CharField(max_length=100)
+    numero_operacion = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+    fecha_pago = serializers.DateField(required=False, allow_null=True)
+    
+    foto = serializers.ImageField(required=True)
+    titulo = serializers.FileField(required=True)
+    recibo = serializers.FileField(required=True)
+
+    def validate_titulo(self, value):
+        if value.content_type != 'application/pdf':
+            raise serializers.ValidationError('El Título Profesional debe ser un archivo PDF.')
+        return value
+
+    def validate_recibo(self, value):
+        if not (value.content_type.startswith('image/') or value.content_type == 'application/pdf'):
+            raise serializers.ValidationError('El Recibo de Caja debe ser un PDF o una imagen.')
+        return value
+        
+    def validate(self, data):
+        carrera_nombre = data.get('carrera')
+        sede_nombre = data.get('sede')
+
+        if str(carrera_nombre).isdigit():
+            carrera = Carrera.objects.filter(id=carrera_nombre).first()
+        else:
+            carrera = Carrera.objects.filter(nombre=carrera_nombre).first()
+            
+        if str(sede_nombre).isdigit():
+            sede = Sede.objects.filter(id=sede_nombre).first()
+        else:
+            sede = Sede.objects.filter(nombre=sede_nombre).first()
+
+        if not carrera:
+            raise serializers.ValidationError({'carrera': 'Carrera no válida'})
+        if not sede:
+            raise serializers.ValidationError({'sede': 'Sede no válida'})
+
+        data['carrera_obj'] = carrera
+        data['sede_obj'] = sede
+        return data
+
 class SolicitudSerializer(serializers.ModelSerializer):
     carrera = CarreraSerializer(read_only=True)
     sede = SedeSerializer(read_only=True)
