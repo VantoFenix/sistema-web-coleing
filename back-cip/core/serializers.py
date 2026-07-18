@@ -82,6 +82,7 @@ class SolicitudCreateSerializer(serializers.Serializer):
     nombres = serializers.CharField(max_length=160)
     carrera = serializers.CharField(max_length=100)
     sede = serializers.CharField(max_length=100)
+    origen = serializers.CharField(max_length=20, required=False, default='WEB')
     numero_operacion = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
     fecha_pago = serializers.DateField(required=False, allow_null=True)
     

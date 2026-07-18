@@ -56,6 +56,7 @@ class Solicitud(models.Model):
     foto_url        = models.CharField(max_length=500)
     titulo_pdf_url  = models.CharField(max_length=500)
     recibo_pago_url = models.CharField(max_length=500)
+    origen          = models.CharField(max_length=20, default='WEB')
     estado          = models.CharField(max_length=20, choices=ESTADOS, default='EN_REVISION')
     motivo_rechazo  = models.TextField(null=True, blank=True)
     numero_operacion= models.CharField(max_length=50, null=True, blank=True)

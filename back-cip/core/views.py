@@ -211,8 +211,12 @@ class PublicPostulacionView(APIView):
         valid_data = serializer.validated_data
         dni = valid_data['dni']
         nombres = valid_data['nombres']
-        carrera = valid_data['carrera_obj']
-        sede = valid_data['sede_obj']
+        carrera = Carrera.objects.get(id=valid_data['carrera'])
+        sede = None
+        if valid_data.get('sede'):
+            sede = Sede.objects.get(id=valid_data['sede'])
+            
+        origen = valid_data.get('origen', 'WEB')
         numero_operacion = valid_data.get('numero_operacion')
         fecha_pago = valid_data.get('fecha_pago')
         foto = valid_data['foto']
@@ -274,6 +278,7 @@ class PublicPostulacionView(APIView):
                 recibo_pago_url=f"/media/{recibo_name}",
                 numero_operacion=numero_operacion,
                 fecha_pago=fecha_pago,
+                origen=origen,
                 estado='EN_REVISION'
             )
         except Exception as e:
@@ -446,6 +451,49 @@ class SolicitudViewSet(viewsets.ModelViewSet):
         solicitud.resuelto_en = datetime.utcnow()
         solicitud.save()
         return Response({'success': True, 'estado': 'RECHAZADA'})
+
+    @action(detail=True, methods=['patch'], parser_classes=[MultiPartParser, FormParser])
+    def actualizar_archivos(self, request, pk=None):
+        user = request.user
+        if getattr(user, 'rol', None) not in ['ADMIN', 'MASTER_ADMIN']:
+            return Response({'error': 'No tiene permisos para actualizar archivos.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        solicitud = self.get_object()
+        
+        foto = request.FILES.get('foto')
+        titulo = request.FILES.get('titulo')
+        recibo = request.FILES.get('recibo')
+        
+        if not (foto or titulo or recibo):
+            return Response({'error': 'No se enviaron archivos para actualizar.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        base_path = 'postulaciones/'
+        
+        try:
+            if foto:
+                foto_name = f"{base_path}{uuid.uuid4()}_{foto.name}"
+                default_storage.save(foto_name, foto)
+                solicitud.foto_url = f"/media/{foto_name}"
+            
+            if titulo:
+                if titulo.content_type != 'application/pdf':
+                    return Response({'error': 'El Título debe ser PDF.'}, status=status.HTTP_400_BAD_REQUEST)
+                titulo_name = f"{base_path}{uuid.uuid4()}_{titulo.name}"
+                default_storage.save(titulo_name, titulo)
+                solicitud.titulo_pdf_url = f"/media/{titulo_name}"
+                
+            if recibo:
+                if not (recibo.content_type.startswith('image/') or recibo.content_type == 'application/pdf'):
+                    return Response({'error': 'El Recibo debe ser PDF o imagen.'}, status=status.HTTP_400_BAD_REQUEST)
+                recibo_name = f"{base_path}{uuid.uuid4()}_{recibo.name}"
+                default_storage.save(recibo_name, recibo)
+                solicitud.recibo_pago_url = f"/media/{recibo_name}"
+                
+            solicitud.save()
+            return Response({'success': True, 'mensaje': 'Archivos actualizados correctamente.'})
+            
+        except Exception as e:
+            return Response({'error': f'Error al guardar los archivos: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class PortalPerfilView(APIView):
     permission_classes = [IsAuthenticated]
