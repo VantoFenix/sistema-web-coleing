@@ -14,11 +14,15 @@ class CarreraSerializer(serializers.ModelSerializer):
 class ColegiadoSerializer(serializers.ModelSerializer):
     carrera = CarreraSerializer(read_only=True)
     sede = SedeSerializer(read_only=True)
+    estado = serializers.SerializerMethodField()
 
     class Meta:
         model = Colegiado
         fields = ['id', 'dni', 'nombres', 'carrera', 'nro_colegiado',
-                  'sede', 'foto_url', 'activo', 'colegiado_desde']
+                  'sede', 'foto_url', 'activo', 'estado', 'colegiado_desde']
+                  
+    def get_estado(self, obj):
+        return 'ACTIVO' if obj.activo else 'INHABILITADO'
 
 class AdministradorSerializer(serializers.ModelSerializer):
     estado_display = serializers.SerializerMethodField()

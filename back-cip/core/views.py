@@ -778,28 +778,20 @@ class PanelDeudoresView(APIView):
 
     def get(self, request):
         admin = request.user
-        if getattr(admin, 'rol', None) != 'CAJERO':
-            return Response({'error': 'Solo el cajero puede ver deudores'}, status=403)
+        
+        # Permitir a MASTER_ADMIN, ADMIN y CAJERO
+        if getattr(admin, 'rol', None) not in ['MASTER_ADMIN', 'ADMIN', 'CAJERO']:
+            return Response({'error': 'No tienes permisos para ver este panel'}, status=403)
 
         colegiados = Colegiado.objects.all()
-        if admin.sede:
-            colegiados = colegiados.filter(sede=admin.sede)
+        
+        # Filtrar por sede si no es MASTER_ADMIN
+        if getattr(admin, 'rol', None) in ['ADMIN', 'CAJERO'] and admin.sede_id:
+            colegiados = colegiados.filter(sede_id=admin.sede_id)
 
-        from django.utils import timezone
-        now = timezone.now()
-        mes_actual = now.month
-        anio_actual = now.year
-
-        deudores = []
-        for c in colegiados:
-            ultimo_pago = Pago.objects.filter(colegiado=c, tipo='MENSUALIDAD').order_by('-periodo').first()
-            if not ultimo_pago:
-                deudores.append({'dni': c.dni, 'nombre': c.nombres, 'estado': 'INHABILITADO'})
-            else:
-                if ultimo_pago.periodo.month < mes_actual and ultimo_pago.periodo.year <= anio_actual:
-                    deudores.append({'dni': c.dni, 'nombre': c.nombres, 'estado': 'INHABILITADO'})
-
-        return Response(deudores)
+        from .serializers import ColegiadoSerializer
+        serializer = ColegiadoSerializer(colegiados, many=True)
+        return Response(serializer.data)
 
 from rest_framework.viewsets import ModelViewSet
 
