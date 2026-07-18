@@ -363,10 +363,11 @@ class SolicitudViewSet(viewsets.ModelViewSet):
             
         qs = Solicitud.objects.all().order_by('creado_en')
         
-        if getattr(user, 'rol', None) == 'MASTER_ADMIN':
+        # MASTER_ADMIN y ADMIN ven todas las solicitudes
+        if getattr(user, 'rol', None) in ['MASTER_ADMIN', 'ADMIN']:
             return qs
             
-        # Para ADMIN y CAJERO, filtrar por sede
+        # CAJERO solo ve las de su sede
         if getattr(user, 'sede_id', None):
             qs = qs.filter(sede_id=user.sede_id)
             
