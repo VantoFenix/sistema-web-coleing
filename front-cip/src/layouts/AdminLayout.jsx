@@ -48,6 +48,7 @@ export default function AdminLayout() {
               <NavItem to="/admin/sedes" icon={MapPin} label="Sedes" />
               <NavItem to="/admin/carreras" icon={BookOpen} label="Carreras" />
               <NavItem to="/admin/usuarios" icon={Users} label="Usuarios" />
+              <NavItem to="/admin/home" icon={LayoutDashboard} label="Configuración" />
             </>
           )}
 
@@ -55,15 +56,13 @@ export default function AdminLayout() {
           {adminRole === 'ADMIN' && (
             <>
               <NavItem to="/admin/postulaciones" icon={FileText} label="Postulaciones" />
-              <NavItem to="/admin/vouchers" icon={ShieldCheck} label="Verificar Vouchers" />
-              <NavItem to="/admin/home" icon={LayoutDashboard} label="Configuración" />
             </>
           )}
 
           {/* Vistas de CAJERO */}
           {adminRole === 'CAJERO' && (
             <>
-              <NavItem to="/admin/deudores" icon={AlertTriangle} label="Panel de Deudores" />
+              <NavItem to="/admin/deudores" icon={Wallet} label="Pagos Mensuales" />
               <NavItem to="/admin/presencial" icon={UserPlus} label="Registro Presencial" />
               <NavItem to="/admin/pagos-presencial" icon={Wallet} label="Pagos Presenciales" />
             </>

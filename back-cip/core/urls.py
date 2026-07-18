@@ -10,12 +10,15 @@ router = DefaultRouter()
 router.register(r'api/master/sedes', views.SedeViewSet, basename='master-sedes')
 router.register(r'api/master/carreras', views.CarreraViewSet, basename='master-carreras')
 router.register(r'api/master/usuarios', views.AdministradorViewSet, basename='master-usuarios')
+router.register(r'api/admin/postulaciones', views.SolicitudViewSet, basename='admin-postulaciones')
 
 urlpatterns = [
     path('django-admin/', admin.site.urls),
     
     # Auth
     path('api/auth/login/', views.AuthLoginView.as_view(), name='auth-login'),
+    path('api/auth/password-reset/', views.PasswordResetRequestView.as_view(), name='password-reset-request'),
+    path('api/auth/password-reset/confirm/<str:uidb64>/<str:token>/', views.PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
     
     # Catalogos
     path('api/catalogos/', views.get_catalogos, name='catalogos'),
@@ -35,8 +38,6 @@ urlpatterns = [
     path('api/admin/dashboard/', views.AdminDashboardView.as_view(), name='admin-dashboard'),
     path('api/admin/configuracion/', views.AdminConfiguracionView.as_view(), name='admin-configuracion'),
     path('api/admin/deudores/', views.PanelDeudoresView.as_view(), name='admin-deudores'),
-    path('api/admin/postulaciones/', views.AdminPostulacionesView.as_view(), name='admin-postulaciones'),
-    path('api/admin/postulaciones/<int:pk>/resolver/', views.AdminResolverSolicitudView.as_view(), name='admin-resolver-postulacion'),
     # HU14 — Pagos Presencial
     path('api/admin/colegiados/buscar/', views.AdminBuscarColegiadoView.as_view(), name='admin-buscar-colegiado'),
     path('api/admin/colegiados/<int:pk>/deuda/', views.AdminDeudaColegiadoView.as_view(), name='admin-deuda-colegiado'),

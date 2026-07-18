@@ -36,7 +36,8 @@ class Administrador(models.Model):
     rol          = models.CharField(max_length=20, choices=ROLES, default='ADMIN')
     sede         = models.ForeignKey(Sede, on_delete=models.DO_NOTHING, null=True, blank=True)
     activo       = models.BooleanField(default=True)
-    creado_en    = models.DateTimeField(default=timezone.now)
+    cuenta_confirmada = models.BooleanField(default=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'administrador'
@@ -54,7 +55,9 @@ class Solicitud(models.Model):
     sede            = models.ForeignKey(Sede, on_delete=models.DO_NOTHING, null=True, blank=True)
     foto_url        = models.CharField(max_length=500)
     titulo_pdf_url  = models.CharField(max_length=500)
-    recibo_pago_url = models.CharField(max_length=500)
+    recibo_pago_url = models.CharField(max_length=500, null=True, blank=True)
+    metodo_pago     = models.CharField(max_length=20, default='TRANSFERENCIA', null=True, blank=True)
+    origen          = models.CharField(max_length=20, default='WEB')
     estado          = models.CharField(max_length=20, choices=ESTADOS, default='EN_REVISION')
     motivo_rechazo  = models.TextField(null=True, blank=True)
     numero_operacion= models.CharField(max_length=50, null=True, blank=True)

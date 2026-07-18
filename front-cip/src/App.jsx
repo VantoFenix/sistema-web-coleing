@@ -17,6 +17,7 @@ import AdminDeudores from './pages/admin/AdminDeudores';
 import AdminSedes from './pages/admin/AdminSedes';
 import AdminCarreras from './pages/admin/AdminCarreras';
 import AdminUsuarios from './pages/admin/AdminUsuarios';
+import AdminResetPassword from './pages/admin/AdminResetPassword';
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
 
         {/* Rutas del Portal Administrativo */}
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/reset-password/:uidb64/:token/*" element={<AdminResetPassword />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route path="home" element={<AdminHome />} />
           <Route path="postulaciones" element={<AdminPostulaciones />} />

@@ -231,20 +231,15 @@ SIMPLE_JWT = {
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ==============================================================================
-# CONFIGURACIÓN DE CORREO ELECTRÓNICO
+# CONFIGURACIÓN DE CORREO ELECTRÓNICO (SMTP Gmail)
 # ==============================================================================
-# Si EMAIL_HOST está definido en .env, usa SMTP, de lo contrario, imprime correos en la consola del servidor.
-if os.getenv('EMAIL_HOST'):
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = os.getenv('EMAIL_HOST')
-    EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-    EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
-    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-else:
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-
-DEFAULT_FROM_EMAIL = 'Colegio de Ingenieros del Perú <noreply@cip.org.pe>'
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # ==============================================================================
 # MERCADOPAGO
@@ -252,3 +247,6 @@ DEFAULT_FROM_EMAIL = 'Colegio de Ingenieros del Perú <noreply@cip.org.pe>'
 MP_PUBLIC_KEY   = os.getenv('MP_PUBLIC_KEY', '')
 MP_ACCESS_TOKEN = os.getenv('MP_ACCESS_TOKEN', '')
 SITE_URL        = os.getenv('SITE_URL', '')   # URL pública del sitio, ej: https://cip.tudominio.com
+
+# URL del Frontend (para enlaces de correos, etc)
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
