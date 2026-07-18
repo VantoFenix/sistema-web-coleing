@@ -4,7 +4,7 @@ import {
   ShieldCheck, ArrowLeft, AlertCircle, Clock, Receipt,
   Smartphone, Building2, UploadCloud, CheckCheck,
 } from 'lucide-react';
-import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react';
+import { QRCodeSVG } from 'qrcode.react';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const MESES = [
@@ -26,8 +26,15 @@ const fmtFecha = (iso) => {
 };
 
 // ── Paso: Selección de periodos (calendario estilo admin) ─────────────────
-function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSoloDeuda, onDeselAll, montoUnit, onContinuar }) {
+function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSoloDeuda, onDeselAll, montoUnit, onError, onGenerarQR }) {
+  const [generando, setGenerando] = useState(false);
   const total = seleccionados.size * parseFloat(montoUnit);
+
+  const handleGenerarQR = async () => {
+    setGenerando(true);
+    await onGenerarQR(Array.from(seleccionados));
+    setGenerando(false);
+  };
 
   // Construir lista completa de periodos (pendientes + mes actual + adelantos)
   const hoy           = new Date();
@@ -78,15 +85,7 @@ function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSol
     onSelAll(s);
   };
 
-  if (allPeriodos.length === 0) {
-    return (
-      <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-        <CheckCircle2 size={52} color="#16A34A" style={{ margin: '0 auto 1rem', display: 'block' }} />
-        <h3 style={{ color: 'var(--cip-blue)', fontWeight: '800', marginBottom: '0.5rem' }}>¡Estás al día!</h3>
-        <p style={{ color: 'var(--text-muted)' }}>No tienes cuotas pendientes de pago.</p>
-      </div>
-    );
-  }
+
 
   // Agrupar por año
   const porAño = {};
@@ -202,609 +201,91 @@ function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSol
         </div>
       )}
 
-      <button
-        onClick={onContinuar}
-        disabled={seleccionados.size === 0}
-        className="btn btn-primary btn-block"
-        style={{
-          padding: '0.875rem', fontSize: '1rem', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-          opacity: seleccionados.size === 0 ? 0.5 : 1,
-          cursor: seleccionados.size === 0 ? 'not-allowed' : 'pointer',
-        }}
-      >
-        <CreditCard size={18} /> Continuar al pago →
-      </button>
-    </div>
-  );
-}
-
-// ── Paso: Selección de método ──────────────────────────────────────────────
-function StepMetodo({ totalBase, total, onMontoChange, onVolver, onSeleccionar }) {
-  const [montoInput, setMontoInput] = useState(total.toFixed(2));
-  const [editando, setEditando]     = useState(false);
-
-  const handleMontoBlur = () => {
-    const val = parseFloat(montoInput);
-    if (!isNaN(val) && val > 0) {
-      onMontoChange(Math.round(val * 100) / 100);
-      setMontoInput((Math.round(val * 100) / 100).toFixed(2));
-    } else {
-      setMontoInput(total.toFixed(2));
-    }
-    setEditando(false);
-  };
-
-  const metodos = [
-    {
-      id: 'TARJETA',
-      label: 'Tarjeta de crédito / débito',
-      desc: 'Visa, Mastercard o American Express · pago inmediato',
-      icon: <CreditCard size={26} />,
-      bg: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
-      badge: 'Inmediato',
-    },
-    {
-      id: 'TRANSFERENCIA',
-      label: 'Transferencia / Plin',
-      desc: 'Transferencia bancaria o Plin · sube el comprobante',
-      icon: <Building2 size={26} />,
-      bg: 'linear-gradient(135deg, #0F766E 0%, #0D6F68 100%)',
-      badge: 'Revisión 24h',
-    },
-  ];
-
-  return (
-    <div>
-      <button onClick={onVolver} style={{
-        display: 'flex', alignItems: 'center', gap: '0.4rem',
-        color: 'var(--text-muted)', background: 'none', border: 'none',
-        cursor: 'pointer', marginBottom: '1.5rem', fontSize: '0.875rem',
-      }}>
-        <ArrowLeft size={15} /> Cambiar periodos
-      </button>
-
-      <h3 style={{ fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.25rem', fontSize: '1.1rem' }}>
-        ¿Cómo deseas pagar?
-      </h3>
-
-      {/* Total editable */}
-      <div style={{
-        background: '#EFF6FF', border: `1.5px solid ${editando ? 'var(--cip-blue)' : '#BFDBFE'}`,
-        borderRadius: '10px', padding: '0.75rem 1rem',
-        marginBottom: '1.5rem', marginTop: '0.75rem',
-        transition: 'border-color 0.2s',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
-          <div>
-            <p style={{ fontSize: '0.72rem', fontWeight: '700', color: '#3B82F6', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '0.15rem' }}>
-              Monto a cobrar
-            </p>
-            {totalBase !== total && (
-              <p style={{ fontSize: '0.68rem', color: '#64748B' }}>
-                Base calculada: S/ {totalBase.toFixed(2)}
-              </p>
-            )}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--cip-blue)' }}>S/</span>
-            <input
-              type="number"
-              min="1"
-              step="0.50"
-              value={montoInput}
-              onFocus={() => { setEditando(true); setMontoInput(total.toFixed(2)); }}
-              onChange={e => setMontoInput(e.target.value)}
-              onBlur={handleMontoBlur}
-              onKeyDown={e => e.key === 'Enter' && e.target.blur()}
-              style={{
-                width: '110px', padding: '0.4rem 0.6rem',
-                border: `1.5px solid ${editando ? 'var(--cip-blue)' : 'transparent'}`,
-                borderRadius: '8px', outline: 'none',
-                fontSize: '1.5rem', fontWeight: '900', color: 'var(--cip-blue)',
-                fontFamily: 'monospace', textAlign: 'right',
-                background: editando ? 'white' : 'transparent',
-                transition: 'all 0.15s',
-              }}
-            />
-          </div>
+      <div style={{ background: 'white', borderRadius: '10px', border: '2px solid #E2E8F0', padding: '1.25rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ width: 48, height: 48, background: '#EFF6FF', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Smartphone size={24} color="#2563EB" />
         </div>
-        <p style={{ fontSize: '0.68rem', color: '#3B82F6', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-          ✏️ Puedes editar el monto directamente
-        </p>
+        <div>
+          <h4 style={{ margin: '0 0 0.25rem 0', color: 'var(--cip-blue)', fontSize: '1rem', fontWeight: '800' }}>Medio de Pago</h4>
+          <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748B' }}>Yape / Plin (QR Interoperable)</p>
+        </div>
+        <div style={{ marginLeft: 'auto' }}>
+          <CheckCircle2 size={24} color="#059669" />
+        </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        {metodos.map(m => (
-          <button
-            key={m.id}
-            onClick={() => onSeleccionar(m.id)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '1rem',
-              padding: '1rem 1.25rem', borderRadius: '12px', border: 'none',
-              background: m.bg, color: 'white', cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-              transition: 'transform 0.15s, box-shadow 0.15s',
-              textAlign: 'left',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,0,0,0.2)'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'; }}
-          >
-            <span style={{ flexShrink: 0, opacity: 0.9 }}>{m.icon}</span>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontWeight: '800', fontSize: '0.95rem', margin: 0 }}>{m.label}</p>
-              <p style={{ fontSize: '0.75rem', margin: '0.1rem 0 0', opacity: 0.85 }}>{m.desc}</p>
-            </div>
-            <span style={{
-              background: 'rgba(255,255,255,0.2)', borderRadius: '999px',
-              padding: '0.15rem 0.55rem', fontSize: '0.65rem', fontWeight: '700',
-              flexShrink: 0, whiteSpace: 'nowrap',
-            }}>{m.badge}</span>
-          </button>
-        ))}
-      </div>
-
-      <p style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
-        <ShieldCheck size={12} /> Pago seguro — datos cifrados
-      </p>
+      <button
+        onClick={handleGenerarQR}
+          disabled={seleccionados.size === 0 || generando}
+          className="btn btn-block"
+          style={{
+            padding: '1rem', fontSize: '1.05rem', display: 'flex', fontWeight: '800', border: 'none',
+            alignItems: 'center', justifyContent: 'center', gap: '0.5rem', borderRadius: '10px', color: 'white',
+            background: (seleccionados.size === 0 || generando) ? '#94A3B8' : 'linear-gradient(135deg, #7C3AED 0%, #059669 100%)',
+            cursor: (seleccionados.size === 0 || generando) ? 'not-allowed' : 'pointer',
+            boxShadow: (seleccionados.size === 0 || generando) ? 'none' : '0 4px 14px rgba(5,150,105,0.4)',
+            transition: 'all 0.2s',
+          }}
+        >
+          {generando
+            ? <><Loader2 size={18} className="spin" /> Procesando…</>
+            : <><Smartphone size={18} /> Proceder con el pago</>
+          }
+        </button>
     </div>
   );
 }
 
-// ── Componente reutilizable: upload de voucher ─────────────────────────────
-function VoucherUpload({ archivo, onChange }) {
-  return (
-    <div>
-      <p style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '0.5rem' }}>
-        📎 Sube el comprobante de tu pago
-      </p>
-      <label style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        gap: '0.5rem', padding: '1.25rem', borderRadius: '10px', cursor: 'pointer',
-        border: `2px dashed ${archivo ? '#16A34A' : '#CBD5E1'}`,
-        background: archivo ? '#F0FDF4' : '#F8FAFC',
-        transition: 'all 0.2s',
-      }}>
-        {archivo
-          ? <CheckCheck size={28} color="#16A34A" />
-          : <UploadCloud size={28} color="#94A3B8" />
-        }
-        <span style={{ fontSize: '0.8rem', fontWeight: '600', color: archivo ? '#15803D' : '#64748B' }}>
-          {archivo ? archivo.name : 'Clic para subir imagen o PDF'}
-        </span>
-        <span style={{ fontSize: '0.7rem', color: '#94A3B8' }}>JPG, PNG o PDF · máx. 5MB</span>
-        <input
-          type="file"
-          accept="image/*,.pdf"
-          style={{ display: 'none' }}
-          onChange={e => onChange(e.target.files[0] || null)}
-        />
-      </label>
-    </div>
-  );
-}
 
-// ── Paso: Yape online (flujo transparente — sin redirect, sin login MP) ───────
-function StepYape({ total, periodos, onVolver, onExito, onError }) {
-  const [telefono, setTelefono]   = useState('');
-  const [enviando, setEnviando]   = useState(false);
-  const [esperando, setEsperando] = useState(false);
-  const [mpId, setMpId]           = useState(null);
-  const [errLocal, setErrLocal]   = useState('');
-  const pollRef                   = useRef(null);
-
-  // Limpiar polling al desmontar
-  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
-
-  const iniciarPolling = (paymentId) => {
-    let intentos = 0;
-    const MAX = 60; // 60 × 3 s = 3 min
-    pollRef.current = setInterval(async () => {
-      intentos++;
-      if (intentos > MAX) {
-        clearInterval(pollRef.current);
-        setEsperando(false);
-        setErrLocal('Tiempo agotado. No recibimos confirmación de Yape. Intenta de nuevo.');
-        return;
-      }
+// ── Paso: QR Dinámico (Yape/Plin Interoperable) ────────────────────────────
+function StepQRDinamico({ qrData, extRef, total, onExito, onError, onCancelar }) {
+  useEffect(() => {
+    if (!extRef) return;
+    const token = localStorage.getItem('colToken');
+    const interval = setInterval(async () => {
       try {
-        const token = localStorage.getItem('colToken');
-        const periodosStr = periodos.join(',');
-        const res = await fetch(`/api/pagos/online/status/${paymentId}?periodos=${encodeURIComponent(periodosStr)}`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const res = await fetch(`/api/pagos/qr-presencial/status/?external_reference=${extRef}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();
-        if (data.success) {
-          clearInterval(pollRef.current);
-          setEsperando(false);
+        if (data.pagado) {
+          clearInterval(interval);
           onExito(data);
-        } else if (data.status === 'rejected' || data.error) {
-          clearInterval(pollRef.current);
-          setEsperando(false);
-          const msg = data.error || 'Pago rechazado por Yape.';
-          setErrLocal(msg);
-          onError(msg);
         }
-        // status === 'pending' → seguir esperando
-      } catch { /* error de red — seguir intentando */ }
-    }, 3000);
-  };
-
-  const handleCancelar = () => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    setEsperando(false);
-    setMpId(null);
-  };
-
-  const handlePagar = async () => {
-    const tel = telefono.trim();
-    if (tel.length < 9) { setErrLocal('Ingresa tu número de Yape (9 dígitos).'); return; }
-    setErrLocal('');
-    setEnviando(true);
-    try {
-      const token = localStorage.getItem('colToken');
-      const res = await fetch('/api/pagos/online/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ payment_method_id: 'yape', phone: tel, periodos }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        onExito(data);
-      } else if (data.pending && data.mp_id) {
-        setMpId(data.mp_id);
-        setEsperando(true);
-        iniciarPolling(data.mp_id);
-      } else {
-        const msg = data.error || 'No se pudo procesar el pago Yape.';
-        setErrLocal(msg);
-        onError(msg);
+      } catch (err) {
+        console.error("Error polling QR status", err);
       }
-    } catch {
-      setErrLocal('Error de conexión. Intente de nuevo.');
-    } finally {
-      setEnviando(false);
-    }
-  };
-
-  // ── Pantalla de espera (usuario debe aprobar en su app Yape) ──────────────
-  if (esperando) {
-    return (
-      <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem' }}>
-        <div style={{ background: 'linear-gradient(135deg,#7C3AED,#6D28D9)', borderRadius: '14px', padding: '1.25rem', marginBottom: '1.5rem' }}>
-          <Smartphone size={32} color="white" style={{ margin: '0 auto 0.5rem', display: 'block' }} />
-          <p style={{ color: 'white', fontWeight: '800', fontSize: '1.05rem', marginBottom: '0.2rem' }}>Aprueba el pago en Yape</p>
-          <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.9rem' }}>S/ {total.toFixed(2)}</p>
-        </div>
-
-        <Loader2 size={40} className="spin" color="#7C3AED" style={{ margin: '0 auto 1rem', display: 'block' }} />
-
-        <p style={{ fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '0.4rem', fontSize: '1rem' }}>
-          Esperando tu confirmación…
-        </p>
-        <p style={{ fontSize: '0.83rem', color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
-          Abre tu app <strong>Yape</strong>, revisa las notificaciones<br />
-          y acepta el cobro de <strong>S/ {total.toFixed(2)}</strong>
-        </p>
-
-        <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: '10px', padding: '0.75rem 1rem', marginBottom: '1.5rem', fontSize: '0.8rem', color: '#5B21B6', textAlign: 'left' }}>
-          <p>📱 Revisa las notificaciones push de tu app Yape</p>
-          <p style={{ marginTop: '0.35rem' }}>⏱️ La solicitud expira en aprox. 3 minutos</p>
-          <p style={{ marginTop: '0.35rem' }}>📲 Número enviado: <strong>+51 {telefono}</strong></p>
-        </div>
-
-        <button onClick={handleCancelar} style={{
-          background: 'none', border: '1px solid #CBD5E1', borderRadius: '8px',
-          padding: '0.6rem 1.5rem', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.875rem',
-        }}>
-          Cancelar y volver
-        </button>
-      </div>
-    );
-  }
-
-  // ── Formulario principal ──────────────────────────────────────────────────
-  return (
-    <div>
-      <button onClick={onVolver} style={{ display:'flex', alignItems:'center', gap:'0.4rem', color:'var(--text-muted)', background:'none', border:'none', cursor:'pointer', marginBottom:'1.25rem', fontSize:'0.875rem' }}>
-        <ArrowLeft size={15} /> Cambiar método
-      </button>
-
-      {/* Encabezado */}
-      <div style={{ background:'linear-gradient(135deg,#7C3AED,#6D28D9)', borderRadius:'12px', padding:'1rem 1.25rem', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', color:'white' }}>
-          <Smartphone size={20} />
-          <span style={{ fontWeight:'800', fontSize:'1rem' }}>Pago con Yape</span>
-        </div>
-        <span style={{ color:'white', fontWeight:'900', fontSize:'1.4rem' }}>S/ {total.toFixed(2)}</span>
-      </div>
-
-      {/* Cómo funciona */}
-      <div style={{ background:'#F5F3FF', border:'1.5px solid #DDD6FE', borderRadius:'12px', padding:'0.9rem 1.1rem', marginBottom:'1.25rem' }}>
-        <p style={{ fontWeight:'800', fontSize:'0.82rem', color:'#5B21B6', marginBottom:'0.5rem' }}>¿Cómo funciona?</p>
-        {[
-          '1. Ingresa tu número Yape (9 dígitos)',
-          '2. Haz clic en "Pagar con Yape"',
-          '3. Recibirás una notificación en tu app Yape',
-          '4. Acepta el cobro · el pago queda registrado ✓',
-        ].map((s, i) => (
-          <p key={i} style={{ fontSize:'0.78rem', color:'#6D28D9', marginBottom:'0.15rem' }}>{s}</p>
-        ))}
-      </div>
-
-      {/* Input teléfono */}
-      <div style={{ marginBottom: '1.25rem' }}>
-        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '0.5rem' }}>
-          📱 Tu número de Yape
-        </label>
-        <div style={{ position: 'relative' }}>
-          <span style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: '#7C3AED', fontWeight: '700', fontSize: '0.9rem', pointerEvents: 'none' }}>
-            +51
-          </span>
-          <input
-            type="tel"
-            inputMode="numeric"
-            maxLength={9}
-            value={telefono}
-            onChange={e => { setTelefono(e.target.value.replace(/\D/g, '')); setErrLocal(''); }}
-            placeholder="999 888 777"
-            style={{
-              width: '100%', boxSizing: 'border-box',
-              padding: '0.875rem 1rem 0.875rem 3.25rem',
-              border: '2px solid #DDD6FE', borderRadius: '10px', outline: 'none',
-              fontSize: '1.1rem', fontWeight: '700', letterSpacing: '1.5px',
-              background: '#FAFAFA', color: 'var(--text-main)', transition: 'border 0.15s',
-            }}
-            onFocus={e => { e.target.style.borderColor = '#7C3AED'; e.target.style.background = 'white'; }}
-            onBlur={e => { e.target.style.borderColor = '#DDD6FE'; e.target.style.background = '#FAFAFA'; }}
-          />
-        </div>
-        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-          El número de 9 dígitos registrado en tu app Yape
-        </p>
-      </div>
-
-      {/* Periodos */}
-      <div style={{ background:'#EDE9FE', borderRadius:'8px', padding:'0.6rem 1rem', marginBottom:'1.25rem', fontSize:'0.8rem', color:'#5B21B6' }}>
-        <strong>Periodos:</strong> {periodos.map(p => fmtPeriodo(p)).join(', ')}
-      </div>
-
-      {errLocal && (
-        <div style={{ background:'#FEE2E2', color:'#991B1B', padding:'0.75rem', borderRadius:'8px', marginBottom:'1rem', fontSize:'0.875rem', display:'flex', alignItems:'center', gap:'0.5rem' }}>
-          <AlertCircle size={16} style={{ flexShrink:0 }} /> {errLocal}
-        </div>
-      )}
-
-      <button
-        onClick={handlePagar}
-        disabled={enviando || telefono.length < 9}
-        style={{
-          width:'100%', padding:'1rem', border:'none', borderRadius:'10px',
-          background: (enviando || telefono.length < 9) ? '#C4B5FD' : 'linear-gradient(135deg,#7C3AED,#6D28D9)',
-          color:'white', fontWeight:'800', fontSize:'1.05rem',
-          display:'flex', alignItems:'center', justifyContent:'center', gap:'0.6rem',
-          cursor: (enviando || telefono.length < 9) ? 'not-allowed' : 'pointer',
-          boxShadow: (enviando || telefono.length < 9) ? 'none' : '0 4px 14px rgba(109,40,217,0.4)',
-          transition:'all 0.2s',
-        }}
-      >
-        {enviando
-          ? <><Loader2 size={18} className="spin" /> Enviando solicitud…</>
-          : <><Smartphone size={18} /> Pagar con Yape</>
-        }
-      </button>
-
-      <p style={{ textAlign:'center', fontSize:'0.72rem', color:'var(--text-muted)', marginTop:'0.75rem', display:'flex', alignItems:'center', justifyContent:'center', gap:'0.3rem' }}>
-        <ShieldCheck size={12} /> Sin redirects · Sin cuenta MP · Registro automático
-      </p>
-    </div>
-  );
-}
-
-// ── Paso: Transferencia bancaria ───────────────────────────────────────────
-function StepTransferencia({ total, periodos, onVolver, onExito, onError }) {
-  const [voucher, setVoucher]   = useState(null);
-  const [enviando, setEnviando] = useState(false);
-  const [errLocal, setErrLocal] = useState('');
-
-  const handleEnviar = async () => {
-    if (!voucher) { setErrLocal('Debes subir el comprobante de transferencia.'); return; }
-    setErrLocal('');
-    setEnviando(true);
-    try {
-      const token = localStorage.getItem('colToken');
-      const fd = new FormData();
-      fd.append('periodos', JSON.stringify(periodos));
-      fd.append('metodo', 'TRANSFERENCIA');
-      fd.append('voucher', voucher);
-
-      const res = await fetch('/api/portal/pago-voucher/', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: fd,
-      });
-      const data = await res.json();
-      if (data.success) onExito(data);
-      else { setErrLocal(data.error || 'Error al enviar comprobante.'); onError(data.error || ''); }
-    } catch {
-      const msg = 'Error de conexión. Intente de nuevo.';
-      setErrLocal(msg);
-      onError(msg);
-    } finally {
-      setEnviando(false);
-    }
-  };
-
-  // Datos bancarios CIP (ajusta con los datos reales)
-  const cuentas = [
-    { banco: '🏦 BCP', tipo: 'Cuenta Corriente', numero: '215-2205555-0-54', cci: '002 215 002205555054 20' },
-    { banco: '🏦 Interbank', tipo: 'Cuenta Corriente', numero: '200-3001234567', cci: '003 200 003001234567 34' },
-  ];
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [extRef, onExito]);
 
   return (
-    <div>
-      <button onClick={onVolver} style={{
-        display: 'flex', alignItems: 'center', gap: '0.4rem',
-        color: 'var(--text-muted)', background: 'none', border: 'none',
-        cursor: 'pointer', marginBottom: '1.25rem', fontSize: '0.875rem',
-      }}>
-        <ArrowLeft size={15} /> Cambiar método
-      </button>
-
-      <h3 style={{ fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.25rem', fontSize: '1rem' }}>
-        🏦 Transferencia bancaria
+    <div style={{ animation: 'fadeIn 0.3s ease-out', textAlign: 'center', padding: '2rem 1rem' }}>
+      <h3 style={{ color: 'var(--cip-blue)', fontWeight: '800', marginBottom: '0.5rem', fontSize: '1.4rem' }}>
+        Escanea y Paga
       </h3>
-      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-        Realiza la transferencia al banco de tu preferencia, luego sube el comprobante.
+      <p style={{ fontSize: '0.9rem', color: '#475569', marginBottom: '1.5rem', lineHeight: '1.6' }}>
+        Abre <strong>Yape, Plin o tu app bancaria</strong> y escanea el código para pagar <strong>S/ {total.toFixed(2)}</strong>.
       </p>
-
-      {/* Monto destacado */}
-      <div style={{
-        background: 'linear-gradient(135deg, #0F766E, #0D6F68)', borderRadius: '10px',
-        padding: '0.75rem 1.25rem', marginBottom: '1rem',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      }}>
-        <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.85rem' }}>Monto exacto a transferir</span>
-        <span style={{ color: 'white', fontWeight: '900', fontSize: '1.3rem' }}>S/ {total.toFixed(2)}</span>
+      
+      <div style={{ background: 'white', padding: '1.25rem', display: 'inline-block', borderRadius: '16px', border: '4px solid #059669', marginBottom: '1.5rem', boxShadow: '0 10px 25px rgba(5,150,105,0.2)' }}>
+        <QRCodeSVG value={qrData} size={220} level={"H"} />
       </div>
 
-      {/* Cuentas bancarias */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
-        {cuentas.map((c, i) => (
-          <div key={i} style={{
-            border: '1px solid #E2E8F0', borderRadius: '10px',
-            padding: '0.75rem 1rem', background: 'white',
-          }}>
-            <p style={{ fontWeight: '800', fontSize: '0.9rem', color: 'var(--cip-blue)', marginBottom: '0.5rem' }}>{c.banco}</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem 1rem', fontSize: '0.78rem' }}>
-              <div>
-                <p style={{ color: '#64748B', marginBottom: '0.1rem' }}>Tipo</p>
-                <p style={{ fontWeight: '600', color: '#1E293B' }}>{c.tipo}</p>
-              </div>
-              <div>
-                <p style={{ color: '#64748B', marginBottom: '0.1rem' }}>N° Cuenta</p>
-                <p style={{ fontWeight: '700', color: '#1E293B', fontFamily: 'monospace' }}>{c.numero}</p>
-              </div>
-              <div style={{ gridColumn: '1/-1' }}>
-                <p style={{ color: '#64748B', marginBottom: '0.1rem' }}>CCI (Código Interbancario)</p>
-                <p style={{ fontWeight: '700', color: '#1E293B', fontFamily: 'monospace', letterSpacing: '0.5px' }}>{c.cci}</p>
-              </div>
-            </div>
-          </div>
-        ))}
-
-        {/* Titular */}
-        <div style={{ background: '#F1F5F9', borderRadius: '8px', padding: '0.6rem 1rem', fontSize: '0.8rem' }}>
-          <span style={{ color: '#64748B' }}>Titular: </span>
-          <span style={{ fontWeight: '700', color: '#1E293B' }}>Consejo Departamental La Libertad — CIP</span>
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: '#059669', marginBottom: '1rem', fontWeight: '700' }}>
+        <Loader2 size={18} className="spin" /> Esperando confirmación del pago...
       </div>
 
-      {/* Upload voucher */}
-      <div style={{ marginBottom: '1.25rem' }}>
-        <VoucherUpload archivo={voucher} onChange={setVoucher} />
-      </div>
-
-      {errLocal && (
-        <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <AlertCircle size={16} style={{ flexShrink: 0 }} /> {errLocal}
-        </div>
-      )}
+      <p style={{ fontSize: '0.78rem', color: '#94A3B8', marginBottom: '1.5rem' }}>
+        Una vez que completes el pago, esta pantalla se actualizará automáticamente.
+      </p>
 
       <button
-        onClick={handleEnviar}
-        disabled={enviando || !voucher}
-        className="btn btn-block"
-        style={{
-          padding: '0.9rem', fontSize: '1rem', border: 'none', borderRadius: '8px',
-          background: 'linear-gradient(135deg, #0F766E, #0D6F68)', color: 'white', fontWeight: '800',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-          opacity: (enviando || !voucher) ? 0.6 : 1,
-          cursor: (enviando || !voucher) ? 'not-allowed' : 'pointer',
-        }}
+        onClick={onCancelar}
+        style={{ width: '100%', padding: '0.9rem', background: 'white', color: '#334155', fontWeight: '700', borderRadius: '12px', border: '2px solid #CBD5E1', cursor: 'pointer', fontSize: '0.95rem' }}
       >
-        {enviando ? <><Loader2 size={18} className="spin" /> Enviando…</> : <><UploadCloud size={18} /> Enviar comprobante</>}
+        Cancelar
       </button>
-    </div>
-  );
-}
-
-// ── Paso: Tarjeta (MercadoPago Bricks) ────────────────────────────────────
-function StepTarjeta({ total, periodos, onVolver, onExito, onError }) {
-  const [mpListo, setMpListo]       = useState(false);
-  const [cargandoMP, setCargandoMP] = useState(true);
-  const [errLocal, setErrLocal]     = useState('');
-
-  useEffect(() => {
-    fetch('/api/pagos/mp-config/')
-      .then(r => r.json())
-      .then(d => { initMercadoPago(d.public_key, { locale: 'es-PE' }); setMpListo(true); })
-      .catch(() => setErrLocal('No se pudo cargar la pasarela de pago.'))
-      .finally(() => setCargandoMP(false));
-  }, []);
-
-  const handleSubmit = async (formData) => {
-    setErrLocal('');
-    try {
-      const token = localStorage.getItem('colToken');
-      const res = await fetch('/api/pagos/online/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          token:             formData.token,
-          payment_method_id: formData.payment_method_id,
-          installments:      formData.installments,
-          issuer_id:         formData.issuer_id,
-          periodos,
-          email:             formData.payer?.email,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) onExito(data);
-      else { const msg = data.error || 'No se pudo procesar el pago.'; setErrLocal(msg); onError(msg); }
-    } catch {
-      const msg = 'Error de conexión. Intente de nuevo.';
-      setErrLocal(msg);
-      onError(msg);
-    }
-  };
-
-  return (
-    <div>
-      <button onClick={onVolver} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: '1.25rem', fontSize: '0.875rem' }}>
-        <ArrowLeft size={15} /> Cambiar método
-      </button>
-
-      <div style={{ background: '#EFF6FF', borderRadius: '8px', padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-        <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Total a cobrar</span>
-        <span style={{ fontSize: '1.375rem', fontWeight: '800', color: 'var(--cip-blue)' }}>S/ {total.toFixed(2)}</span>
-      </div>
-
-      {cargandoMP && (
-        <div style={{ textAlign: 'center', padding: '2rem' }}>
-          <Loader2 size={28} className="spin" style={{ margin: '0 auto', display: 'block', color: 'var(--text-muted)' }} />
-          <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', fontSize: '0.875rem' }}>Cargando pasarela de pago…</p>
-        </div>
-      )}
-
-      {errLocal && (
-        <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <AlertCircle size={16} style={{ flexShrink: 0 }} /> {errLocal}
-        </div>
-      )}
-
-      {mpListo && (
-        <CardPayment
-          initialization={{ amount: total }}
-          customization={{ paymentMethods: { minInstallments: 1, maxInstallments: 1 } }}
-          onSubmit={handleSubmit}
-          onError={(err) => setErrLocal(err.message || 'Error en la pasarela de pago.')}
-        />
-      )}
-
-      <p style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
-        <ShieldCheck size={12} /> Pago procesado por MercadoPago · Datos cifrados
-      </p>
     </div>
   );
 }
@@ -929,18 +410,53 @@ export default function MisPagos() {
 
   const [pendientes, setPendientes]       = useState([]);
   const [historial, setHistorial]         = useState([]);
-  const [habilitado, setHabilitado]       = useState(null);
-  const [montoUnit, setMontoUnit]         = useState('20.00');
+  const [montoUnit, setMontoUnit]         = useState(0);
 
-  // paso: 'periodos' | 'metodo' | 'tarjeta' | 'yape' | 'transferencia' | 'pendiente' | 'exito'
-  const [paso, setPaso]                   = useState('periodos');
   const [seleccionados, setSeleccionados] = useState(new Set());
+  
+  const [qrData, setQrData]               = useState(null);
+  const [extRef, setExtRef]               = useState(null);
+  const [resultadoPago, setResultadoPago] = useState(null);
+
+  const handleGenerarQRPresencial = async (periodosArray) => {
+    try {
+      const token = localStorage.getItem('colToken');
+      const res = await fetch('/api/pagos/qr-presencial/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ periodos: periodosArray })
+      });
+      const data = await res.json();
+      if (data.qr_data) {
+        setQrData(data.qr_data);
+        setExtRef(data.external_reference);
+      } else {
+        setError(data.error || 'No se pudo generar el QR.');
+      }
+    } catch {
+      setError('Error de conexión al generar el QR.');
+    }
+  };
   const [montoCustom, setMontoCustom]     = useState(null); // null = cálculo automático
   const [errPago, setErrPago]             = useState('');
-  const [resultadoPago, setResultadoPago] = useState(null);
-  const [vouchersPendientes, setVouchersPendientes] = useState([]);
 
-  useEffect(() => { cargarDatos(); }, []);
+  const [vouchersPendientes, setVouchersPendientes] = useState([]);
+  const [habilitado, setHabilitado]       = useState(null);
+  const [paso, setPaso]                   = useState('periodos');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentId = params.get('payment_id');
+    const status = params.get('status');
+    const externalRef = params.get('external_reference');
+
+    if (paymentId && status && externalRef) {
+      verificarPagoMP(paymentId, externalRef, status);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      cargarDatos();
+    }
+  }, []);
 
   const cargarDatos = async () => {
     setCargando(true);
@@ -1124,13 +640,13 @@ export default function MisPagos() {
           {tab === 'pagar' && (
             <>
               {/* Mensaje de error al volver de MP (pago rechazado/cancelado) */}
-              {errPago && paso === 'periodos' && (
+              {errPago && !qrData && (
                 <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.875rem', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
                   <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '0.1rem' }} />
                   <span>{errPago}</span>
                 </div>
               )}
-              {paso === 'periodos' && (
+              {!qrData && !resultadoPago && (
                 <StepPeriodos
                   pendientes={pendientes}
                   historial={historial}
@@ -1139,46 +655,38 @@ export default function MisPagos() {
                   onSelSoloDeuda={() => setSeleccionados(new Set(pendientes.map(p => p.periodo)))}
                   onDeselAll={() => setSeleccionados(new Set())}
                   montoUnit={montoUnit}
-                  onContinuar={() => { setErrPago(''); setPaso('metodo'); }}
+                  onError={(msg) => setErrPago(msg)}
+                  onGenerarQR={handleGenerarQRPresencial}
                 />
               )}
-              {paso === 'metodo' && (
-                <StepMetodo
-                  totalBase={totalBase}
-                  total={totalSeleccionado}
-                  onMontoChange={(v) => setMontoCustom(v)}
-                  onVolver={() => { setPaso('periodos'); setMontoCustom(null); }}
-                  onSeleccionar={(m) => {
-                    setErrPago('');
-                    if (m === 'TARJETA')        setPaso('tarjeta');
-                    else if (m === 'YAPE')       setPaso('yape');
-                    else                         setPaso('transferencia');
+
+              {qrData && !resultadoPago && (
+                <StepQRDinamico
+                  qrData={qrData}
+                  extRef={extRef}
+                  total={seleccionados.size * parseFloat(montoUnit)}
+                  onExito={(data) => {
+                    setQrData(null);
+                    setExtRef(null);
+                    setResultadoPago(data);
+                    cargarDatos();
+                  }}
+                  onError={setError}
+                  onCancelar={() => {
+                    setQrData(null);
+                    setExtRef(null);
                   }}
                 />
               )}
-              {paso === 'tarjeta' && (
-                <StepTarjeta
-                  total={totalSeleccionado}
-                  periodos={periodosArray}
-                  onVolver={() => setPaso('metodo')}
-                  onExito={(data) => { setResultadoPago(data); setPaso('exito'); }}
-                  onError={(msg) => setErrPago(msg)}
-                />
-              )}
-              {paso === 'transferencia' && (
-                <StepTransferencia
-                  total={totalSeleccionado}
-                  periodos={periodosArray}
-                  onVolver={() => setPaso('metodo')}
-                  onExito={(data) => { setResultadoPago(data); setPaso('pendiente'); }}
-                  onError={(msg) => setErrPago(msg)}
-                />
-              )}
-              {paso === 'pendiente' && (
-                <StepPendiente resultado={resultadoPago} onVerHistorial={handleNuevoPago} />
-              )}
-              {paso === 'exito' && (
-                <StepExito resultado={resultadoPago} onNuevoPago={handleNuevoPago} />
+
+              {resultadoPago && (
+                <StepExito resultado={resultadoPago} onNuevoPago={() => {
+                  setResultadoPago(null);
+                  setQrData(null);
+                  setExtRef(null);
+                  setTab('historial');
+                  cargarDatos();
+                }} />
               )}
             </>
           )}

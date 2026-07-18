@@ -19,6 +19,15 @@ import AdminCarreras from './pages/admin/AdminCarreras';
 import AdminUsuarios from './pages/admin/AdminUsuarios';
 import AdminResetPassword from './pages/admin/AdminResetPassword';
 
+function AdminHomeRedirect() {
+  const rol = localStorage.getItem('adminRole') || 'ADMIN';
+  const destino =
+    rol === 'CAJERO'       ? 'deudores' :
+    rol === 'MASTER_ADMIN' ? 'sedes' :
+                             'postulaciones';
+  return <Navigate to={destino} replace />;
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -39,6 +48,7 @@ function App() {
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/reset-password/:uidb64/:token/*" element={<AdminResetPassword />} />
         <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<AdminHomeRedirect />} />
           <Route path="home" element={<AdminHome />} />
           <Route path="postulaciones" element={<AdminPostulaciones />} />
           <Route path="pagos-presencial" element={<AdminPagoPresencial />} />

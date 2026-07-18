@@ -152,3 +152,11 @@ class Configuracion(models.Model):
 
     def __str__(self):
         return f'{self.clave} = {self.valor}'
+
+class CajaPOS(models.Model):
+    external_id = models.CharField(max_length=50, unique=True)
+    en_uso_hasta = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'caja_pos'
+

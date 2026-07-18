@@ -23,7 +23,8 @@ from django.contrib.auth.hashers import make_password
 from .models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago, PagoVoucherPendiente, Configuracion
 from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import AdministradorSerializer, AdministradorCRUDSerializer, ColegiadoSerializer, SolicitudSerializer, SolicitudCreateSerializer, CarreraSerializer, SedeSerializer
-
+# pyrefly: ignore [missing-import]
+from apps.tramites.services import BancoNacionMockService
 def generate_jwt(user_id, role):
     payload = {
         'user_id': user_id,
@@ -793,6 +794,127 @@ class PanelDeudoresView(APIView):
         serializer = ColegiadoSerializer(colegiados, many=True)
         return Response(serializer.data)
 
+
+class AdminNotificarDeudoresView(APIView):
+    """Envía correos de recordatorio a los colegiados indicados en `ids`.
+    Body: {"ids": [1, 2, 3]}. Si `ids` está vacío, notifica a todos los deudores
+    de la sede del cajero."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        admin = request.user
+        if getattr(admin, 'rol', None) != 'CAJERO':
+            return Response({'error': 'Solo el cajero puede enviar recordatorios'}, status=403)
+
+        from .emails import enviar_recordatorio_deuda
+
+        ids = request.data.get('ids') or []
+        sede_id = admin.sede_id if getattr(admin, 'sede_id', None) else None
+
+        sql = """
+            SELECT v.colegiado_id, v.nombres, v.nro_colegiado,
+                   v.meses_adeudados, v.deuda_total, c.correo
+            FROM v_estado_colegiado v
+            JOIN colegiado c ON c.id = v.colegiado_id
+            WHERE v.meses_adeudados > 0
+        """
+        params = []
+        if ids:
+            placeholders = ','.join(['%s'] * len(ids))
+            sql += f" AND v.colegiado_id IN ({placeholders})"
+            params.extend(ids)
+        if sede_id:
+            sql += " AND c.sede_id = %s"
+            params.append(sede_id)
+
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+
+        enviados, fallidos, sin_correo = 0, 0, 0
+        detalles = []
+        for r in rows:
+            col_id, nombres, nro_col, meses, deuda, correo = r
+            if not correo:
+                sin_correo += 1
+                detalles.append({'id': col_id, 'estado': 'SIN_CORREO'})
+                continue
+            try:
+                enviar_recordatorio_deuda(
+                    correo=correo,
+                    nombres=nombres,
+                    nro_colegiado=nro_col,
+                    meses_adeudados=int(meses or 0),
+                    deuda_total=float(deuda or 0),
+                )
+                enviados += 1
+                detalles.append({'id': col_id, 'estado': 'ENVIADO'})
+            except Exception as e:
+                import sys
+                print(f"[NOTIF] Fallo envio a {correo}: {e}", file=sys.stderr)
+                fallidos += 1
+                detalles.append({'id': col_id, 'estado': 'FALLIDO', 'error': str(e)})
+
+        return Response({
+            'enviados':    enviados,
+            'fallidos':    fallidos,
+            'sin_correo':  sin_correo,
+            'total':       len(rows),
+            'detalles':    detalles,
+        })
+
+
+class AdminDeudoresDetalladoView(APIView):
+    """Variante enriquecida de PanelDeudoresView usada por el panel de
+    notificaciones del cajero. Consulta v_estado_colegiado y devuelve
+    meses_adeudados, deuda_total y correo por cada deudor.
+
+    Endpoint independiente para no interferir con PanelDeudoresView (que
+    otro miembro del equipo mantiene con su propio enfoque)."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        admin = request.user
+        if getattr(admin, 'rol', None) != 'CAJERO':
+            return Response({'error': 'Solo el cajero puede ver deudores'}, status=403)
+
+        sede_id = admin.sede_id if getattr(admin, 'sede_id', None) else None
+
+        sql = """
+            SELECT v.colegiado_id, v.dni, v.nombres, v.nro_colegiado,
+                   v.carrera, v.sede, v.meses_adeudados, v.deuda_total,
+                   c.correo, c.celular
+            FROM v_estado_colegiado v
+            JOIN colegiado c ON c.id = v.colegiado_id
+            WHERE v.meses_adeudados > 0
+        """
+        params = []
+        if sede_id:
+            sql += " AND c.sede_id = %s"
+            params.append(sede_id)
+        sql += " ORDER BY v.meses_adeudados DESC, v.nombres"
+
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+
+        deudores = [{
+            'id':               r[0],
+            'dni':              r[1],
+            'nombre':           r[2],
+            'nro_colegiado':    r[3],
+            'carrera':          r[4],
+            'sede':             r[5],
+            'meses_adeudados':  int(r[6] or 0),
+            'deuda_total':      float(r[7] or 0),
+            'correo':           r[8] or '',
+            'celular':          r[9] or '',
+            'estado':           'INHABILITADO',
+        } for r in rows]
+
+        return Response(deudores)
+
+
 from rest_framework.viewsets import ModelViewSet
 
 class MasterAdminPermission(IsAuthenticated):
@@ -1179,14 +1301,10 @@ class PagoPreferenciaView(APIView):
 
         sdk = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
 
-        # Usar SITE_URL del .env si está definida, si no construir desde la request
-        site_url = getattr(settings, 'SITE_URL', '').rstrip('/')
-        if not site_url:
-            site_url = request.scheme + '://' + request.get_host()
-
-        success_url = '{}/portal/pagos'.format(site_url)
-        failure_url = '{}/portal/pagos'.format(site_url)
-        pending_url = '{}/portal/pagos'.format(site_url)
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+        success_url = f"{frontend_url}/portal/mis-pagos"
+        failure_url = f"{frontend_url}/portal/mis-pagos"
+        pending_url = f"{frontend_url}/portal/mis-pagos"
 
         preference_data = {
             "items": [{
@@ -1195,16 +1313,13 @@ class PagoPreferenciaView(APIView):
                 "unit_price":  float(monto_total),
                 "currency_id": "PEN",
             }],
-            "payer": {
-                "email": "pagador@cip.org.pe",
-            },
+
             "back_urls": {
                 "success": success_url,
                 "failure": failure_url,
                 "pending": pending_url,
             },
-            # auto_return omitido: requiere URL HTTPS pública validada por MP.
-            # MP mostrará botón "Volver al sitio" → misma URL con payment_id en params.
+            "auto_return": "approved",
             "external_reference": external_ref,
         }
 
@@ -1849,6 +1964,238 @@ class AdminConfiguracionView(APIView):
         return Response({
             'success':          True,
             'monto_mensualidad': str(monto),
+        })
+# ==============================================================================
+# PAGO PRESENCIAL (QR DINÁMICO) — MercadoPago
+# ==============================================================================
+
+class GenerarQRDinamicoView(APIView):
+    """
+    Genera un código QR dinámico interoperable (EMVCo) de Mercado Pago.
+    Este QR se puede escanear con Yape, Plin o cualquier app bancaria.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import requests as http_requests, sys, time
+        try:
+            periodos = request.data.get('periodos', [])
+            if not periodos:
+                return Response({'error': 'Seleccione al menos un periodo.'}, status=400)
+
+            colegiado = request.user
+            monto_total = round(len(periodos) * _get_monto_mensualidad(), 2)
+            
+            timestamp = int(time.time())
+            external_ref = 'cip-{}-{}-{}'.format(colegiado.id, '-'.join(sorted(periodos)), timestamp)
+            
+            token = settings.MP_ACCESS_TOKEN.strip()
+            
+            if not token or len(token) < 20:
+                return Response({'error': 'Token de Mercado Pago no configurado.'}, status=500)
+
+            mp_user_id = token.split("-")[-1]
+            
+            # 1. Obtener una caja del pool y bloquearla por 15 minutos (transacción atómica)
+            from django.db import transaction
+            from django.db.models import Q
+            from django.utils import timezone
+            from datetime import timedelta
+            from .models import CajaPOS
+            
+            with transaction.atomic():
+                caja = (
+                    CajaPOS.objects
+                    .select_for_update(skip_locked=True)
+                    .filter(Q(en_uso_hasta__isnull=True) | Q(en_uso_hasta__lt=timezone.now()))
+                    .order_by('id')
+                    .first()
+                )
+                if not caja:
+                    return Response({'error': 'No hay cajas disponibles en este momento, intenta de nuevo en unos segundos.'}, status=503)
+                
+                caja.en_uso_hasta = timezone.now() + timedelta(minutes=15)
+                caja.save()
+                
+            external_pos_id = caja.external_id.strip()
+            
+            # Añadir el external_pos_id a la referencia para poder liberarlo luego
+            external_ref = f"{external_ref}-{external_pos_id}"
+
+            # 2. Generar el QR apuntando a esa caja estática
+            qr_url = f"https://api.mercadopago.com/instore/orders/qr/seller/collectors/{mp_user_id}/pos/{external_pos_id}/qrs"
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            }
+            order_data = {
+                "external_reference": external_ref,
+                "title": f"CIP - {len(periodos)} cuota(s)",
+                "total_amount": float(monto_total),
+                "description": "Pago de colegiatura",
+                "items": [{
+                    "sku_number": "CUOTA",
+                    "category": "services",
+                    "title": "Mensualidad",
+                    "description": "Cuota CIP",
+                    "unit_price": float(monto_total),
+                    "quantity": 1,
+                    "unit_measure": "unit",
+                    "total_amount": float(monto_total)
+                }]
+            }
+            
+            print(f"[MP QR] PUT {qr_url}", file=sys.stderr)
+            import json
+            with open('mp_debug_payload.json', 'w') as f:
+                json.dump({"url": qr_url, "headers": headers, "data": order_data}, f)
+            resp = http_requests.put(qr_url, json=order_data, headers=headers, timeout=15)
+            
+            print(f"[MP QR] Status: {resp.status_code}", file=sys.stderr)
+            
+            if resp.status_code not in (200, 201):
+                print(f"[MP QR FULL ERROR] Respuesta completa: {resp.text}", file=sys.stderr)
+                import json
+                with open('mp_error_dump.json', 'w') as f:
+                    json.dump({"status": resp.status_code, "text": resp.text}, f)
+                try:
+                    mp_error = resp.json().get('message', resp.text[:300])
+                    causes = resp.json().get('causes', [])
+                    if causes:
+                        mp_error += f" | Causas: {causes}"
+                except Exception:
+                    mp_error = resp.text[:300]
+                return Response({'error': f'Mercado Pago ({resp.status_code}): {mp_error}'}, status=500)
+                
+            qr_data = resp.json().get('qr_data')
+            
+            return Response({
+                'success': True,
+                'qr_data': qr_data,
+                'in_store_order_id': resp.json().get('in_store_order_id'),
+                'external_reference': external_ref,
+                'monto_total': float(monto_total)
+            })
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({'error': f'Error interno: {str(e)}'}, status=500)
+
+class ConsultarEstadoQRView(APIView):
+    """
+    Consulta si una orden generada por QR ha sido pagada.
+    Solo busca pagos recientes (últimos 30 min) para evitar falsos positivos.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        import mercadopago, sys
+        from datetime import datetime, timedelta
+        
+        external_ref = request.query_params.get('external_reference')
+        if not external_ref:
+            return Response({'error': 'Referencia requerida'}, status=400)
+            
+        sdk = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
+        
+        # Solo buscar pagos creados en los últimos 30 minutos para evitar
+        # encontrar pagos antiguos con la misma external_reference
+        desde = (datetime.utcnow() - timedelta(minutes=30)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        
+        search_result = sdk.payment().search({
+            'external_reference': external_ref,
+            'sort': 'date_created',
+            'criteria': 'desc',
+            'range': 'date_created',
+            'begin_date': desde,
+        })
+        results = search_result.get("response", {}).get("results", [])
+        
+        print(f"[MP QR STATUS] Ref: {external_ref}, Pagos encontrados: {len(results)}", file=sys.stderr)
+        for r in results:
+            print(f"[MP QR STATUS]   - id={r.get('id')} status={r.get('status')} created={r.get('date_created')}", file=sys.stderr)
+        
+        if not results:
+            return Response({'pagado': False, 'status': 'pending'})
+            
+        # Revisamos si alguno está aprobado
+        approved_payment = next((p for p in results if p.get('status') == 'approved'), None)
+        
+        if not approved_payment:
+            return Response({'pagado': False, 'status': results[0].get('status')})
+            
+        # Si fue aprobado, registramos el pago
+        payment_id = approved_payment.get('id')
+        try:
+            parts = external_ref.split('-')
+            
+            # Formato: cip-{id}-{periodo1}-{periodo2}-...-{timestamp}-{pos_id}
+            # Identificamos el colegiado
+            col_id_str = parts[1]
+            if int(col_id_str) != request.user.id:
+                return Response({'error': 'Referencia inválida.'}, status=400)
+                
+            # Extraemos los periodos buscando el patrón YYYY-MM que ahora se partió en YYYY y MM
+            # Espera, '2026-07' se partió en '2026' y '07' porque usé split('-')!!
+            # Mejor busquemos los años que empiezan con 202
+            periodos = []
+            for i, part in enumerate(parts):
+                if part.startswith("202") and len(part) == 4 and i+1 < len(parts):
+                    periodos.append(f"{part}-{parts[i+1]}")
+            
+            # Buscamos CIPWEBPOS... para el ID de caja
+            external_pos_id = None
+            for part in parts:
+                if part.startswith("CIPWEBPOS"):
+                    external_pos_id = part
+                    break
+                    
+            if external_pos_id:
+                # Liberar la caja POS para que otros puedan usarla inmediatamente
+                from .models import CajaPOS
+                CajaPOS.objects.filter(external_id=external_pos_id).update(en_uso_hasta=None)
+                
+            if not periodos:
+                periodos = []
+                    
+        except Exception as ex:
+            import traceback
+            traceback.print_exc()
+            return Response({'error': 'Referencia de pago inválida.'}, status=400)
+            
+        colegiado = request.user
+        hoy = date.today()
+        metodo_str = (approved_payment.get('payment_method_id') or 'QR_PRESENCIAL').upper()
+        
+        total_pagado = float(approved_payment.get('transaction_amount', round(len(periodos) * _get_monto_mensualidad(), 2)))
+        monto_por_periodo = round(total_pagado / max(len(periodos), 1), 2)
+        
+        registrados = []
+        for periodo_str in sorted(periodos):
+            año, mes = map(int, periodo_str.split('-'))
+            pago, created = Pago.objects.get_or_create(
+                colegiado=colegiado,
+                periodo=date(año, mes, 1),
+                defaults={
+                    'tipo': 'MENSUALIDAD',
+                    'monto': monto_por_periodo,
+                    'canal': 'PORTAL',
+                    'metodo': metodo_str,
+                    'nro_operacion': str(payment_id),
+                    'fecha_pago': hoy,
+                }
+            )
+            if created:
+                registrados.append(periodo_str)
+                
+        print(f"[MP QR STATUS] Pago aprobado: {payment_id}, periodos registrados: {registrados}", file=sys.stderr)
+                
+        return Response({
+            'pagado': True,
+            'status': 'approved',
+            'periodos_pagados': registrados,
+            'nro_operacion': str(payment_id),
+            'habilitado_nuevo': _get_habilitado(colegiado.id)
         })
 
 

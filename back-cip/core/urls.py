@@ -38,6 +38,13 @@ urlpatterns = [
     path('api/admin/dashboard/', views.AdminDashboardView.as_view(), name='admin-dashboard'),
     path('api/admin/configuracion/', views.AdminConfiguracionView.as_view(), name='admin-configuracion'),
     path('api/admin/deudores/', views.PanelDeudoresView.as_view(), name='admin-deudores'),
+<<<<<<< HEAD
+=======
+    path('api/admin/deudores/detallado/', views.AdminDeudoresDetalladoView.as_view(), name='admin-deudores-detallado'),
+    path('api/admin/deudores/notificar/', views.AdminNotificarDeudoresView.as_view(), name='admin-deudores-notificar'),
+    path('api/admin/postulaciones/', views.AdminPostulacionesView.as_view(), name='admin-postulaciones'),
+    path('api/admin/postulaciones/<int:pk>/resolver/', views.AdminResolverSolicitudView.as_view(), name='admin-resolver-postulacion'),
+>>>>>>> develop
     # HU14 — Pagos Presencial
     path('api/admin/colegiados/buscar/', views.AdminBuscarColegiadoView.as_view(), name='admin-buscar-colegiado'),
     path('api/admin/colegiados/<int:pk>/deuda/', views.AdminDeudaColegiadoView.as_view(), name='admin-deuda-colegiado'),
@@ -55,6 +62,10 @@ urlpatterns = [
     # Checkout Pro (Yape automático)
     path('api/pagos/preferencia/',  views.PagoPreferenciaView.as_view(),             name='pago-preferencia'),
     path('api/pagos/verificar/',    views.PagoVerificarPreferenciaView.as_view(),    name='pago-verificar'),
+
+    # QR Dinámico Presencial
+    path('api/pagos/qr-presencial/', views.GenerarQRDinamicoView.as_view(), name='pago-qr-presencial'),
+    path('api/pagos/qr-presencial/status/', views.ConsultarEstadoQRView.as_view(), name='pago-qr-status'),
 
     # Portal Colegiado
     path('api/portal/yo/', views.PortalPerfilView.as_view(), name='portal-yo'),
