@@ -146,25 +146,7 @@ export default function AdminPresencial() {
         setEnviando(false);
         return;
       }
-      const postData = await resPost.json();
-      const solicitudId = postData.solicitud_id;
-
-      // 2. Auto-aprobar inmediatamente (flujo presencial)
-      const adminToken = localStorage.getItem('adminToken');
-      const resAprob = await fetch(`/api/admin/postulaciones/${solicitudId}/resolver/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify({ accion: 'APROBAR' })
-      });
-
-      if (resAprob.ok) {
-        setSuccess(true);
-      } else {
-        setErrorMsg("La solicitud fue creada pero no se pudo aprobar automáticamente. Apruébela desde el panel de Postulaciones.");
-      }
+      setSuccess(true);
     } catch (err) {
       setErrorMsg("Error de conexión con el servidor.");
     } finally {
