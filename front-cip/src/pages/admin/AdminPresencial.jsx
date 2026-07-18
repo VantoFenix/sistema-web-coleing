@@ -286,7 +286,7 @@ export default function AdminPresencial() {
               <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
                 <button 
                   type="button"
-                  className={`btn ${metodoPago === 'CAJA' ? 'btn-primary' : 'btn-outline'}`}
+                  className={`btn ${metodoPago === 'CAJA' ? 'btn-primary' : 'btn-outline-dark'}`}
                   onClick={() => setMetodoPago('CAJA')}
                   style={{ flex: 1, padding: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
                 >
@@ -295,7 +295,7 @@ export default function AdminPresencial() {
                 </button>
                 <button 
                   type="button"
-                  className={`btn ${metodoPago === 'YAPE_PLIN' ? 'btn-primary' : 'btn-outline'}`}
+                  className={`btn ${metodoPago === 'YAPE_PLIN' ? 'btn-primary' : 'btn-outline-dark'}`}
                   onClick={() => setMetodoPago('YAPE_PLIN')}
                   style={{ flex: 1, padding: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
                 >
