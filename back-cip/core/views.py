@@ -211,10 +211,8 @@ class PublicPostulacionView(APIView):
         valid_data = serializer.validated_data
         dni = valid_data['dni']
         nombres = valid_data['nombres']
-        carrera = Carrera.objects.get(id=valid_data['carrera'])
-        sede = None
-        if valid_data.get('sede'):
-            sede = Sede.objects.get(id=valid_data['sede'])
+        carrera = valid_data['carrera_obj']
+        sede = valid_data['sede_obj']
             
         origen = valid_data.get('origen', 'WEB')
         numero_operacion = valid_data.get('numero_operacion')
