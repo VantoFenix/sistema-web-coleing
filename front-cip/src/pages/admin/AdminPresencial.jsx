@@ -10,6 +10,7 @@ export default function AdminPresencial() {
   
   const [carrerasOptions, setCarrerasOptions] = useState([]);
   const [sedesOptions, setSedesOptions] = useState([]);
+  const [adminUser, setAdminUser] = useState(null);
 
   const [foto, setFoto] = useState(null);
   const [fotoInfo, setFotoInfo] = useState('');
@@ -34,6 +35,17 @@ export default function AdminPresencial() {
       } catch (err) {}
     };
     fetchCatalogos();
+
+    const userStr = localStorage.getItem('adminUser');
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        setAdminUser(u);
+        if (u.sede) {
+          setSede(u.sede);
+        }
+      } catch(e){}
+    }
   }, []);
 
   const handleValidarDNI = async () => {
@@ -128,7 +140,9 @@ export default function AdminPresencial() {
       const resPost = await fetch('/api/postulaciones/', { method: 'POST', body: formData });
       if (!resPost.ok) {
         const errData = await resPost.json();
-        setErrorMsg(errData.error || "Error al crear la solicitud.");
+        console.error("Error 400 payload:", errData);
+        alert("Error del servidor:\n" + JSON.stringify(errData, null, 2));
+        setErrorMsg(errData.error || errData.detail || "Error al crear la solicitud.");
         setEnviando(false);
         return;
       }
@@ -225,10 +239,10 @@ export default function AdminPresencial() {
             </div>
             <div className="form-group">
               <label className="form-label">Sede Departamental</label>
-              <select className="form-select" value={sede} onChange={(e) => setSede(e.target.value)}>
+              <select className="form-select" value={sede} onChange={(e) => setSede(e.target.value)} disabled={!!(adminUser && adminUser.sede)}>
                 <option value="">Seleccione una sede</option>
                 {sedesOptions.map(s => (
-                  <option key={s.id} value={s.nombre}>{s.nombre}</option>
+                  <option key={s.id} value={s.id}>{s.nombre}</option>
                 ))}
               </select>
             </div>
@@ -288,7 +302,7 @@ export default function AdminPresencial() {
           <div style={{ marginTop: '2.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end' }}>
             <button type="submit" className="btn btn-primary" disabled={enviando}
               style={{ padding: '1rem 2.5rem', fontSize: '1.125rem', background: '#10B981', borderColor: '#10B981', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              {enviando ? <><Loader2 size={20} className="spin" /> Procesando...</> : 'Registrar y Aprobar Colegiado'}
+              {enviando ? <><Loader2 size={20} className="spin" /> Procesando...</> : 'Enviar Solicitud a Revisión'}
             </button>
           </div>
 
