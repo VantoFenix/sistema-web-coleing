@@ -648,12 +648,16 @@ class PortalPagosView(APIView):
                             pagados_norm.add(p)
 
                     hoy = date.today()
-                    todos_los_meses = _meses_entre(col.colegiado_desde, hoy)
+                    fin_adelantos = date(hoy.year + 2, hoy.month, 1)
+                    todos_los_meses = _meses_entre(col.colegiado_desde, fin_adelantos)
+                    hoy_m = date(hoy.year, hoy.month, 1)
+
                     for m in todos_los_meses:
                         if m not in pagados_norm:
                             pendientes.append({
                                 'periodo': m.strftime('%Y-%m'),
                                 'fecha': m.strftime('%Y-%m-%d'),
+                                'is_adelanto': m > hoy_m
                             })
             except Exception as e:
                 print(f"[PAGOS] Error calculando pendientes: {e}", file=sys.stderr)
@@ -1061,10 +1065,10 @@ class AdminDeudaColegiadoView(APIView):
 
         hoy = date.today()
         mes_actual = date(hoy.year, hoy.month, 1)
-        fin_anio   = date(hoy.year, 12, 1)   # diciembre del año en curso
+        fin_adelantos = date(hoy.year + 2, hoy.month, 1)
 
-        # Todos los meses: desde colegiado_desde hasta diciembre del año actual
-        todos_los_meses = _meses_entre(col.colegiado_desde, fin_anio)
+        # Todos los meses: desde colegiado_desde hasta 24 meses en el futuro
+        todos_los_meses = _meses_entre(col.colegiado_desde, fin_adelantos)
 
         periodos = []
         pendientes_compat = []  # para retrocompatibilidad
@@ -1073,8 +1077,6 @@ class AdminDeudaColegiadoView(APIView):
             pagado    = m in pagados
             if pagado:
                 estado = 'PAGADO'
-            elif m == mes_actual:
-                estado = 'MES_ACTUAL'   # dentro del plazo → todo el mes para pagar
             elif m > mes_actual:
                 estado = 'ADELANTO'     # pago anticipado
             else:
@@ -1130,7 +1132,7 @@ class AdminRegistrarPagoPresencialView(APIView):
             return Response({'error': 'Seleccione al menos un periodo'}, status=status.HTTP_400_BAD_REQUEST)
         if not monto_total:
             return Response({'error': 'Ingrese el monto del pago'}, status=status.HTTP_400_BAD_REQUEST)
-        if metodo not in ('YAPE', 'PLIN', 'EFECTIVO', 'TRANSFERENCIA'):
+        if metodo not in ('YAPE_PLIN', 'EFECTIVO'):
             return Response({'error': 'Método de pago inválido'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
@@ -1250,6 +1252,15 @@ class PagoFlowCrearView(APIView):
             return Response({'error': 'Seleccione al menos un periodo.'}, status=400)
 
         colegiado = request.user
+        
+        # Si es admin, permitir cobrar a nombre de otro colegiado
+        if getattr(request.user, 'is_staff', False):
+            colegiado_id = request.data.get('colegiado_id')
+            if colegiado_id:
+                from core.models import Colegiado
+                from django.shortcuts import get_object_or_404
+                colegiado = get_object_or_404(Colegiado, id=colegiado_id)
+
         if monto_custom is not None:
             monto_total = round(float(monto_custom), 2)
         else:
@@ -1350,9 +1361,8 @@ class PagoFlowConfirmarView(APIView):
             parts = commerce_order.split('_')
             col_id_str = parts[0]
             periodos = parts[2].split('-')
-            
-            assert int(col_id_str) == request.user.id, "colegiado_id no coincide"
-
+            if not getattr(request.user, 'is_staff', False):
+                assert int(col_id_str) == request.user.id, "colegiado_id no coincide"
         except Exception as ex:
             print("[FLOW VERIFY ERROR] Error decodificando commerce_order: {} → {}".format(commerce_order, ex), file=sys.stderr)
             return Response({'error': 'Referencia de pago inválida.'}, status=400)

@@ -8,12 +8,12 @@ import ComprobanteModal from '../../components/UI/ComprobanteModal';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const MESES = [
-  'Enero','Febrero','Marzo','Abril','Mayo','Junio',
-  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 const MESES_CORTO = [
-  'ENE','FEB','MAR','ABR','MAY','JUN',
-  'JUL','AGO','SEP','OCT','NOV','DIC',
+  'ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN',
+  'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC',
 ];
 
 function fmtPeriodo(p) {
@@ -32,10 +32,8 @@ function fmtFecha(iso) {
 }
 
 const METODOS = [
-  { valor: 'YAPE',          label: 'Yape',          icono: <Smartphone size={16} /> },
-  { valor: 'PLIN',          label: 'Plin',          icono: <Smartphone size={16} /> },
-  { valor: 'EFECTIVO',      label: 'Efectivo',      icono: <Banknote size={16} /> },
-  { valor: 'TRANSFERENCIA', label: 'Transferencia', icono: <Building2 size={16} /> },
+  { valor: 'YAPE_PLIN', label: 'QR (Yape/Plin)', icono: <Smartphone size={16} /> },
+  { valor: 'EFECTIVO', label: 'Efectivo', icono: <Banknote size={16} /> },
 ];
 
 function BadgeHabilitado({ habilitado }) {
@@ -55,26 +53,32 @@ function BadgeHabilitado({ habilitado }) {
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function AdminPagoPresencial() {
-  const [query, setQuery]           = useState('');
-  const [buscando, setBuscando]     = useState(false);
+  const [query, setQuery] = useState('');
+  const [buscando, setBuscando] = useState(false);
   const [resultados, setResultados] = useState(null);
   const [errBusqueda, setErrBusqueda] = useState('');
 
   const [comprobanteParaMostrar, setComprobanteParaMostrar] = useState(null);
   const [comprobanteDescargando, setComprobanteDescargando] = useState(false);
 
-  const [colegiado, setColegiado]   = useState(null);
-  const [deuda, setDeuda]           = useState(null);
+  const [colegiado, setColegiado] = useState(null);
+  const [deuda, setDeuda] = useState(null);
   const [cargandoDeuda, setCargandoDeuda] = useState(false);
 
   const [periodosSeleccionados, setPeriodosSeleccionados] = useState(new Set());
-  const [metodo, setMetodo]         = useState('');
-  const [monto, setMonto]           = useState('');
-  const [errForm, setErrForm]       = useState('');
+  const [metodo, setMetodo] = useState('');
+  const [monto, setMonto] = useState('');
+  const [errForm, setErrForm] = useState('');
 
-  const [enviando, setEnviando]     = useState(false);
-  const [resultado, setResultado]   = useState(null);
+  const [enviando, setEnviando] = useState(false);
+  const [resultado, setResultado] = useState(null);
   const [montoMensual, setMontoMensual] = useState(20.00);
+
+  const [flowInitPoint, setFlowInitPoint] = useState(null);
+  const [flowToken, setFlowToken] = useState(null);
+
+  const hoy = new Date();
+  const [maxVisibleYear, setMaxVisibleYear] = useState(hoy.getFullYear());
 
   const searchRef = useRef(null);
 
@@ -83,8 +87,60 @@ export default function AdminPagoPresencial() {
     fetch('/api/admin/configuracion/')
       .then(r => r.json())
       .then(d => { if (d.monto_mensualidad) setMontoMensual(parseFloat(d.monto_mensualidad)); })
-      .catch(() => {});
+      .catch(() => { });
+
+    // Restaurar sesión de admin pago si existe
+    const savedCol = sessionStorage.getItem('admin_pago_colegiado');
+    if (savedCol) {
+      try {
+        const colParsed = JSON.parse(savedCol);
+        handleSeleccionarColegiado(colParsed, true);
+      } catch (e) {
+        sessionStorage.removeItem('admin_pago_colegiado');
+      }
+    }
   }, []);
+
+  // Guardar periodos seleccionados en session storage
+  useEffect(() => {
+    if (colegiado) {
+      sessionStorage.setItem('admin_pago_periodos', JSON.stringify([...periodosSeleccionados]));
+    }
+  }, [periodosSeleccionados, colegiado]);
+
+  // Polling de Flow
+  useEffect(() => {
+    let intervalId;
+    if (flowInitPoint && flowToken) {
+      intervalId = setInterval(async () => {
+        try {
+          const res = await fetch('/api/pagos/flow/confirmar/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}`
+            },
+            body: JSON.stringify({ token: flowToken })
+          });
+          const data = await res.json();
+          if (data.success) {
+            setFlowInitPoint(null);
+            setFlowToken(null);
+            setResultado({ ok: true, ...data });
+            sessionStorage.removeItem('admin_pago_periodos');
+            // Nota: recargarDeuda() ya no es estrictamente necesario aquí si mostramos la pantalla de éxito.
+          } else if (data.status === 'pending') {
+            // Sigue pendiente
+          } else if (data.error) {
+            setFlowInitPoint(null);
+            setFlowToken(null);
+            setErrForm(data.error);
+          }
+        } catch (e) { }
+      }, 3500);
+    }
+    return () => clearInterval(intervalId);
+  }, [flowInitPoint, flowToken]);
 
   // Auto-calcular monto
   useEffect(() => {
@@ -112,8 +168,13 @@ export default function AdminPagoPresencial() {
     }
   };
 
-  const handleSeleccionarColegiado = async (col) => {
+  const handleSeleccionarColegiado = async (col, isRestore = false) => {
     setColegiado(col);
+    if (!isRestore) {
+      sessionStorage.setItem('admin_pago_colegiado', JSON.stringify(col));
+      sessionStorage.removeItem('admin_pago_periodos');
+    }
+
     setResultados(null);
     setQuery('');
     setPeriodosSeleccionados(new Set());
@@ -127,8 +188,23 @@ export default function AdminPagoPresencial() {
       const data = await res.json();
       setDeuda(data);
       const periodos = data.periodos || data.periodos_pendientes || [];
-      const soloDeuda = periodos.filter(p => p.estado === 'PENDIENTE').map(p => p.periodo);
-      setPeriodosSeleccionados(new Set(soloDeuda));
+
+      let toSelect = [];
+      if (isRestore) {
+        const savedPer = sessionStorage.getItem('admin_pago_periodos');
+        if (savedPer) {
+          try {
+            toSelect = JSON.parse(savedPer);
+          } catch (e) { }
+        }
+      }
+
+      if (!isRestore || toSelect.length === 0) {
+        toSelect = periodos.filter(p => p.estado === 'PENDIENTE').map(p => p.periodo);
+      }
+
+      setPeriodosSeleccionados(new Set(toSelect));
+      setMaxVisibleYear(hoy.getFullYear());
     } catch {
       setDeuda({ periodos: [], periodos_pendientes: [], total_deuda: 0 });
     } finally {
@@ -136,12 +212,12 @@ export default function AdminPagoPresencial() {
     }
   };
 
-  const getPeriodos     = () => deuda?.periodos || [];
-  const getPendientes   = () => getPeriodos().filter(p => p.estado === 'PENDIENTE').map(p => p.periodo);
+  const getPeriodos = () => deuda?.periodos || [];
+  const getPendientes = () => getPeriodos().filter(p => p.estado === 'PENDIENTE').map(p => p.periodo);
   const hayDeudaSinPagar = () => getPendientes().some(p => !periodosSeleccionados.has(p));
 
   const togglePeriodo = (periodo, estado) => {
-    const pendientes  = getPendientes();
+    const pendientes = getPendientes();
     const allPeriodos = getPeriodos();
     setPeriodosSeleccionados(prev => {
       const s = new Set(prev);
@@ -151,7 +227,7 @@ export default function AdminPagoPresencial() {
         pendientes.forEach(p => s.add(p));
         return s;
       }
-      if (estado === 'MES_ACTUAL' || estado === 'ADELANTO') {
+      if (estado === 'ADELANTO') {
         if (s.has(periodo)) {
           const idx = allPeriodos.findIndex(p => p.periodo === periodo);
           allPeriodos.slice(idx).forEach(p => { if (p.estado !== 'PAGADO') s.delete(p.periodo); });
@@ -169,18 +245,49 @@ export default function AdminPagoPresencial() {
     });
   };
 
-  const seleccionarTodos     = () => setPeriodosSeleccionados(new Set(getPeriodos().filter(p => p.estado !== 'PAGADO').map(p => p.periodo)));
+  const seleccionarTodos = () => setPeriodosSeleccionados(new Set(getPeriodos().filter(p => p.estado !== 'PAGADO').map(p => p.periodo)));
   const seleccionarSoloDeuda = () => setPeriodosSeleccionados(new Set(getPendientes()));
-  const deseleccionarTodos   = () => setPeriodosSeleccionados(new Set());
+  const deseleccionarTodos = () => setPeriodosSeleccionados(new Set());
 
   const handleRegistrar = async () => {
     setErrForm('');
     if (periodosSeleccionados.size === 0) { setErrForm('Seleccione al menos un periodo.'); return; }
-    if (!metodo)  { setErrForm('Seleccione el método de pago.'); return; }
+    if (!metodo) { setErrForm('Seleccione el método de pago.'); return; }
     if (!monto || isNaN(parseFloat(monto)) || parseFloat(monto) <= 0) {
       setErrForm('Ingrese un monto válido mayor a 0.'); return;
     }
     setEnviando(true);
+
+    if (metodo === 'YAPE_PLIN') {
+      try {
+        const token = localStorage.getItem('adminToken') || '';
+        const res = await fetch('/api/pagos/flow/crear/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            colegiado_id: colegiado.id,
+            periodos: [...periodosSeleccionados].sort(),
+            monto: parseFloat(monto).toFixed(2)
+          })
+        });
+        const data = await res.json();
+        if (data.init_point) {
+          setFlowToken(data.token);
+          setFlowInitPoint(data.init_point);
+        } else {
+          setErrForm(data.error || 'Error al generar link de Flow.');
+        }
+      } catch {
+        setErrForm('Error de conexión con Flow.');
+      } finally {
+        setEnviando(false);
+      }
+      return;
+    }
+
     try {
       const res = await fetch('/api/admin/pagos/presencial/', {
         method: 'POST',
@@ -219,43 +326,41 @@ export default function AdminPagoPresencial() {
   <title>Comprobante ${r.boleta_numero || ''}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #111; background: #fff; padding: 40px; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000; padding-bottom: 16px; margin-bottom: 20px; }
-    .org-name { font-weight: 800; font-size: 13px; max-width: 300px; line-height: 1.4; }
-    .org-detail { font-size: 12px; margin-top: 4px; color: #333; line-height: 1.5; }
-    .boleta-box { border: 2px solid #000; padding: 10px 18px; text-align: center; min-width: 200px; }
-    .boleta-box .tipo { font-weight: 800; font-size: 13px; line-height: 1.4; }
-    .boleta-box .numero { font-weight: 800; font-size: 14px; margin-top: 4px; }
-    .section { margin-bottom: 20px; }
-    .section-title { font-weight: 800; font-size: 13px; margin-bottom: 8px; }
-    .adquirente-row { font-size: 13px; margin-bottom: 4px; }
-    .meta-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 16px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-    thead tr { background: #B91C1C; color: white; }
-    thead th { padding: 8px 12px; text-align: left; font-size: 13px; font-weight: 700; }
-    thead th:last-child, thead th:nth-child(3) { text-align: right; }
-    tbody tr { border-bottom: 1px solid #e5e7eb; }
-    tbody td { padding: 12px; font-size: 13px; vertical-align: top; }
-    tbody td:last-child, tbody td:nth-child(3) { text-align: right; }
-    .totales { display: flex; justify-content: flex-end; margin-bottom: 24px; }
-    .totales-table { min-width: 260px; }
-    .totales-table tr td { padding: 4px 0; font-size: 13px; }
-    .totales-table tr td:last-child { text-align: right; font-weight: 600; }
-    .totales-table tr.total-final td { font-weight: 800; font-size: 14px; border-top: 1px solid #000; padding-top: 8px; }
-    .footer { font-size: 11px; color: #666; margin-top: 20px; }
+    body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; background: #fff; width: 80mm; margin: 0 auto; padding: 5mm; }
+    .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
+    .org-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; line-height: 1.2; }
+    .org-detail { font-size: 11px; line-height: 1.3; }
+    .boleta-box { margin-top: 10px; }
+    .boleta-box .tipo { font-weight: bold; font-size: 13px; line-height: 1.2; }
+    .boleta-box .numero { font-weight: bold; font-size: 14px; margin-top: 2px; }
+    .section { margin-bottom: 10px; }
+    .adquirente-row { font-size: 11px; margin-bottom: 2px; }
+    .meta-row { font-size: 11px; margin-bottom: 10px; display: flex; justify-content: space-between; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    thead tr { border-bottom: 1px dashed #000; border-top: 1px dashed #000; }
+    thead th { padding: 4px 0; text-align: left; font-size: 11px; font-weight: bold; }
+    thead th:last-child { text-align: right; }
+    tbody tr { border-bottom: none; }
+    tbody td { padding: 4px 0; font-size: 11px; vertical-align: top; }
+    tbody td:last-child { text-align: right; }
+    .totales { border-top: 1px dashed #000; padding-top: 6px; margin-bottom: 15px; }
+    .totales-table { width: 100%; margin-bottom: 0; }
+    .totales-table tr td { padding: 2px 0; font-size: 11px; }
+    .totales-table tr td:last-child { text-align: right; }
+    .totales-table tr.total-final td { font-weight: bold; font-size: 14px; padding-top: 4px; }
+    .footer { font-size: 10px; text-align: center; margin-top: 15px; border-top: 1px dashed #000; padding-top: 10px; line-height: 1.4; }
     @media print {
-      body { padding: 20px; }
+      body { width: 80mm; padding: 0; margin: 0; }
+      @page { margin: 0; }
       .no-print { display: none !important; }
     }
   </style>
 </head>
 <body>
   <div class="header">
-    <div>
-      <div class="org-name">COLEGIO DE INGENIEROS DEL PERU CONSEJO NACIONAL</div>
-      <div class="org-detail">RUC 20138086438</div>
-      <div class="org-detail">AV. AREQUIPA URB. MIRAFLORES 4947 MIRAFLORES - LIMA - LIMA</div>
-    </div>
+    <div class="org-name">COLEGIO DE INGENIEROS DEL PERU<br/>CONSEJO NACIONAL</div>
+    <div class="org-detail">RUC 20138086438</div>
+    <div class="org-detail">AV. AREQUIPA 4947 MIRAFLORES - LIMA</div>
     <div class="boleta-box">
       <div class="tipo">BOLETA DE VENTA<br/>ELECTRONICA</div>
       <div class="numero">${r.boleta_numero || 'B001-00000000'}</div>
@@ -285,7 +390,10 @@ export default function AdminPagoPresencial() {
     <tbody>
       <tr>
         <td>1</td>
-        <td>Pago de mensualidad CIP — ${r.periodos_label || ''} (${r.metodo || ''})</td>
+        <td>
+          <div style="margin-bottom:2px">Mensualidad CIP</div>
+          <div style="font-size:10px;color:#333;">${r.periodos_label || ''}</div>
+        </td>
         <td>${parseFloat(r.monto_total || 0).toFixed(2)}</td>
         <td>${parseFloat(r.monto_total || 0).toFixed(2)}</td>
       </tr>
@@ -322,6 +430,8 @@ export default function AdminPagoPresencial() {
   const handleNuevoPago = () => {
     setColegiado(null); setDeuda(null); setResultado(null);
     setQuery(''); setResultados(null); setErrBusqueda(''); setErrForm('');
+    sessionStorage.removeItem('admin_pago_colegiado');
+    sessionStorage.removeItem('admin_pago_periodos');
     setTimeout(() => searchRef.current?.focus(), 100);
   };
 
@@ -408,10 +518,10 @@ export default function AdminPagoPresencial() {
           {/* Botones comprobante */}
           <div style={{ display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
             {resultado.comprobante && (
-              <button 
+              <button
                 onClick={() => setComprobanteParaMostrar(resultado.comprobante)}
                 className="btn btn-primary"
-                style={{ 
+                style={{
                   background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
                   display: 'flex',
                   alignItems: 'center',
@@ -436,7 +546,7 @@ export default function AdminPagoPresencial() {
             </div>
           </div>
         </div>
-        
+
         {/* NUEVO: MODAL DE COMPROBANTE */}
         {comprobanteParaMostrar && (
           <ComprobanteModal
@@ -615,7 +725,11 @@ export default function AdminPagoPresencial() {
             </div>
           )}
           <button
-            onClick={() => { setColegiado(null); setDeuda(null); setResultado(null); }}
+            onClick={() => {
+              setColegiado(null); setDeuda(null); setResultado(null);
+              sessionStorage.removeItem('admin_pago_colegiado');
+              sessionStorage.removeItem('admin_pago_periodos');
+            }}
             style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)', color: 'white', borderRadius: '8px', padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', transition: 'all 0.15s' }}
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.22)'}
             onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
@@ -700,9 +814,12 @@ export default function AdminPagoPresencial() {
                 });
               const años = Object.keys(porAño).sort();
 
+              const añosMostrados = años.filter(a => parseInt(a) <= maxVisibleYear);
+              const añosOcultos = años.filter(a => parseInt(a) > maxVisibleYear);
+
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {años.map(año => {
+                  {añosMostrados.map(año => {
                     const mesesDelAño = porAño[año];
 
                     return (
@@ -720,42 +837,36 @@ export default function AdminPagoPresencial() {
                         {/* Meses del año: 6 por fila */}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.4rem' }}>
                           {mesesDelAño.map(p => {
-                            const estado      = p.estado || 'PENDIENTE';
-                            const pagado      = estado === 'PAGADO';
+                            const estado = p.estado || 'PENDIENTE';
+                            const pagado = estado === 'PAGADO';
                             const esPendiente = estado === 'PENDIENTE';
-                            const esMesActual = estado === 'MES_ACTUAL';
-                            const esAdelanto  = estado === 'ADELANTO';
-                            const sel         = periodosSeleccionados.has(p.periodo);
-                            const bloqueado   = esAdelanto && hayDeudaSinPagar();
+                            const esAdelanto = estado === 'ADELANTO';
+                            const sel = periodosSeleccionados.has(p.periodo);
+                            const bloqueado = esAdelanto && hayDeudaSinPagar();
 
                             let paleta;
                             if (pagado) {
-                              paleta = { bg: '#F0FDF4', border: '#86EFAC', txt: '#15803D', accent: '#16A34A', tagBg: '#DCFCE7', tagTxt: '#15803D' };
+                              paleta = { bg: '#F0FDF4', border: '#86EFAC', txt: '#15803D', accent: '#16A34A', tagBg: '#DCFCE7', tagTxt: '#15803D', tag: 'PAGADO' };
                             } else if (esPendiente) {
                               paleta = sel
-                                ? { bg: '#FFF1F2', border: '#F87171', txt: '#991B1B', accent: '#DC2626', tagBg: '#FEE2E2', tagTxt: '#991B1B' }
-                                : { bg: '#FEF2F2', border: '#FCA5A5', txt: '#B91C1C', accent: '#DC2626', tagBg: '#FEE2E2', tagTxt: '#991B1B' };
-                            } else if (esMesActual) {
-                              paleta = sel
-                                ? { bg: '#FFFBEB', border: '#F59E0B', txt: '#78350F', accent: '#D97706', tagBg: '#FEF3C7', tagTxt: '#92400E' }
-                                : { bg: '#FFFDF5', border: '#FCD34D', txt: '#92400E', accent: '#D97706', tagBg: '#FEF3C7', tagTxt: '#92400E' };
+                                ? { bg: '#FFF1F2', border: '#F87171', txt: '#991B1B', accent: '#DC2626', tagBg: '#FEE2E2', tagTxt: '#991B1B', tag: 'DEUDA' }
+                                : { bg: '#FEF2F2', border: '#FCA5A5', txt: '#B91C1C', accent: '#DC2626', tagBg: '#FEE2E2', tagTxt: '#991B1B', tag: 'DEUDA' };
                             } else {
                               paleta = sel
-                                ? { bg: '#EFF6FF', border: '#3B82F6', txt: '#1E40AF', accent: '#2563EB', tagBg: '#DBEAFE', tagTxt: '#1D4ED8' }
-                                : { bg: '#F8FAFF', border: '#BFDBFE', txt: '#3B82F6', accent: '#2563EB', tagBg: '#DBEAFE', tagTxt: '#1D4ED8' };
+                                ? { bg: '#EFF6FF', border: '#3B82F6', txt: '#1E40AF', accent: '#2563EB', tagBg: '#DBEAFE', tagTxt: '#1D4ED8', tag: 'ADELANTO' }
+                                : { bg: '#F8FAFF', border: '#BFDBFE', txt: '#3B82F6', accent: '#2563EB', tagBg: '#DBEAFE', tagTxt: '#1D4ED8', tag: 'ADELANTO' };
                             }
 
                             return (
                               <div
                                 key={p.periodo}
                                 title={
-                                  pagado      ? 'Ya pagado' :
-                                  esPendiente ? 'Deuda — se paga en bloque con todos los meses adeudados' :
-                                  esMesActual ? 'Mes en curso — plazo hasta fin de mes para pagar' :
-                                  bloqueado   ? 'Primero paga las deudas atrasadas' :
-                                  'Pago anticipado'
+                                  pagado ? 'Ya pagado' :
+                                    esPendiente ? 'Deuda — se paga en bloque con todos los meses adeudados' :
+                                      bloqueado ? 'Primero paga las deudas atrasadas' :
+                                        'Pago anticipado'
                                 }
-                                onClick={() => { if (!pagado) togglePeriodo(p.periodo, estado); }}
+                                onClick={() => { if (!pagado && !bloqueado) togglePeriodo(p.periodo, estado); }}
                                 style={{
                                   background: paleta.bg,
                                   border: `2px solid ${sel && !pagado ? paleta.accent : paleta.border}`,
@@ -787,11 +898,11 @@ export default function AdminPagoPresencial() {
                                   />
                                 )}
                                 <span style={{
-                                  fontSize: '0.56rem', fontWeight: '700', padding: '0.08rem 0.3rem',
+                                  fontSize: '0.55rem', fontWeight: '800', padding: '0.15rem 0.3rem',
                                   borderRadius: '999px', background: paleta.tagBg, color: paleta.tagTxt,
                                   textTransform: 'uppercase', letterSpacing: '0.2px', whiteSpace: 'nowrap',
                                 }}>
-                                  {pagado ? 'pagado' : esPendiente ? 'deuda' : esMesActual ? 'pagar' : 'adelanto'}
+                                  {paleta.tag}
                                 </span>
                               </div>
                             );
@@ -800,6 +911,57 @@ export default function AdminPagoPresencial() {
                       </div>
                     );
                   })}
+
+                  {(añosOcultos.length > 0 || maxVisibleYear > hoy.getFullYear()) && (
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.5rem', gap: '1rem' }}>
+                      {maxVisibleYear > hoy.getFullYear() && (
+                        <button
+                          onClick={() => setMaxVisibleYear(hoy.getFullYear())}
+                          style={{
+                            background: '#FFF1F2',
+                            border: '1.5px dashed #FDA4AF',
+                            color: '#BE123C',
+                            padding: '0.5rem 1.5rem',
+                            borderRadius: '8px',
+                            fontSize: '0.85rem',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            transition: 'all 0.2s',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#FFE4E6'; e.currentTarget.style.borderColor = '#FB7185'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = '#FFF1F2'; e.currentTarget.style.borderColor = '#FDA4AF'; }}
+                        >
+                          - Mostrar menos
+                        </button>
+                      )}
+                      {añosOcultos.length > 0 && (
+                        <button
+                          onClick={() => setMaxVisibleYear(prev => prev + 1)}
+                          style={{
+                            background: '#F8FAFC',
+                            border: '1.5px dashed #CBD5E1',
+                            color: '#475569',
+                            padding: '0.5rem 1.5rem',
+                            borderRadius: '8px',
+                            fontSize: '0.85rem',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            transition: 'all 0.2s',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#F1F5F9'; e.currentTarget.style.borderColor = '#94A3B8'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.borderColor = '#CBD5E1'; }}
+                        >
+                          + Mostrar año {Math.min(...añosOcultos.map(a => parseInt(a)))}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })()
@@ -882,7 +1044,7 @@ export default function AdminPagoPresencial() {
                       placeholder="0.00"
                     />
                   </div>
-                  <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Ajustable si es necesario</p>
+                  <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Ajustable para Pruebas</p>
                 </div>
               )}
 
@@ -937,6 +1099,28 @@ export default function AdminPagoPresencial() {
         </div>
 
       </div>{/* fin grid */}
+
+      {/* MODAL FLOW QR (Solo en la vista de cobro) */}
+      {flowInitPoint && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', padding: '1rem', borderRadius: '12px', width: '90%', maxWidth: '420px', height: '80vh', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+            <button
+              onClick={() => { setFlowInitPoint(null); setFlowToken(null); }}
+              style={{ position: 'absolute', top: '-15px', right: '-15px', background: '#EF4444', color: '#fff', border: '2px solid #fff', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+            >✕</button>
+            <h3 style={{ textAlign: 'center', marginBottom: '0.2rem', fontSize: '1.2rem', color: '#111', fontWeight: '800' }}>Pagar con Yape/Plin</h3>
+            <p style={{ textAlign: 'center', color: '#666', fontSize: '0.85rem', marginBottom: '0.8rem' }}>Pídele al colegiado que escanee este código desde la pantalla.</p>
+            <div style={{ flex: 1, position: 'relative', overflow: 'hidden', borderRadius: '8px', border: '1px solid #E2E8F0', background: '#F8FAFC' }}>
+              <iframe
+                src={flowInitPoint}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                title="Flow Pago"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
