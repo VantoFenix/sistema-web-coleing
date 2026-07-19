@@ -2192,6 +2192,157 @@ class ConsultarEstadoQRView(APIView):
         })
 
 
+# ==============================================================================
+# FLOW — Generación de QR Yape / Plin (método 169)
+# ==============================================================================
+import hmac
+import hashlib
+import requests as http_requests  # evitar colisión con request de DRF
+import time
+
+class FlowGenerarQRView(APIView):
+    """
+    POST /api/flow/generar-qr/
+    Genera un pago con QR interoperable (Yape/Plin) vía Flow.
+    Body JSON: { "email": "correo@ejemplo.com" }   (opcional, tiene default)
+    Retorna:  { "url": "https://sandbox.flow.cl/app/pay/...", "token": "..." }
+    """
+    permission_classes = [IsAuthenticated]
+
+    @staticmethod
+    def _firmar_parametros(params, secret_key):
+        """
+        Firma HMAC-SHA256 según la documentación oficial de Flow:
+        1. Ordena los parámetros alfabéticamente por su LLAVE.
+        2. Concatena como 'llave=valor' separados por '&' (sin URL-encode).
+        3. Firma ese string con HMAC-SHA256 usando la secret_key.
+        IMPORTANTE: Todos los valores se convierten a string.
+        """
+        llaves_ordenadas = sorted(params.keys())
+        cadena = '&'.join(f'{k}={str(params[k])}' for k in llaves_ordenadas)
+        firma = hmac.new(
+            secret_key.encode('utf-8'),
+            cadena.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        return firma
+
+    def post(self, request):
+        import sys
+        # 1. Validar credenciales de Flow en settings
+        api_key    = settings.FLOW_API_KEY
+        secret_key = settings.FLOW_SECRET_KEY
+        flow_url   = settings.FLOW_API_URL
+
+        if not api_key or not secret_key:
+            return Response(
+                {'error': 'Las credenciales de Flow no están configuradas en el servidor.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        # 2. Construir los parámetros del pago (todos como strings)
+        email = request.data.get('email', '')
+        if not email:
+            email = 'vantofortnite@gmail.com'
+            
+        commerce_order = f'FICHA-{int(time.time())}'
+
+        params = {
+            'apiKey':          api_key,
+            'commerceOrder':   commerce_order,
+            'subject':         'Pago Ficha de Inscripcion Presencial',
+            'currency':        'PEN',
+            'amount':          '5',
+            'email':           email,
+            'urlConfirmation': 'https://sistema-web-coleing.onrender.com/api/flow/webhook/',
+            'urlReturn':       'https://sistema-web-coleing.onrender.com/admin/presencial',
+            'paymentMethod':   '169',
+        }
+
+        # 3. Firmar los parámetros
+        params['s'] = self._firmar_parametros(params, secret_key)
+
+        print(f"[FLOW DEBUG] Sending to: {flow_url}/payment/create", file=sys.stderr)
+        print(f"[FLOW DEBUG] apiKey: {api_key[:8]}...", file=sys.stderr)
+        print(f"[FLOW DEBUG] params keys: {sorted(params.keys())}", file=sys.stderr)
+
+        # 4. POST a Flow /payment/create
+        try:
+            resp = http_requests.post(
+                f'{flow_url}/payment/create',
+                data=params,
+                timeout=15
+            )
+            print(f"[FLOW DEBUG] Response status: {resp.status_code}", file=sys.stderr)
+            print(f"[FLOW DEBUG] Response body: {resp.text[:500]}", file=sys.stderr)
+
+            if resp.status_code != 200:
+                return Response(
+                    {'error': 'Error de Flow', 'detalle': resp.text},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        except Exception as e:
+            print(f"[FLOW ERROR] Connection error: {e}", file=sys.stderr)
+            return Response(
+                {'error': f'Error de conexión con Flow: {str(e)}'},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+        flow_data = resp.json()
+        # Flow retorna { url, token, flowOrder }
+        payment_url = f'{flow_data.get("url")}?token={flow_data.get("token")}'
+
+        return Response({
+            'url':       payment_url,
+            'token':     flow_data.get('token'),
+            'flowOrder': flow_data.get('flowOrder'),
+            'commerceOrder': commerce_order,
+        })
+
+
+class FlowWebhookView(APIView):
+    """
+    POST /api/flow/webhook/
+    Recibe la confirmación de pago de Flow (callback server-to-server).
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = request.data.get('token', '')
+        if not token:
+            return Response({'error': 'Token ausente'}, status=400)
+
+        api_key    = settings.FLOW_API_KEY
+        secret_key = settings.FLOW_SECRET_KEY
+        flow_url   = settings.FLOW_API_URL
+
+        params = {
+            'apiKey': api_key,
+            'token':  token,
+        }
+        params['s'] = FlowGenerarQRView._firmar_parametros(params, secret_key)
+
+        try:
+            resp = http_requests.get(
+                f'{flow_url}/payment/getStatus',
+                params=params,
+                timeout=15
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                # data contiene: status (1=pendiente, 2=pagado, 3=rechazado, 4=anulado)
+                import sys
+                print(f"[FLOW WEBHOOK] Order={data.get('commerceOrder')} Status={data.get('status')}", file=sys.stderr)
+                # Aquí puedes actualizar el estado de la solicitud en BD si lo necesitas
+        except Exception as e:
+            import sys
+            print(f"[FLOW WEBHOOK ERROR] {e}", file=sys.stderr)
+
+        return Response({'received': True})
+
+
 def react_catchall_view(request):
     try:
         with open(os.path.join(settings.FRONTEND_DIR, 'index.html')) as f:

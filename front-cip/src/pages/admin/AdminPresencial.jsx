@@ -14,13 +14,44 @@ export default function AdminPresencial() {
   const [foto, setFoto] = useState(null);
   const [fotoInfo, setFotoInfo] = useState('');
   const [titulo, setTitulo] = useState(null);
-  const [recibo, setRecibo] = useState(null);
+  const [metodoPago, setMetodoPago] = useState(''); // '' | 'CAJA' | 'YAPE_PLIN'
+  const [montoEfectivo, setMontoEfectivo] = useState('');
+  const [qrUrl, setQrUrl] = useState(null);
+  const [cargandoQr, setCargandoQr] = useState(false);
+  const [qrError, setQrError] = useState('');
 
   const [isValidando, setIsValidando] = useState(false);
   const [dniValidado, setDniValidado] = useState(false);
   const [success, setSuccess] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const generarQrFlow = async () => {
+    if (qrUrl || cargandoQr) return; // evitar dobles peticiones
+    setCargandoQr(true);
+    setQrError('');
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch('/api/flow/generar-qr/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ email: 'vantofortnite@gmail.com' }),
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setQrUrl(data.url);
+      } else {
+        setQrError(data.error || 'No se pudo generar el QR. Intente de nuevo.');
+      }
+    } catch (err) {
+      setQrError('Error de conexión al generar el QR.');
+    } finally {
+      setCargandoQr(false);
+    }
+  };
 
   useEffect(() => {
     const fetchCatalogos = async () => {
@@ -263,20 +294,109 @@ export default function AdminPresencial() {
               </div>
             </div>
 
-            {/* ── Título y Recibo (sin procesamiento especial) ── */}
-            {[
-              { label: 'Título Profesional', accept: '.pdf', state: titulo, setter: setTitulo },
-              { label: 'Recibo en Caja', accept: '.pdf,image/*', state: recibo, setter: setRecibo },
-            ].map(({ label, accept, state, setter }) => (
-              <div className="form-group" key={label}>
-                <label className="form-label">{label}</label>
-                <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1rem', textAlign: 'center', background: '#f8fafc', cursor: 'pointer', position: 'relative' }}>
-                  <input type="file" accept={accept} onChange={(e) => handleFileChange(e, setter)} style={{ opacity: 0, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', cursor: 'pointer' }} />
-                  <UploadCloud size={24} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px', margin: '0 auto' }}>{state ? state.name : 'Subir archivo'}</p>
-                </div>
+            {/* ── Título (sin procesamiento especial) ── */}
+            <div className="form-group">
+              <label className="form-label">Título Profesional</label>
+              <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1rem', textAlign: 'center', background: '#f8fafc', cursor: 'pointer', position: 'relative' }}>
+                <input type="file" accept=".pdf" onChange={(e) => handleFileChange(e, setTitulo)} style={{ opacity: 0, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', cursor: 'pointer' }} />
+                <UploadCloud size={24} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
+                <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px', margin: '0 auto' }}>{titulo ? titulo.name : 'Subir archivo'}</p>
               </div>
-            ))}
+            </div>
+
+            {/* ── Método de Pago ── */}
+            <div className="form-group">
+              <label className="form-label" style={{ display: 'block', marginBottom: '0.75rem' }}>Método de Pago (S/ 5.00)</label>
+              
+              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                <button 
+                  type="button"
+                  className={`btn ${metodoPago === 'CAJA' ? 'btn-primary' : 'btn-outline-dark'}`}
+                  onClick={() => setMetodoPago('CAJA')}
+                  style={{ flex: 1, padding: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
+                >
+                  <CheckCircle2 size={18} style={{ opacity: metodoPago === 'CAJA' ? 1 : 0 }} />
+                  Efectivo en Caja
+                </button>
+                <button 
+                  type="button"
+                  className={`btn ${metodoPago === 'YAPE_PLIN' ? 'btn-primary' : 'btn-outline-dark'}`}
+                  onClick={() => { setMetodoPago('YAPE_PLIN'); generarQrFlow(); }}
+                  style={{ flex: 1, padding: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
+                >
+                  <CheckCircle2 size={18} style={{ opacity: metodoPago === 'YAPE_PLIN' ? 1 : 0 }} />
+                  📱 QR Yape / Plin
+                </button>
+              </div>
+
+              {metodoPago === 'CAJA' && (
+                <div style={{ padding: '1.5rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>Ingrese el monto recibido</label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    placeholder="S/ 5.00" 
+                    value={montoEfectivo} 
+                    onChange={(e) => setMontoEfectivo(e.target.value)} 
+                  />
+                  {montoEfectivo === '5' ? (
+                    <p style={{ color: '#166534', fontWeight: '500', fontSize: '0.875rem', margin: 0 }}>✅ Monto validado</p>
+                  ) : (
+                    <p style={{ color: '#dc2626', fontWeight: '500', fontSize: '0.875rem', margin: 0 }}>❌ Debe ingresar S/ 5.00 exactos</p>
+                  )}
+                </div>
+              )}
+              {metodoPago === 'YAPE_PLIN' && (
+                <div style={{ padding: '1.25rem', border: '2px dashed #a78bfa', borderRadius: '0.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '120px', background: '#faf5ff', gap: '0.75rem' }}>
+                  {cargandoQr && (
+                    <>
+                      <Loader2 size={28} className="spin" style={{ color: '#7c3aed' }} />
+                      <p style={{ color: '#6d28d9', fontWeight: '600', margin: 0 }}>⏳ Generando QR de pago...</p>
+                    </>
+                  )}
+                  {!cargandoQr && qrError && (
+                    <>
+                      <p style={{ color: '#dc2626', fontWeight: '500', margin: 0, textAlign: 'center' }}>❌ {qrError}</p>
+                      <button
+                        type="button"
+                        onClick={generarQrFlow}
+                        style={{ padding: '0.4rem 1rem', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}
+                      >
+                        Reintentar
+                      </button>
+                    </>
+                  )}
+                  {!cargandoQr && qrUrl && (
+                    <>
+                      <p style={{ color: '#6d28d9', fontWeight: '600', margin: 0, fontSize: '0.875rem' }}>✅ QR listo — pida al cliente que escanee</p>
+                      <button
+                        type="button"
+                        onClick={() => window.open(qrUrl, '_blank', 'width=500,height=700')}
+                        style={{
+                          padding: '0.6rem 1.5rem',
+                          background: 'linear-gradient(135deg, #7c3aed, #a21caf)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          fontWeight: '700',
+                          fontSize: '1rem',
+                          boxShadow: '0 4px 12px rgba(124,58,237,0.35)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                        }}
+                      >
+                        📲 Abrir QR de Pago
+                      </button>
+                    </>
+                  )}
+                  {!cargandoQr && !qrUrl && !qrError && (
+                    <p style={{ color: '#94a3b8', fontWeight: '500', margin: 0 }}>Generando enlace de pago QR...</p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {errorMsg && (
@@ -286,9 +406,22 @@ export default function AdminPresencial() {
           )}
 
           <div style={{ marginTop: '2.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end' }}>
-            <button type="submit" className="btn btn-primary" disabled={enviando}
-              style={{ padding: '1rem 2.5rem', fontSize: '1.125rem', background: '#10B981', borderColor: '#10B981', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              {enviando ? <><Loader2 size={20} className="spin" /> Procesando...</> : 'Registrar y Aprobar Colegiado'}
+            <button type="submit" className="btn btn-primary" 
+              disabled={
+                enviando || 
+                !(metodoPago === 'YAPE_PLIN' || (metodoPago === 'CAJA' && Number(montoEfectivo) === 5))
+              }
+              style={{ 
+                padding: '1rem 2.5rem', 
+                fontSize: '1.125rem', 
+                background: !(metodoPago === 'YAPE_PLIN' || (metodoPago === 'CAJA' && Number(montoEfectivo) === 5)) ? '#94a3b8' : '#10B981', 
+                borderColor: !(metodoPago === 'YAPE_PLIN' || (metodoPago === 'CAJA' && Number(montoEfectivo) === 5)) ? '#94a3b8' : '#10B981', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem',
+                cursor: !(metodoPago === 'YAPE_PLIN' || (metodoPago === 'CAJA' && Number(montoEfectivo) === 5)) ? 'not-allowed' : 'pointer'
+              }}>
+              {enviando ? <><Loader2 size={20} className="spin" /> Procesando...</> : 'Enviar Solicitud a Revisión'}
             </button>
           </div>
 

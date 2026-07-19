@@ -255,3 +255,12 @@ DEFAULT_FROM_EMAIL = os.getenv(
 MP_PUBLIC_KEY   = os.getenv('MP_PUBLIC_KEY', '')
 MP_ACCESS_TOKEN = os.getenv('MP_ACCESS_TOKEN', '')
 SITE_URL        = os.getenv('SITE_URL', '')   # URL pública del sitio, ej: https://cip.tudominio.com
+
+# FLOW (Pasarela QR Yape / Plin)
+# ==============================================================================
+FLOW_API_KEY    = os.getenv('FLOW_API_KEY', '')
+FLOW_SECRET_KEY = os.getenv('FLOW_SECRET_KEY', '')
+FLOW_API_URL    = os.getenv('FLOW_API_URL', 'https://www.flow.cl/api')  # producción
+
+# URL del Frontend (para enlaces de correos, etc)
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
