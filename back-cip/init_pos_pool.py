@@ -35,7 +35,7 @@ def init_pool():
         external_pos_id = f"CIPWEBPOS{i:02d}"
         pos_payload = {
             "name": f"Caja Web {i:02d}",
-            "fixed_amount": True,
+            "fixed_amount": False,
             "store_id": store_id,
             "external_id": external_pos_id
         }
