@@ -1299,7 +1299,9 @@ class PagoPreferenciaView(APIView):
 class PagoVerificarPreferenciaView(APIView):
     """
     Verifica y registra un pago de Checkout Pro luego de la redirección desde MP.
-    MP pasa payment_id y external_reference como query params en la back_url.
+    Soporta dos modos:
+    - Con payment_id: verifica ese pago específico (redirección desde MP).
+    - Sin payment_id pero con external_reference: busca pagos aprobados (polling desde frontend).
     """
     permission_classes = [IsAuthenticated]
 
@@ -1309,16 +1311,33 @@ class PagoVerificarPreferenciaView(APIView):
         payment_id   = request.data.get('payment_id', '')
         external_ref = request.data.get('external_reference', '')
 
-        if not payment_id:
-            return Response({'error': 'payment_id requerido.'}, status=400)
+        sdk = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
 
-        sdk      = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
-        result   = sdk.payment().get(payment_id)
-        response = result.get("response", {})
-        mp_status = response.get("status")
-
-        print("[MP VERIFY] payment_id={} status={}".format(payment_id, mp_status), file=sys.stderr)
-        print("[MP VERIFY] response={}".format(response), file=sys.stderr)
+        if not payment_id and external_ref:
+            # Modo polling: buscar pagos por external_reference
+            search_result = sdk.payment().search({
+                'external_reference': external_ref,
+                'sort': 'date_created',
+                'criteria': 'desc',
+            })
+            results = search_result.get("response", {}).get("results", [])
+            approved = next((p for p in results if p.get('status') == 'approved'), None)
+            
+            if not approved:
+                return Response({'pagado': False, 'status': 'pending'}, status=202)
+            
+            payment_id = str(approved.get('id'))
+            mp_status = 'approved'
+            response = approved
+            print("[MP VERIFY POLL] Encontrado pago aprobado: {} ref={}".format(payment_id, external_ref), file=sys.stderr)
+        elif payment_id:
+            # Modo directo: verificar un payment_id específico
+            result   = sdk.payment().get(payment_id)
+            response = result.get("response", {})
+            mp_status = response.get("status")
+            print("[MP VERIFY] payment_id={} status={}".format(payment_id, mp_status), file=sys.stderr)
+        else:
+            return Response({'error': 'payment_id o external_reference requerido.'}, status=400)
 
         if mp_status != "approved":
             return Response(
