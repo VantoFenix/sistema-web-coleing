@@ -39,7 +39,7 @@ export default function AdminPresencial() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ email: 'cajero@cip-peru.org' }),
+        body: JSON.stringify({ email: 'vantofortnite@gmail.com' }),
       });
       const data = await res.json();
       if (res.ok && data.url) {
