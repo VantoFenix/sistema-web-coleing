@@ -1901,21 +1901,21 @@ class FlowGenerarQRView(APIView):
             )
 
         # 2. Construir los parámetros del pago (todos como strings)
-        email = request.data.get('email', 'cajero@cip-peru.org')
+        email = request.data.get('email', '')
+        if not email:
+            email = 'vantofortnite@gmail.com'
+            
         commerce_order = f'FICHA-{int(time.time())}'
-
-        # URL base del backend (para webhooks)
-        backend_url = request.build_absolute_uri('/').rstrip('/')
 
         params = {
             'apiKey':          api_key,
             'commerceOrder':   commerce_order,
             'subject':         'Pago Ficha de Inscripcion Presencial',
-            'currency':        'CLP',
+            'currency':        'PEN',
             'amount':          '5',
             'email':           email,
-            'urlConfirmation': f'{backend_url}/api/flow/webhook/',
-            'urlReturn':       f'{settings.FRONTEND_URL}/admin/presencial',
+            'urlConfirmation': 'https://sistema-web-coleing.onrender.com/api/flow/webhook/',
+            'urlReturn':       'https://sistema-web-coleing.onrender.com/admin/presencial',
             'paymentMethod':   '169',
         }
 
@@ -1933,19 +1933,19 @@ class FlowGenerarQRView(APIView):
                 data=params,
                 timeout=15
             )
+            print(f"[FLOW DEBUG] Response status: {resp.status_code}", file=sys.stderr)
+            print(f"[FLOW DEBUG] Response body: {resp.text[:500]}", file=sys.stderr)
+
+            if resp.status_code != 200:
+                return Response(
+                    {'error': 'Error de Flow', 'detalle': resp.text},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
         except Exception as e:
             print(f"[FLOW ERROR] Connection error: {e}", file=sys.stderr)
             return Response(
                 {'error': f'Error de conexión con Flow: {str(e)}'},
-                status=status.HTTP_502_BAD_GATEWAY
-            )
-
-        print(f"[FLOW DEBUG] Response status: {resp.status_code}", file=sys.stderr)
-        print(f"[FLOW DEBUG] Response body: {resp.text[:500]}", file=sys.stderr)
-
-        if resp.status_code != 200:
-            return Response(
-                {'error': f'Flow respondió con error {resp.status_code}', 'detail': resp.text},
                 status=status.HTTP_502_BAD_GATEWAY
             )
 
