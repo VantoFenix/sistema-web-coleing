@@ -1986,16 +1986,28 @@ class GenerarQRDinamicoView(APIView):
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json"
             }
+            
+            # Expiración: 15 minutos desde ahora (ISO 8601 con zona horaria)
+            from datetime import timezone as tz
+            expiration = (datetime.now(tz.utc) + timedelta(minutes=15)).strftime('%Y-%m-%dT%H:%M:%S.000+00:00')
+            
+            # URL de notificación para que MP confirme el pago (webhook)
+            frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+            # En producción usar la URL del backend de Render
+            backend_url = os.getenv('BACKEND_URL', '')
+            notification_url = f"{backend_url}/api/pagos/qr-presencial/status/" if backend_url else None
+            
             order_data = {
                 "external_reference": external_ref,
                 "title": f"CIP - {len(periodos)} cuota(s)",
                 "total_amount": float(monto_total),
-                "description": "Pago de colegiatura",
+                "description": "Pago de colegiatura CIP",
+                "expiration_date": expiration,
                 "items": [{
                     "sku_number": "CUOTA",
                     "category": "services",
-                    "title": "Mensualidad",
-                    "description": "Cuota CIP",
+                    "title": "Mensualidad CIP",
+                    "description": f"Pago de {len(periodos)} cuota(s) de colegiatura",
                     "unit_price": float(monto_total),
                     "quantity": 1,
                     "unit_measure": "unit",
@@ -2003,10 +2015,14 @@ class GenerarQRDinamicoView(APIView):
                 }]
             }
             
+            # Solo agregar notification_url si tenemos una URL de backend válida
+            if notification_url:
+                order_data["notification_url"] = notification_url
+            
             print(f"[MP QR] PUT {qr_url}", file=sys.stderr)
             import json
             with open('mp_debug_payload.json', 'w') as f:
-                json.dump({"url": qr_url, "headers": headers, "data": order_data}, f)
+                json.dump({"url": qr_url, "headers": {k: v for k, v in headers.items() if k != "Authorization"}, "data": order_data}, f)
             resp = http_requests.put(qr_url, json=order_data, headers=headers, timeout=15)
             
             print(f"[MP QR] Status: {resp.status_code}", file=sys.stderr)
