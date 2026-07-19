@@ -55,6 +55,10 @@ urlpatterns = [
     path('api/pagos/preferencia/',  views.PagoPreferenciaView.as_view(),             name='pago-preferencia'),
     path('api/pagos/verificar/',    views.PagoVerificarPreferenciaView.as_view(),    name='pago-verificar'),
 
+    # Flow — QR Yape / Plin
+    path('api/flow/generar-qr/', views.FlowGenerarQRView.as_view(), name='flow-generar-qr'),
+    path('api/flow/webhook/',    views.FlowWebhookView.as_view(),   name='flow-webhook'),
+
     # Portal Colegiado
     path('api/portal/yo/', views.PortalPerfilView.as_view(), name='portal-yo'),
     path('api/portal/foto/', views.PortalFotoView.as_view(), name='portal-foto'),
