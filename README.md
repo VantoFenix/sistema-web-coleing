@@ -6,6 +6,7 @@ Plataforma integral para la gestión de colegiados, trámites de inscripción y 
 - **Frontend:** React.js (Vite) + CSS.
 - **Backend:** Python + Django REST Framework (DRF).
 - **Base de Datos:** PostgreSQL en la nube (vía Supabase).
+- **Pagos Online:** Integración con Flow.cl.
 - **Despliegue Local:** Docker Compose.
 
 ---
