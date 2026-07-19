@@ -39,7 +39,7 @@ class FlowAPI:
             "email": email,
             "urlConfirmation": url_confirmation,
             "urlReturn": url_return,
-            # "paymentMethod": 9 # Opcional: forzar método de pago (9 es multipago u otros)
+            "paymentMethod": 169
         }
         
         if params["amount"].endswith(".0") or params["amount"].endswith(".00"):

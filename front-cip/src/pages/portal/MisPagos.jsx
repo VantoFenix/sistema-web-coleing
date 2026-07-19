@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   CheckCircle2, XCircle, Calendar, Loader2, CreditCard,
   ShieldCheck, ArrowLeft, AlertCircle, Clock, Receipt,
-  Smartphone, Building2, UploadCloud, CheckCheck, ExternalLink,
+  Smartphone, Building2, UploadCloud, CheckCheck, ExternalLink, Edit2
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import ComprobanteModal from '../../components/UI/ComprobanteModal';
@@ -16,20 +16,30 @@ const MESES_CORTO = [
   'ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC',
 ];
 const fmtPeriodo = (p) => {
-  const [y, m] = p.split('-');
-  return `${MESES[parseInt(m, 10) - 1]} ${y}`;
+  if (!p) return '—';
+  const parts = p.split('-');
+  if (parts.length < 2) return p;
+  return `${MESES[parseInt(parts[1], 10) - 1] || ''} ${parts[0]}`;
 };
-const fmtPeriodoCorto = (p) => MESES_CORTO[parseInt(p.split('-')[1], 10) - 1];
+const fmtPeriodoCorto = (p) => {
+  if (!p) return '—';
+  const parts = p.split('-');
+  if (parts.length < 2) return p;
+  return MESES_CORTO[parseInt(parts[1], 10) - 1] || '';
+};
 const fmtFecha = (iso) => {
   if (!iso) return '—';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
+  const parts = iso.split('-');
+  if (parts.length < 3) return iso;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
 };
 
-// ── Paso: Selección de periodos (calendario estilo admin) ─────────────────
-function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSoloDeuda, onDeselAll, montoUnit, onError, onGenerarQR }) {
+// ── Paso: Selección de periodos (calendario estilo admin) ──────────────────
+function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSoloDeuda, onDeselAll, montoUnit, onError, onGenerarQR, onEditMonto }) {
   const [generando, setGenerando] = useState(false);
+  const [editMonto, setEditMonto] = useState(false);
   const total = seleccionados.size * parseFloat(montoUnit);
+  const [tempMonto, setTempMonto] = useState(total);
 
   const handleGenerarQR = async () => {
     setGenerando(true);
@@ -91,7 +101,8 @@ function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSol
   // Agrupar por año
   const porAño = {};
   allPeriodos.forEach(p => {
-    const año = p.periodo.split('-')[0];
+    const pStr = p.periodo || '';
+    const año = pStr.includes('-') ? pStr.split('-')[0] : 'Desconocido';
     if (!porAño[año]) porAño[año] = [];
     porAño[año].push(p);
   });
@@ -193,11 +204,49 @@ function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSol
       {/* Resumen monto */}
       {seleccionados.size > 0 && (
         <div style={{ background: '#F1F5F9', borderRadius: '10px', padding: '0.875rem 1.25rem', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {seleccionados.size} mes{seleccionados.size !== 1 ? 'es' : ''} × S/ {parseFloat(montoUnit).toFixed(2)}
+            {!editMonto && (
+              <button 
+                onClick={() => {
+                  setTempMonto(total);
+                  setEditMonto(true);
+                }} 
+                title="Editar precio (Solo demostración)"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cip-blue)', padding: 0, display: 'flex' }}>
+                <Edit2 size={14} />
+              </button>
+            )}
           </div>
-          <div style={{ fontSize: '1.375rem', fontWeight: '800', color: 'var(--cip-blue)' }}>
-            S/ {total.toFixed(2)}
+          <div style={{ fontSize: '1.375rem', fontWeight: '800', color: 'var(--cip-blue)', display: 'flex', alignItems: 'center' }}>
+            {editMonto ? (
+              <>
+                S/ 
+                <input
+                  type="number"
+                  value={tempMonto}
+                  onChange={(e) => setTempMonto(e.target.value)}
+                  onBlur={() => {
+                    setEditMonto(false);
+                    const newTotal = parseFloat(tempMonto);
+                    if (!isNaN(newTotal) && seleccionados.size > 0) {
+                      onEditMonto(newTotal / seleccionados.size);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.target.blur();
+                  }}
+                  autoFocus
+                  style={{ 
+                    width: '80px', padding: '0 0.3rem', border: 'none', borderBottom: '2px solid var(--cip-blue)', 
+                    background: 'transparent', color: 'var(--cip-blue)', fontSize: '1.375rem', fontWeight: '800',
+                    outline: 'none', textAlign: 'right', marginLeft: '0.2rem'
+                  }}
+                />
+              </>
+            ) : (
+              `S/ ${total.toFixed(2)}`
+            )}
           </div>
         </div>
       )}
@@ -501,8 +550,13 @@ export default function MisPagos() {
   const [pendientes, setPendientes]       = useState([]);
   const [historial, setHistorial]         = useState([]);
   const [montoUnit, setMontoUnit]         = useState(0);
+  const [montoBase, setMontoBase]         = useState(0);
 
   const [seleccionados, setSeleccionados] = useState(new Set());
+
+  useEffect(() => {
+    if (montoBase) setMontoUnit(montoBase);
+  }, [seleccionados, montoBase]);
   
   const [initPoint, setInitPoint]         = useState(null);
   const [extRef, setExtRef]               = useState(null);
@@ -514,7 +568,7 @@ export default function MisPagos() {
       const res = await fetch('/api/pagos/flow/crear/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ periodos: periodosArray })
+        body: JSON.stringify({ periodos: periodosArray, monto: (periodosArray.length * parseFloat(montoUnit)).toFixed(2) })
       });
       const data = await res.json();
       if (data.init_point) {
@@ -593,6 +647,7 @@ export default function MisPagos() {
       setVouchersPendientes(data.vouchers_pendientes || []);
       setHabilitado(data.habilitado ?? null);
       setMontoUnit(data.monto_mensualidad || '20.00');
+      setMontoBase(data.monto_mensualidad || '20.00');
       setSeleccionados(new Set((data.periodos_pendientes || []).map(p => p.periodo)));
     } catch (e) {
       setError(`No se pudo cargar la información de pagos: ${e.message}`);
@@ -617,6 +672,7 @@ export default function MisPagos() {
         setVouchersPendientes(d.vouchers_pendientes || []);
         setHabilitado(d.habilitado ?? null);
         setMontoUnit(d.monto_mensualidad || '20.00');
+        setMontoBase(d.monto_mensualidad || '20.00');
         setSeleccionados(new Set((d.periodos_pendientes || []).map(p => p.periodo)));
       }
 
@@ -767,6 +823,7 @@ export default function MisPagos() {
                   montoUnit={montoUnit}
                   onError={(msg) => setErrPago(msg)}
                   onGenerarQR={handlePagarFlow}
+                  onEditMonto={(newVal) => setMontoUnit(newVal)}
                 />
               )}
 

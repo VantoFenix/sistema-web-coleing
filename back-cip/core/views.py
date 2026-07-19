@@ -593,12 +593,18 @@ class PortalPagosView(APIView):
 
             # ── Historial de pagos ────────────────────────────────────────────
             def _fmt_date(d, fmt):
-                """strftime seguro: normaliza datetime→date y maneja None."""
+                """strftime seguro: normaliza datetime→date y maneja None y str."""
                 if d is None:
                     return None
+                if isinstance(d, str):
+                    try:
+                        from datetime import datetime as _dt
+                        d = _dt.strptime(d[:10], '%Y-%m-%d').date()
+                    except Exception:
+                        return d
                 if hasattr(d, 'date') and callable(d.date):  # es datetime
                     d = d.date()
-                return d.strftime(fmt)
+                return d.strftime(fmt) if hasattr(d, 'strftime') else str(d)
 
             pagos = Pago.objects.filter(colegiado=col).order_by('-periodo')
             historial = []
@@ -1238,11 +1244,16 @@ class PagoFlowCrearView(APIView):
         from core.flow_api import FlowAPI
 
         periodos = request.data.get('periodos', [])
+        monto_custom = request.data.get('monto')
+
         if not periodos:
             return Response({'error': 'Seleccione al menos un periodo.'}, status=400)
 
         colegiado = request.user
-        monto_total = round(len(periodos) * _get_monto_mensualidad(), 2)
+        if monto_custom is not None:
+            monto_total = round(float(monto_custom), 2)
+        else:
+            monto_total = round(len(periodos) * _get_monto_mensualidad(), 2)
 
         # Usar timestamp para evitar duplicados en pruebas
         timestamp = int(time.time())
@@ -1251,11 +1262,11 @@ class PagoFlowCrearView(APIView):
         frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
         safe_url = "https://sistema-web-coleing.onrender.com" if "localhost" in frontend_url else frontend_url
         
-        url_return = f"{safe_url}/portal/mis-pagos"
+        url_return = f"{safe_url}/portal/pagos"
         url_confirmation = f"{safe_url}/api/pagos/flow/confirmar/" # No se usa directamente frontend porque retorna JWT, pero Flow usa su propio retorno
 
         subject = f"CIP - {len(periodos)} cuota(s) mensual(es)"
-        email = getattr(colegiado, 'correo', None) or "pagador@cip.org.pe"
+        email = getattr(colegiado, 'correo', None) or "usuario.cip.peru@gmail.com"
 
         try:
             from django.conf import settings
