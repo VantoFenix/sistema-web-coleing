@@ -484,11 +484,14 @@ const ComprobantesAnteriores = ({ onVerComprobante }) => {
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    // El backend ahora soporta no enviar colegiado_id y usar el request.user
-    fetch('/api/finanzas/comprobantes/historial/')
+    const token = localStorage.getItem('colToken');
+    fetch('/api/finanzas/comprobantes/historial/', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
       .then(r => r.json())
       .then(data => {
-        setComprobantes(data.results || data);
+        const arr = data.results || data;
+        setComprobantes(Array.isArray(arr) ? arr : []);
         setCargando(false);
       })
       .catch(() => setCargando(false));
