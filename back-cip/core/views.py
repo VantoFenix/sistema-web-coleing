@@ -1876,9 +1876,10 @@ class FlowGenerarQRView(APIView):
         1. Ordena los parámetros alfabéticamente por su LLAVE.
         2. Concatena como 'llave=valor' separados por '&' (sin URL-encode).
         3. Firma ese string con HMAC-SHA256 usando la secret_key.
+        IMPORTANTE: Todos los valores se convierten a string.
         """
         llaves_ordenadas = sorted(params.keys())
-        cadena = '&'.join(f'{k}={params[k]}' for k in llaves_ordenadas)
+        cadena = '&'.join(f'{k}={str(params[k])}' for k in llaves_ordenadas)
         firma = hmac.new(
             secret_key.encode('utf-8'),
             cadena.encode('utf-8'),
@@ -1887,6 +1888,7 @@ class FlowGenerarQRView(APIView):
         return firma
 
     def post(self, request):
+        import sys
         # 1. Validar credenciales de Flow en settings
         api_key    = settings.FLOW_API_KEY
         secret_key = settings.FLOW_SECRET_KEY
@@ -1898,7 +1900,7 @@ class FlowGenerarQRView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        # 2. Construir los parámetros del pago
+        # 2. Construir los parámetros del pago (todos como strings)
         email = request.data.get('email', 'cajero@cip-peru.org')
         commerce_order = f'FICHA-{int(time.time())}'
 
@@ -1908,17 +1910,21 @@ class FlowGenerarQRView(APIView):
         params = {
             'apiKey':          api_key,
             'commerceOrder':   commerce_order,
-            'subject':         'Pago Ficha de Inscripción Presencial',
+            'subject':         'Pago Ficha de Inscripcion Presencial',
             'currency':        'CLP',
-            'amount':          5,
+            'amount':          '5',
             'email':           email,
             'urlConfirmation': f'{backend_url}/api/flow/webhook/',
             'urlReturn':       f'{settings.FRONTEND_URL}/admin/presencial',
-            'paymentMethod':   169,
+            'paymentMethod':   '169',
         }
 
         # 3. Firmar los parámetros
         params['s'] = self._firmar_parametros(params, secret_key)
+
+        print(f"[FLOW DEBUG] Sending to: {flow_url}/payment/create", file=sys.stderr)
+        print(f"[FLOW DEBUG] apiKey: {api_key[:8]}...", file=sys.stderr)
+        print(f"[FLOW DEBUG] params keys: {sorted(params.keys())}", file=sys.stderr)
 
         # 4. POST a Flow /payment/create
         try:
@@ -1928,10 +1934,14 @@ class FlowGenerarQRView(APIView):
                 timeout=15
             )
         except Exception as e:
+            print(f"[FLOW ERROR] Connection error: {e}", file=sys.stderr)
             return Response(
                 {'error': f'Error de conexión con Flow: {str(e)}'},
                 status=status.HTTP_502_BAD_GATEWAY
             )
+
+        print(f"[FLOW DEBUG] Response status: {resp.status_code}", file=sys.stderr)
+        print(f"[FLOW DEBUG] Response body: {resp.text[:500]}", file=sys.stderr)
 
         if resp.status_code != 200:
             return Response(

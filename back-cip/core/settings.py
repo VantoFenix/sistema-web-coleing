@@ -252,7 +252,7 @@ SITE_URL        = os.getenv('SITE_URL', '')   # URL pública del sitio, ej: http
 # ==============================================================================
 FLOW_API_KEY    = os.getenv('FLOW_API_KEY', '')
 FLOW_SECRET_KEY = os.getenv('FLOW_SECRET_KEY', '')
-FLOW_API_URL    = os.getenv('FLOW_API_URL', 'https://sandbox.flow.cl/api')  # sandbox por defecto
+FLOW_API_URL    = os.getenv('FLOW_API_URL', 'https://www.flow.cl/api')  # producción
 
 # URL del Frontend (para enlaces de correos, etc)
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
