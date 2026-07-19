@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   CheckCircle2, XCircle, Calendar, Loader2, CreditCard,
   ShieldCheck, ArrowLeft, AlertCircle, Clock, Receipt,
-  Smartphone, Building2, UploadCloud, CheckCheck,
+  Smartphone, Building2, UploadCloud, CheckCheck, ExternalLink,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -207,7 +207,7 @@ function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSol
         </div>
         <div>
           <h4 style={{ margin: '0 0 0.25rem 0', color: 'var(--cip-blue)', fontSize: '1rem', fontWeight: '800' }}>Medio de Pago</h4>
-          <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748B' }}>Yape / Plin (QR Interoperable)</p>
+          <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748B' }}>Yape / Tarjeta (Checkout MercadoPago)</p>
         </div>
         <div style={{ marginLeft: 'auto' }}>
           <CheckCircle2 size={24} color="#059669" />
@@ -237,47 +237,66 @@ function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSol
 }
 
 
-// ── Paso: QR Dinámico (Yape/Plin Interoperable) ────────────────────────────
-function StepQRDinamico({ qrData, extRef, total, onExito, onError, onCancelar }) {
+// ── Paso: Checkout MercadoPago (Yape/Tarjeta) ──────────────────────────────
+function StepCheckoutMP({ initPoint, extRef, total, onExito, onError, onCancelar }) {
   useEffect(() => {
     if (!extRef) return;
     const token = localStorage.getItem('colToken');
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/pagos/qr-presencial/status/?external_reference=${extRef}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+        // Buscar pagos por external_reference usando el endpoint de verificación
+        const res = await fetch('/api/pagos/verificar/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ payment_id: '', external_reference: extRef })
         });
         const data = await res.json();
-        if (data.pagado) {
+        if (data.success) {
           clearInterval(interval);
           onExito(data);
         }
       } catch (err) {
-        console.error("Error polling QR status", err);
+        // Silenciar errores de polling (el pago aún no se completó)
       }
-    }, 4000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [extRef, onExito]);
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease-out', textAlign: 'center', padding: '2rem 1rem' }}>
       <h3 style={{ color: 'var(--cip-blue)', fontWeight: '800', marginBottom: '0.5rem', fontSize: '1.4rem' }}>
-        Escanea y Paga
+        Pagar S/ {total.toFixed(2)}
       </h3>
       <p style={{ fontSize: '0.9rem', color: '#475569', marginBottom: '1.5rem', lineHeight: '1.6' }}>
-        Abre <strong>Yape, Plin o tu app bancaria</strong> y escanea el código para pagar <strong>S/ {total.toFixed(2)}</strong>.
+        Escanea el QR con la <strong>camara de tu celular</strong> o toca el boton para abrir el checkout de MercadoPago. Ahi podras pagar con <strong>Yape, tarjeta o transferencia</strong>.
       </p>
       
-      <div style={{ background: 'white', padding: '1.25rem', display: 'inline-block', borderRadius: '16px', border: '4px solid #059669', marginBottom: '1.5rem', boxShadow: '0 10px 25px rgba(5,150,105,0.2)' }}>
-        <QRCodeSVG value={qrData} size={220} level={"H"} />
+      <div style={{ background: 'white', padding: '1.25rem', display: 'inline-block', borderRadius: '16px', border: '4px solid #009EE3', marginBottom: '1.25rem', boxShadow: '0 10px 25px rgba(0,158,227,0.2)' }}>
+        <QRCodeSVG value={initPoint} size={220} level={"H"} />
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: '#059669', marginBottom: '1rem', fontWeight: '700' }}>
-        <Loader2 size={18} className="spin" /> Esperando confirmación del pago...
+      <a
+        href={initPoint}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+          width: '100%', padding: '0.9rem', marginBottom: '1rem',
+          background: 'linear-gradient(135deg, #009EE3 0%, #00B1EA 100%)', color: 'white',
+          fontWeight: '800', borderRadius: '12px', border: 'none', cursor: 'pointer',
+          fontSize: '0.95rem', textDecoration: 'none',
+          boxShadow: '0 4px 14px rgba(0,158,227,0.4)',
+        }}
+      >
+        <ExternalLink size={18} /> Abrir enlace de pago
+      </a>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: '#009EE3', marginBottom: '1rem', fontWeight: '700' }}>
+        <Loader2 size={18} className="spin" /> Esperando confirmacion del pago...
       </div>
 
       <p style={{ fontSize: '0.78rem', color: '#94A3B8', marginBottom: '1.5rem' }}>
-        Una vez que completes el pago, esta pantalla se actualizará automáticamente.
+        Una vez que completes el pago, esta pantalla se actualizara automaticamente.
       </p>
 
       <button
@@ -414,27 +433,29 @@ export default function MisPagos() {
 
   const [seleccionados, setSeleccionados] = useState(new Set());
   
-  const [qrData, setQrData]               = useState(null);
+  const [initPoint, setInitPoint]         = useState(null);
   const [extRef, setExtRef]               = useState(null);
   const [resultadoPago, setResultadoPago] = useState(null);
 
-  const handleGenerarQRPresencial = async (periodosArray) => {
+  const handlePagarCheckoutPro = async (periodosArray) => {
     try {
       const token = localStorage.getItem('colToken');
-      const res = await fetch('/api/pagos/qr-presencial/', {
+      const res = await fetch('/api/pagos/preferencia/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ periodos: periodosArray })
       });
       const data = await res.json();
-      if (data.qr_data) {
-        setQrData(data.qr_data);
-        setExtRef(data.external_reference);
+      if (data.init_point) {
+        setInitPoint(data.init_point);
+        // external_reference format: cip-{id}~{p1}~{p2}
+        const extRefStr = `cip-${JSON.parse(atob(token.split('.')[1])).user_id}~${periodosArray.sort().join('~')}`;
+        setExtRef(extRefStr);
       } else {
-        setError(data.error || 'No se pudo generar el QR.');
+        setError(data.error || 'No se pudo crear el enlace de pago.');
       }
     } catch {
-      setError('Error de conexión al generar el QR.');
+      setError('Error de conexion al crear el enlace de pago.');
     }
   };
   const [montoCustom, setMontoCustom]     = useState(null); // null = cálculo automático
@@ -640,13 +661,13 @@ export default function MisPagos() {
           {tab === 'pagar' && (
             <>
               {/* Mensaje de error al volver de MP (pago rechazado/cancelado) */}
-              {errPago && !qrData && (
+              {errPago && !initPoint && (
                 <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.875rem', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
                   <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '0.1rem' }} />
                   <span>{errPago}</span>
                 </div>
               )}
-              {!qrData && !resultadoPago && (
+              {!initPoint && !resultadoPago && (
                 <StepPeriodos
                   pendientes={pendientes}
                   historial={historial}
@@ -656,24 +677,24 @@ export default function MisPagos() {
                   onDeselAll={() => setSeleccionados(new Set())}
                   montoUnit={montoUnit}
                   onError={(msg) => setErrPago(msg)}
-                  onGenerarQR={handleGenerarQRPresencial}
+                  onGenerarQR={handlePagarCheckoutPro}
                 />
               )}
 
-              {qrData && !resultadoPago && (
-                <StepQRDinamico
-                  qrData={qrData}
+              {initPoint && !resultadoPago && (
+                <StepCheckoutMP
+                  initPoint={initPoint}
                   extRef={extRef}
                   total={seleccionados.size * parseFloat(montoUnit)}
                   onExito={(data) => {
-                    setQrData(null);
+                    setInitPoint(null);
                     setExtRef(null);
                     setResultadoPago(data);
                     cargarDatos();
                   }}
                   onError={setError}
                   onCancelar={() => {
-                    setQrData(null);
+                    setInitPoint(null);
                     setExtRef(null);
                   }}
                 />
@@ -682,7 +703,7 @@ export default function MisPagos() {
               {resultadoPago && (
                 <StepExito resultado={resultadoPago} onNuevoPago={() => {
                   setResultadoPago(null);
-                  setQrData(null);
+                  setInitPoint(null);
                   setExtRef(null);
                   setTab('historial');
                   cargarDatos();
