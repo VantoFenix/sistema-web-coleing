@@ -1260,9 +1260,14 @@ class PagoPreferenciaView(APIView):
         sdk = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
 
         frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
-        success_url = f"{frontend_url}/portal/mis-pagos"
-        failure_url = f"{frontend_url}/portal/mis-pagos"
-        pending_url = f"{frontend_url}/portal/mis-pagos"
+        
+        # MercadoPago rechaza auto_return si las URLs son localhost o HTTP en producción.
+        # Por seguridad en desarrollo local, usamos un dominio temporal si es localhost.
+        safe_url = "https://sistema-web-coleing.onrender.com" if "localhost" in frontend_url else frontend_url
+        
+        success_url = f"{safe_url}/portal/mis-pagos"
+        failure_url = f"{safe_url}/portal/mis-pagos"
+        pending_url = f"{safe_url}/portal/mis-pagos"
 
         preference_data = {
             "items": [{
