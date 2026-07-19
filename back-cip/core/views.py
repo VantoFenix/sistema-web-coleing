@@ -1268,7 +1268,7 @@ class PagoFlowCrearView(APIView):
 
         # Usar timestamp para evitar duplicados en pruebas
         timestamp = int(time.time())
-        commerce_order = f"{colegiado.id}_{timestamp}_{'-'.join(sorted(periodos))}"
+        commerce_order = f"{colegiado.id}_{timestamp}_{','.join(sorted(periodos))}"
 
         frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
         safe_url = "https://sistema-web-coleing.onrender.com" if "localhost" in frontend_url else frontend_url
@@ -1357,10 +1357,10 @@ class PagoFlowConfirmarView(APIView):
 
             commerce_order = res.get('commerceOrder', '')
             
-            # Formato: "{colegiado.id}_{timestamp}_{p1}-{p2}"
+            # Formato: "{colegiado.id}_{timestamp}_{p1},{p2}"
             parts = commerce_order.split('_')
             col_id_str = parts[0]
-            periodos = parts[2].split('-')
+            periodos = parts[2].split(',')
             if not getattr(request.user, 'is_staff', False):
                 assert int(col_id_str) == request.user.id, "colegiado_id no coincide"
         except Exception as ex:
