@@ -251,8 +251,7 @@ export default function AdminVouchers() {
     try {
       const res = await fetch('/api/admin/vouchers/');
       if (res.ok) {
-        const data = await res.json();
-        setVouchers(data.results || data);
+        setVouchers(await res.json());
       } else {
         setError(`Error ${res.status} al cargar vouchers.`);
       }

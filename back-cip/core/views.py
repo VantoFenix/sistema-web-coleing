@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status, viewsets
-from rest_framework.decorators import api_view, permission_classes, authentication_classes, action
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.hashers import check_password
 from django.db import connection, transaction, IntegrityError
@@ -14,15 +14,10 @@ import os
 import uuid
 from datetime import datetime, date
 from django.conf import settings
-from django.core.mail import send_mail
-from django.contrib.auth.tokens import default_token_generator
-from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
-from django.utils.encoding import force_bytes, force_str
-from django.contrib.auth.hashers import make_password
 
 from .models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago, PagoVoucherPendiente, Configuracion
 from rest_framework.parsers import MultiPartParser, FormParser
-from .serializers import AdministradorSerializer, AdministradorCRUDSerializer, ColegiadoSerializer, SolicitudSerializer, SolicitudCreateSerializer, CarreraSerializer, SedeSerializer
+from .serializers import AdministradorSerializer, AdministradorCRUDSerializer, ColegiadoSerializer, SolicitudSerializer, CarreraSerializer, SedeSerializer
 # pyrefly: ignore [missing-import]
 from apps.tramites.services import BancoNacionMockService
 def generate_jwt(user_id, role):
@@ -53,8 +48,6 @@ class AuthLoginView(APIView):
             admin = (Administrador.objects.filter(correo=username).first()
                      or Administrador.objects.filter(usuario=username).first())
             if admin and check_password(password, admin.password_hash):
-                if not admin.activo:
-                    return Response({"detail": "Su cuenta está inhabilitada. Contacte al administrador."}, status=status.HTTP_401_UNAUTHORIZED)
                 token = generate_jwt(admin.id, admin.rol)
                 return Response({
                     'token': token,
@@ -196,6 +189,7 @@ class PublicConsultaSolicitudView(APIView):
             return Response({'error': 'No se encontró ninguna solicitud con ese DNI'}, status=status.HTTP_404_NOT_FOUND)
         
         return Response({
+            'id': sol.id,
             'estado': sol.estado,
             'motivo_rechazo': sol.motivo_rechazo
         })
@@ -205,27 +199,33 @@ class PublicPostulacionView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = SolicitudCreateSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        valid_data = serializer.validated_data
-        dni = valid_data['dni']
-        nombres = valid_data['nombres']
-        carrera = valid_data['carrera_obj']
-        sede = valid_data['sede_obj']
-            
-        origen = valid_data.get('origen', 'WEB')
-        numero_operacion = valid_data.get('numero_operacion')
-        fecha_pago = valid_data.get('fecha_pago')
-        foto = valid_data['foto']
-        titulo = valid_data['titulo']
-        recibo = valid_data.get('recibo')
+        dni = request.data.get('dni')
+        nombres = request.data.get('nombres')
+        carrera_nombre = request.data.get('carrera')
+        sede_nombre = request.data.get('sede')
+        numero_operacion = request.data.get('numero_operacion')
+        fecha_pago = request.data.get('fecha_pago')
         banco = request.data.get('banco')
+        correo = request.data.get('correo')
+        celular = request.data.get('celular')
+
+        foto = request.FILES.get('foto')
+        titulo = request.FILES.get('titulo')
+        recibo = request.FILES.get('recibo')
+
+        if not all([dni, nombres, carrera_nombre, sede_nombre, foto, titulo, recibo, numero_operacion, fecha_pago, correo, celular]):
+            return Response({'error': 'Faltan campos o documentos requeridos'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validacion de formatos de archivo
+        if not foto.content_type.startswith('image/'):
+            return Response({'error': 'La foto debe ser un archivo de imagen válido (JPG, PNG).'}, status=status.HTTP_400_BAD_REQUEST)
+        if titulo.content_type != 'application/pdf':
+            return Response({'error': 'El Título Profesional debe ser un archivo PDF.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not (recibo.content_type.startswith('image/') or recibo.content_type == 'application/pdf'):
+            return Response({'error': 'El Recibo de Caja debe ser un PDF o una imagen.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validar el comprobante con el Mock del Banco de la Nación
-        if banco == 'BN' and numero_operacion and fecha_pago:
-            from apps.tramites.services import BancoNacionMockService
+        if banco == 'BN':
             resultado = BancoNacionMockService.verificar_operacion(numero_operacion, fecha_pago)
             if not resultado["valido"]:
                 return Response({'error': resultado["mensaje"]}, status=status.HTTP_400_BAD_REQUEST)
@@ -237,10 +237,10 @@ class PublicPostulacionView(APIView):
                 status=status.HTTP_409_CONFLICT
             )
             
-        # Verificar que el número de operación no haya sido usado en otra solicitud activa o aprobada
-        if numero_operacion and Solicitud.objects.filter(numero_operacion=numero_operacion).exclude(estado='RECHAZADO').exists():
+        # Verificar que el número de operación no haya sido usado y validado en una postulación aprobada
+        if Solicitud.objects.filter(numero_operacion=numero_operacion, estado='APROBADA').exists():
             return Response(
-                {'error': 'Este número de operación ya ha sido registrado en otra postulación. Por favor verifique sus datos.'},
+                {'error': 'Este número de operación ya ha sido validado y utilizado en una postulación exitosa.'},
                 status=status.HTTP_409_CONFLICT
             )
 
@@ -251,28 +251,26 @@ class PublicPostulacionView(APIView):
                 status=status.HTTP_409_CONFLICT
             )
 
+        # Buscar carrera y sede
+        carrera = Carrera.objects.filter(nombre=carrera_nombre).first()
+        sede = Sede.objects.filter(nombre=sede_nombre).first()
+        if not carrera or not sede:
+            return Response({'error': 'Carrera o Sede no válida'}, status=status.HTTP_400_BAD_REQUEST)
+
         # Guardar archivos
         base_path = 'postulaciones/'
         foto_name = f"{base_path}{uuid.uuid4()}_{foto.name}"
         titulo_name = f"{base_path}{uuid.uuid4()}_{titulo.name}"
-        
-        recibo_name = None
-        recibo_url = ""
-        if recibo:
-            recibo_name = f"{base_path}{uuid.uuid4()}_{recibo.name}"
-            recibo_url = f"/media/{recibo_name}"
+        recibo_name = f"{base_path}{uuid.uuid4()}_{recibo.name}"
 
         try:
             default_storage.save(foto_name, foto)
             default_storage.save(titulo_name, titulo)
-            if recibo:
-                default_storage.save(recibo_name, recibo)
+            default_storage.save(recibo_name, recibo)
         except Exception as e:
             import sys
             print(f"[ERROR] Fallo al guardar archivos: {e}", file=sys.stderr)
             return Response({'error': f'Error al guardar los archivos: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        metodo_pago = valid_data.get('metodo_pago', 'TRANSFERENCIA')
 
         try:
             solicitud = Solicitud.objects.create(
@@ -282,19 +280,91 @@ class PublicPostulacionView(APIView):
                 sede=sede,
                 foto_url=f"/media/{foto_name}",
                 titulo_pdf_url=f"/media/{titulo_name}",
-                recibo_pago_url=recibo_url,
-                metodo_pago=metodo_pago,
+                recibo_pago_url=f"/media/{recibo_name}",
                 numero_operacion=numero_operacion,
                 fecha_pago=fecha_pago,
-                origen=origen,
+                correo=correo,
+                celular=celular,
                 estado='EN_REVISION'
             )
-            
         except Exception as e:
             import sys
             print(f"[ERROR] Fallo al crear solicitud en BD: {e}", file=sys.stderr)
             return Response({'error': f'Error al registrar la solicitud: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+        return Response({'success': True, 'solicitud_id': solicitud.id})
+
+class PublicActualizarPostulacionView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk):
+        try:
+            sol = Solicitud.objects.get(pk=pk, estado='RECHAZADA')
+            return Response({
+                'motivo_rechazo': sol.motivo_rechazo
+            })
+        except Solicitud.DoesNotExist:
+            return Response({'error': 'Solicitud no encontrada o no está rechazada'}, status=status.HTTP_404_NOT_FOUND)
+
+    def put(self, request, pk):
+        try:
+            solicitud = Solicitud.objects.get(pk=pk, estado='RECHAZADA')
+        except Solicitud.DoesNotExist:
+            return Response({'error': 'Solicitud no encontrada o no está rechazada'}, status=status.HTTP_404_NOT_FOUND)
+
+        solicitud.correo = request.data.get('correo', solicitud.correo)
+        solicitud.celular = request.data.get('celular', solicitud.celular)
+        carrera_nombre = request.data.get('carrera')
+        sede_nombre = request.data.get('sede')
+        if carrera_nombre:
+            carrera = Carrera.objects.filter(nombre=carrera_nombre).first()
+            if carrera: solicitud.carrera = carrera
+        if sede_nombre:
+            sede = Sede.objects.filter(nombre=sede_nombre).first()
+            if sede: solicitud.sede = sede
+
+        numero_operacion = request.data.get('numero_operacion')
+        fecha_pago = request.data.get('fecha_pago')
+        if numero_operacion: solicitud.numero_operacion = numero_operacion
+        if fecha_pago: solicitud.fecha_pago = fecha_pago
+
+        # Check unique operation number
+        if numero_operacion and Solicitud.objects.filter(numero_operacion=numero_operacion).exclude(id=solicitud.id).exclude(estado='RECHAZADA').exists():
+            return Response({'error': 'Este número de operación ya ha sido registrado en otra postulación. Por favor verifique sus datos.'}, status=status.HTTP_409_CONFLICT)
+
+        foto = request.FILES.get('foto')
+        titulo = request.FILES.get('titulo')
+        recibo = request.FILES.get('recibo')
+        base_path = 'postulaciones/'
+
+        try:
+            if foto:
+                if not foto.content_type.startswith('image/'):
+                    return Response({'error': 'La foto debe ser imagen válida.'}, status=status.HTTP_400_BAD_REQUEST)
+                fn = f"{base_path}{uuid.uuid4()}_{foto.name}"
+                default_storage.save(fn, foto)
+                solicitud.foto_url = f"/media/{fn}"
+
+            if titulo:
+                if titulo.content_type != 'application/pdf':
+                    return Response({'error': 'El Título debe ser PDF.'}, status=status.HTTP_400_BAD_REQUEST)
+                tn = f"{base_path}{uuid.uuid4()}_{titulo.name}"
+                default_storage.save(tn, titulo)
+                solicitud.titulo_pdf_url = f"/media/{tn}"
+
+            if recibo:
+                if not (recibo.content_type.startswith('image/') or recibo.content_type == 'application/pdf'):
+                    return Response({'error': 'El Recibo debe ser PDF o imagen.'}, status=status.HTTP_400_BAD_REQUEST)
+                rn = f"{base_path}{uuid.uuid4()}_{recibo.name}"
+                default_storage.save(rn, recibo)
+                solicitud.recibo_pago_url = f"/media/{rn}"
+        except Exception as e:
+            return Response({'error': f'Error guardando archivos: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        solicitud.estado = 'EN_REVISION'
+        solicitud.save()
 
         return Response({'success': True, 'solicitud_id': solicitud.id})
 
@@ -363,148 +433,95 @@ class AdminDashboardView(APIView):
         })
 
 
-class SolicitudViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
-    serializer_class = SolicitudSerializer
+class AdminPostulacionesView(APIView):
+    # En producción idealmente IsAuthenticated, lo dejamos AllowAny para MVP rápido
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
-    def get_queryset(self):
-        user = self.request.user
-        if not user or not getattr(user, 'is_authenticated', False):
-            return Solicitud.objects.none()
-            
-        qs = Solicitud.objects.all().order_by('creado_en')
-        
-        # MASTER_ADMIN ve todas las solicitudes
-        if getattr(user, 'rol', None) == 'MASTER_ADMIN':
-            return qs
-            
-        # ADMIN y CAJERO: si tienen sede asignada, solo ven las de su sede
-        # Si no tienen sede (None), ven todas
-        if getattr(user, 'sede_id', None):
-            qs = qs.filter(sede_id=user.sede_id)
-            
-        return qs
+    def get(self, request):
+        solicitudes = Solicitud.objects.filter(estado='EN_REVISION').order_by('creado_en')
+        return Response(SolicitudSerializer(solicitudes, many=True).data)
 
-    @action(detail=True, methods=['patch'])
-    def aprobar_documentos(self, request, pk=None):
-        user = request.user
-        if getattr(user, 'rol', None) not in ['ADMIN', 'MASTER_ADMIN']:
-            return Response({'error': 'No tiene permisos para aprobar expedientes.'}, status=status.HTTP_403_FORBIDDEN)
-            
-        solicitud = self.get_object()
-        if solicitud.estado != 'EN_REVISION':
-            return Response({'error': 'La solicitud no está en revisión.'}, status=status.HTTP_400_BAD_REQUEST)
-            
-        import sys
-        try:
-            with transaction.atomic():
-                solicitud.estado = 'APROBADA'
-                solicitud.resuelto_en = datetime.utcnow()
-                solicitud.save()
+class AdminResolverSolicitudView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
-                # Generar Nro Colegiado — único por CARRERA + SEDE
-                with connection.cursor() as cursor:
-                    if solicitud.sede_id:
-                        cursor.execute(
-                            "SELECT MAX(CAST(nro_colegiado AS INTEGER)) "
-                            "FROM colegiado WHERE carrera_id = %s AND sede_id = %s",
-                            [solicitud.carrera_id, solicitud.sede_id]
-                        )
-                    else:
-                        cursor.execute(
-                            "SELECT MAX(CAST(nro_colegiado AS INTEGER)) "
-                            "FROM colegiado WHERE carrera_id = %s AND sede_id IS NULL",
-                            [solicitud.carrera_id]
-                        )
-                    row = cursor.fetchone()
-                    siguiente_nro = str((row[0] or 0) + 1).zfill(5)
-
-                Colegiado.objects.create(
-                    dni=solicitud.dni,
-                    nombres=solicitud.nombres,
-                    foto_url=solicitud.foto_url,
-                    carrera=solicitud.carrera,
-                    sede=solicitud.sede,
-                    nro_colegiado=siguiente_nro,
-                    solicitud=solicitud,
-                    colegiado_desde=datetime.utcnow().date()
-                )
-        except IntegrityError as e:
-            msg = str(e)
-            if 'dni' in msg:
-                detalle = f"El DNI '{solicitud.dni}' ya pertenece a otro colegiado."
-            else:
-                detalle = f"Conflicto de datos únicos: {msg}"
-            print(f"[APROBAR] IntegrityError solicitud_id={solicitud.pk}: {e}", file=sys.stderr)
-            return Response({'error': detalle}, status=status.HTTP_409_CONFLICT)
-        except Exception as e:
-            print(f"[APROBAR] Error solicitud_id={solicitud.pk}: {e}", file=sys.stderr)
-            return Response(
-                {'error': f'Error al crear la cuenta: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-        return Response({'success': True, 'estado': 'APROBADA'})
-
-    @action(detail=True, methods=['patch'])
-    def rechazar_documentos(self, request, pk=None):
-        user = request.user
-        if getattr(user, 'rol', None) not in ['ADMIN', 'MASTER_ADMIN']:
-            return Response({'error': 'No tiene permisos para rechazar expedientes.'}, status=status.HTTP_403_FORBIDDEN)
-            
-        solicitud = self.get_object()
-        if solicitud.estado != 'EN_REVISION':
-            return Response({'error': 'La solicitud no está en revisión.'}, status=status.HTTP_400_BAD_REQUEST)
-            
+    def post(self, request, pk):
+        accion = request.data.get('accion') # 'APROBAR' o 'RECHAZAR'
         comentarios = request.data.get('comentarios', '')
-        solicitud.estado = 'RECHAZADA'
-        solicitud.motivo_rechazo = comentarios
-        solicitud.resuelto_en = datetime.utcnow()
-        solicitud.save()
-        return Response({'success': True, 'estado': 'RECHAZADA'})
 
-    @action(detail=True, methods=['patch'], parser_classes=[MultiPartParser, FormParser])
-    def actualizar_archivos(self, request, pk=None):
-        user = request.user
-        if getattr(user, 'rol', None) not in ['ADMIN', 'MASTER_ADMIN']:
-            return Response({'error': 'No tiene permisos para actualizar archivos.'}, status=status.HTTP_403_FORBIDDEN)
-            
-        solicitud = self.get_object()
-        
-        foto = request.FILES.get('foto')
-        titulo = request.FILES.get('titulo')
-        recibo = request.FILES.get('recibo')
-        
-        if not (foto or titulo or recibo):
-            return Response({'error': 'No se enviaron archivos para actualizar.'}, status=status.HTTP_400_BAD_REQUEST)
-            
-        base_path = 'postulaciones/'
-        
         try:
-            if foto:
-                foto_name = f"{base_path}{uuid.uuid4()}_{foto.name}"
-                default_storage.save(foto_name, foto)
-                solicitud.foto_url = f"/media/{foto_name}"
-            
-            if titulo:
-                if titulo.content_type != 'application/pdf':
-                    return Response({'error': 'El Título debe ser PDF.'}, status=status.HTTP_400_BAD_REQUEST)
-                titulo_name = f"{base_path}{uuid.uuid4()}_{titulo.name}"
-                default_storage.save(titulo_name, titulo)
-                solicitud.titulo_pdf_url = f"/media/{titulo_name}"
-                
-            if recibo:
-                if not (recibo.content_type.startswith('image/') or recibo.content_type == 'application/pdf'):
-                    return Response({'error': 'El Recibo debe ser PDF o imagen.'}, status=status.HTTP_400_BAD_REQUEST)
-                recibo_name = f"{base_path}{uuid.uuid4()}_{recibo.name}"
-                default_storage.save(recibo_name, recibo)
-                solicitud.recibo_pago_url = f"/media/{recibo_name}"
-                
+            solicitud = Solicitud.objects.get(pk=pk, estado='EN_REVISION')
+        except Solicitud.DoesNotExist:
+            return Response({'error': 'Solicitud no encontrada o ya resuelta'}, status=status.HTTP_404_NOT_FOUND)
+
+        if accion == 'RECHAZAR':
+            solicitud.estado = 'RECHAZADA'
+            solicitud.motivo_rechazo = comentarios
+            solicitud.resuelto_en = datetime.utcnow()
             solicitud.save()
-            return Response({'success': True, 'mensaje': 'Archivos actualizados correctamente.'})
-            
-        except Exception as e:
-            return Response({'error': f'Error al guardar los archivos: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'success': True, 'estado': 'RECHAZADA'})
+
+        elif accion == 'APROBAR':
+            if solicitud.numero_operacion and Solicitud.objects.filter(numero_operacion=solicitud.numero_operacion, estado='APROBADA').exclude(pk=solicitud.pk).exists():
+                return Response({'error': 'El número de operación de este voucher ya fue validado en otra solicitud aprobada. Debe rechazar esta solicitud.'}, status=status.HTTP_409_CONFLICT)
+                
+            import sys
+
+            try:
+                with transaction.atomic():
+                    solicitud.estado = 'APROBADA'
+                    solicitud.resuelto_en = datetime.utcnow()
+                    solicitud.save()
+
+                    # Generar Nro Colegiado — único por CARRERA + SEDE
+                    with connection.cursor() as cursor:
+                        if solicitud.sede_id:
+                            cursor.execute(
+                                "SELECT MAX(CAST(nro_colegiado AS INTEGER)) "
+                                "FROM colegiado WHERE carrera_id = %s AND sede_id = %s",
+                                [solicitud.carrera_id, solicitud.sede_id]
+                            )
+                        else:
+                            cursor.execute(
+                                "SELECT MAX(CAST(nro_colegiado AS INTEGER)) "
+                                "FROM colegiado WHERE carrera_id = %s AND sede_id IS NULL",
+                                [solicitud.carrera_id]
+                            )
+                        row = cursor.fetchone()
+                        siguiente_nro = str((row[0] or 0) + 1).zfill(5)
+
+                    Colegiado.objects.create(
+                        dni=solicitud.dni,
+                        nombres=solicitud.nombres,
+                        foto_url=solicitud.foto_url,
+                        carrera=solicitud.carrera,
+                        sede=solicitud.sede,
+                        nro_colegiado=siguiente_nro,
+                        solicitud=solicitud,
+                        correo=solicitud.correo,
+                        celular=solicitud.celular,
+                        colegiado_desde=datetime.utcnow().date()
+                    )
+
+            except IntegrityError as e:
+                msg = str(e)
+                if 'dni' in msg:
+                    detalle = f"El DNI '{solicitud.dni}' ya pertenece a otro colegiado."
+                else:
+                    detalle = f"Conflicto de datos únicos: {msg}"
+                print(f"[APROBAR] IntegrityError solicitud_id={pk}: {e}", file=sys.stderr)
+                return Response({'error': detalle}, status=status.HTTP_409_CONFLICT)
+            except Exception as e:
+                print(f"[APROBAR] Error solicitud_id={pk}: {e}", file=sys.stderr)
+                return Response(
+                    {'error': f'Error al crear la cuenta: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+            return Response({'success': True, 'estado': 'APROBADA'})
+
+        return Response({'error': 'Acción inválida'}, status=status.HTTP_400_BAD_REQUEST)
 
 class PortalPerfilView(APIView):
     permission_classes = [IsAuthenticated]
@@ -636,9 +653,33 @@ class PortalPagosView(APIView):
                 print(f"[PAGOS] Error calculando pendientes: {e}", file=sys.stderr)
                 pendientes = []
 
+            # ── Vouchers Pendientes ───────────────────────────────────────────
+            vouchers_pendientes = []
+            try:
+                import json
+                from .models import PagoVoucherPendiente
+                vps = PagoVoucherPendiente.objects.filter(colegiado=col, estado='PENDIENTE').order_by('-creado_en')
+                for vp in vps:
+                    periodos_list = []
+                    try:
+                        periodos_list = json.loads(vp.periodos_json)
+                    except Exception:
+                        periodos_list = [vp.periodos_json]
+                    
+                    vouchers_pendientes.append({
+                        'id': vp.id,
+                        'metodo': vp.metodo,
+                        'monto': str(vp.monto),
+                        'periodos': periodos_list,
+                        'fecha': _fmt_date(vp.creado_en, '%Y-%m-%d %H:%M')
+                    })
+            except Exception as e:
+                print(f"[PAGOS] Error obteniendo vouchers pendientes: {e}", file=sys.stderr)
+
             return Response({
                 'historial': historial,
                 'periodos_pendientes': pendientes,
+                'vouchers_pendientes': vouchers_pendientes,
                 'habilitado': _get_habilitado(col.id),
                 'monto_mensualidad': str(_get_monto_mensualidad()),
             })
@@ -779,20 +820,28 @@ class PanelDeudoresView(APIView):
 
     def get(self, request):
         admin = request.user
-        
-        # Permitir a MASTER_ADMIN, ADMIN y CAJERO
-        if getattr(admin, 'rol', None) not in ['MASTER_ADMIN', 'ADMIN', 'CAJERO']:
-            return Response({'error': 'No tienes permisos para ver este panel'}, status=403)
+        if getattr(admin, 'rol', None) != 'CAJERO':
+            return Response({'error': 'Solo el cajero puede ver deudores'}, status=403)
 
         colegiados = Colegiado.objects.all()
-        
-        # Filtrar por sede si no es MASTER_ADMIN
-        if getattr(admin, 'rol', None) in ['ADMIN', 'CAJERO'] and admin.sede_id:
-            colegiados = colegiados.filter(sede_id=admin.sede_id)
+        if admin.sede:
+            colegiados = colegiados.filter(sede=admin.sede)
 
-        from .serializers import ColegiadoSerializer
-        serializer = ColegiadoSerializer(colegiados, many=True)
-        return Response(serializer.data)
+        from django.utils import timezone
+        now = timezone.now()
+        mes_actual = now.month
+        anio_actual = now.year
+
+        deudores = []
+        for c in colegiados:
+            ultimo_pago = Pago.objects.filter(colegiado=c, tipo='MENSUALIDAD').order_by('-periodo').first()
+            if not ultimo_pago:
+                deudores.append({'dni': c.dni, 'nombre': c.nombres, 'estado': 'INHABILITADO'})
+            else:
+                if ultimo_pago.periodo.month < mes_actual and ultimo_pago.periodo.year <= anio_actual:
+                    deudores.append({'dni': c.dni, 'nombre': c.nombres, 'estado': 'INHABILITADO'})
+
+        return Response(deudores)
 
 
 class AdminNotificarDeudoresView(APIView):
@@ -933,103 +982,12 @@ class CarreraViewSet(ModelViewSet):
     permission_classes = [MasterAdminPermission]
     pagination_class = None
 
-def _prepare_user_for_token(user):
-    user.password = user.password_hash
-    user.last_login = None
-    user.get_email_field_name = lambda: 'correo'
-    return user
-
-class PasswordResetRequestView(APIView):
-    authentication_classes = []
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-        correo = request.data.get('correo')
-        if not correo:
-            return Response({'error': 'Correo requerido'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        user = Administrador.objects.filter(correo=correo).first()
-        if user:
-            token_user = _prepare_user_for_token(user)
-            token = default_token_generator.make_token(token_user)
-            uid = urlsafe_base64_encode(force_bytes(user.id))
-            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173').rstrip('/')
-            link = f"{frontend_url}/reset-password/{uid}/{token}/"
-            
-            try:
-                send_mail(
-                    'Restablecer o Configurar Contraseña',
-                    f'Haga clic en el siguiente enlace para configurar su contraseña:\n{link}\n\nAtención: Tiene 10 minutos para confirmar este enlace, de lo contrario su solicitud expirará y será eliminada del sistema.',
-                    settings.DEFAULT_FROM_EMAIL or 'admin@cip.com',
-                    [correo],
-                    fail_silently=True,
-                )
-            except Exception as e:
-                import sys
-                print(f"[EMAIL ERROR] {e}", file=sys.stderr)
-
-            return Response({'success': 'Si el correo existe, se enviará un enlace de recuperación.'})
-        else:
-            return Response({'error': 'No se encontró ningún usuario con este correo.'}, status=status.HTTP_404_NOT_FOUND)
-
-class PasswordResetConfirmView(APIView):
-    authentication_classes = []
-    permission_classes = [AllowAny]
-
-    def post(self, request, uidb64, token):
-        new_password = request.data.get('new_password')
-        if not new_password:
-            return Response({'error': 'Nueva contraseña requerida'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            uid = force_str(urlsafe_base64_decode(uidb64))
-            user = Administrador.objects.get(pk=uid)
-        except (TypeError, ValueError, OverflowError, Administrador.DoesNotExist):
-            user = None
-
-        if user is not None:
-            token_user = _prepare_user_for_token(user)
-            if default_token_generator.check_token(token_user, token):
-                user.password_hash = make_password(new_password)
-                user.activo = True
-                user.cuenta_confirmada = True
-                user.save(update_fields=['password_hash', 'activo', 'cuenta_confirmada'])
-                return Response({'success': 'Contraseña actualizada correctamente.'})
-
-        return Response({'error': 'Enlace inválido o expirado'}, status=status.HTTP_400_BAD_REQUEST)
-
 class AdministradorViewSet(ModelViewSet):
     queryset = Administrador.objects.all()
     serializer_class = AdministradorCRUDSerializer
     permission_classes = [MasterAdminPermission]
     pagination_class = None
 
-    def perform_create(self, serializer):
-        random_pwd = uuid.uuid4().hex
-        user = serializer.save(password_hash=make_password(random_pwd), activo=False, cuenta_confirmada=False)
-        
-        token_user = _prepare_user_for_token(user)
-        token = default_token_generator.make_token(token_user)
-        uid = urlsafe_base64_encode(force_bytes(user.id))
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173').rstrip('/')
-        link = f"{frontend_url}/reset-password/{uid}/{token}/"
-        
-        try:
-            send_mail(
-                'Bienvenido al Sistema - Configure su Contraseña',
-                f'Hola {user.nombres},\n\nHaga clic en el siguiente enlace para configurar su contraseña:\n{link}\n\nAtención: Tiene 10 minutos para confirmar este enlace, de lo contrario su solicitud expirará y será eliminada del sistema.',
-                settings.DEFAULT_FROM_EMAIL or 'admin@cip.com',
-                [user.correo],
-                fail_silently=True,
-            )
-        except Exception:
-            pass
-
-    def perform_update(self, serializer):
-        user = serializer.save()
-        if not user.activo and user.sede is not None:
-            user.sede = None
-            user.save(update_fields=['sede'])
 
 class AdminBuscarColegiadoView(APIView):
     """Busca colegiados por DNI, nombre o número de colegiado."""

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Plus, Loader2, Edit, Power, PowerOff, Trash2 } from 'lucide-react';
+import { Users, Plus, Loader2, Edit, Power, PowerOff } from 'lucide-react';
 
 export default function AdminUsuarios() {
   const [usuarios, setUsuarios] = useState([]);
@@ -11,40 +11,14 @@ export default function AdminUsuarios() {
   const [showModal, setShowModal] = useState(false);
   const [usuarioEditando, setUsuarioEditando] = useState(null);
   const [formData, setFormData] = useState({
-    dni: '',
     usuario: '',
+    password: '',
     nombres: '',
     correo: '',
     rol: 'ADMIN',
     sede: ''
   });
   const [guardando, setGuardando] = useState(false);
-  const [buscandoReniec, setBuscandoReniec] = useState(false);
-
-  const handleBuscarReniec = async () => {
-    if (!formData.dni || formData.dni.length !== 8) {
-      alert("Ingrese un DNI válido de 8 dígitos.");
-      return;
-    }
-    setBuscandoReniec(true);
-    try {
-      const res = await fetch(`/api/public/reniec/?dni=${formData.dni}`);
-      const data = await res.json();
-      if (res.ok && data.nombre_completo) {
-        setFormData(prev => ({
-          ...prev,
-          nombres: data.nombre_completo,
-          usuario: prev.dni
-        }));
-      } else {
-        alert(data.error || "No se encontró el DNI");
-      }
-    } catch (e) {
-      alert("Error al conectar con RENIEC");
-    } finally {
-      setBuscandoReniec(false);
-    }
-  };
   const [errorGuardar, setErrorGuardar] = useState('');
 
   useEffect(() => {
@@ -81,15 +55,15 @@ export default function AdminUsuarios() {
     setUsuarioEditando(user);
     if (user) {
       setFormData({
-        dni: user.dni || '',
         usuario: user.usuario,
+        password: '', // Never show hashed password
         nombres: user.nombres,
         correo: user.correo,
         rol: user.rol,
         sede: user.sede || ''
       });
     } else {
-      setFormData({ dni: '', usuario: '', nombres: '', correo: '', rol: 'ADMIN', sede: '' });
+      setFormData({ usuario: '', password: '', nombres: '', correo: '', rol: 'ADMIN', sede: '' });
     }
     setErrorGuardar('');
     setShowModal(true);
@@ -97,11 +71,7 @@ export default function AdminUsuarios() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'rol' && value === 'MASTER_ADMIN') {
-      setFormData(prev => ({ ...prev, [name]: value, sede: '' }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleGuardarUsuario = async (e) => {
@@ -116,6 +86,11 @@ export default function AdminUsuarios() {
       rol: formData.rol,
       sede: formData.sede ? parseInt(formData.sede) : null,
     };
+    
+    // Solo enviamos password si es nuevo o si se escribio algo para cambiarlo
+    if (formData.password) {
+      payload.password = formData.password;
+    }
 
     try {
       const token = localStorage.getItem('adminToken');
@@ -136,13 +111,7 @@ export default function AdminUsuarios() {
         fetchData();
       } else {
         const errData = await res.json();
-        if (errData.sede) {
-          setErrorGuardar(Array.isArray(errData.sede) ? errData.sede[0] : errData.sede);
-        } else if (errData.detail || errData.error) {
-          setErrorGuardar(errData.detail || errData.error);
-        } else {
-          setErrorGuardar('Error al guardar el usuario. Verifique los datos.');
-        }
+        setErrorGuardar(JSON.stringify(errData) || 'Error al guardar el usuario.');
       }
     } catch (e) {
       setErrorGuardar('Error de conexión.');
@@ -156,59 +125,19 @@ export default function AdminUsuarios() {
     
     try {
       const token = localStorage.getItem('adminToken');
-      const nuevoEstado = !user.activo;
       const res = await fetch(`/api/master/usuarios/${user.id}/`, {
         method: 'PATCH',
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ activo: nuevoEstado })
+        body: JSON.stringify({ activo: !user.activo })
       });
 
       if (res.ok) {
-        setUsuarios(prev => prev.map(u => {
-          if (u.id === user.id) {
-            return {
-              ...u,
-              activo: nuevoEstado,
-              sede: nuevoEstado ? u.sede : null,
-              estado_display: nuevoEstado ? 'ACTIVO' : 'INHABILITADO'
-            };
-          }
-          return u;
-        }));
+        fetchData();
       } else {
         alert('Error al cambiar el estado del usuario.');
-      }
-    } catch (e) {
-      alert('Error de conexión.');
-    }
-  };
-
-  const esExpirado = (fecha_creacion) => {
-    if (!fecha_creacion) return false;
-    const past = new Date(fecha_creacion).getTime();
-    const now = Date.now();
-    return (now - past) > 10 * 60 * 1000;
-  };
-
-  const handleEliminarUsuario = async (user) => {
-    if (!window.confirm(`¿Seguro que deseas ELIMINAR permanentemente la invitación expirada de "${user.usuario}"?`)) return;
-    
-    try {
-      const token = localStorage.getItem('adminToken');
-      const res = await fetch(`/api/master/usuarios/${user.id}/`, {
-        method: 'DELETE',
-        headers: { 
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (res.ok) {
-        setUsuarios(prev => prev.filter(u => u.id !== user.id));
-      } else {
-        alert('Error al eliminar el usuario.');
       }
     } catch (e) {
       alert('Error de conexión.');
@@ -283,48 +212,28 @@ export default function AdminUsuarios() {
                     </td>
                     <td style={{ padding: '1rem', color: '#64748B' }}>{getSedeNombre(user.sede)}</td>
                     <td style={{ padding: '1rem' }}>
-                      {user.estado_display === 'PENDIENTE' && (
-                        <span style={{ 
-                          background: esExpirado(user.fecha_creacion) ? '#FEE2E2' : '#FEF3C7', 
-                          color: esExpirado(user.fecha_creacion) ? '#991B1B' : '#92400E', 
-                          padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 'bold' 
-                        }}>
-                          {esExpirado(user.fecha_creacion) ? 'EXPIRADO' : 'PENDIENTE'}
-                        </span>
-                      )}
-                      {user.estado_display === 'ACTIVO' && <span style={{ color: '#10B981', fontWeight: '500', fontSize: '0.875rem' }}>ACTIVO</span>}
-                      {user.estado_display === 'INHABILITADO' && <span style={{ color: '#EF4444', fontWeight: '500', fontSize: '0.875rem' }}>INHABILITADO</span>}
+                      {user.activo ? 
+                        <span style={{ color: '#10B981', fontWeight: '500', fontSize: '0.875rem' }}>Activo</span> : 
+                        <span style={{ color: '#EF4444', fontWeight: '500', fontSize: '0.875rem' }}>Inactivo</span>
+                      }
                     </td>
                     <td style={{ padding: '1rem', textAlign: 'right' }}>
                       {user.rol !== 'MASTER_ADMIN' && (
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                          {user.estado_display !== 'PENDIENTE' && (
-                            <>
-                              <button 
-                                onClick={() => handleOpenModal(user)}
-                                style={{ background: '#E0F2FE', color: '#0369A1', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                                title="Editar"
-                              >
-                                <Edit size={16} />
-                              </button>
-                              <button 
-                                onClick={() => handleToggleEstado(user)}
-                                style={{ background: user.activo ? '#FEE2E2' : '#D1FAE5', color: user.activo ? '#991B1B' : '#065F46', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                                title={user.activo ? 'Deshabilitar' : 'Habilitar'}
-                              >
-                                {user.activo ? <PowerOff size={16} /> : <Power size={16} />}
-                              </button>
-                            </>
-                          )}
-                          {user.estado_display === 'PENDIENTE' && esExpirado(user.fecha_creacion) && (
-                            <button 
-                              onClick={() => handleEliminarUsuario(user)}
-                              style={{ background: '#FEE2E2', color: '#991B1B', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                              title="Eliminar expirado"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
+                          <button 
+                            onClick={() => handleOpenModal(user)}
+                            style={{ background: '#E0F2FE', color: '#0369A1', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                            title="Editar"
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleToggleEstado(user)}
+                            style={{ background: user.activo ? '#FEE2E2' : '#D1FAE5', color: user.activo ? '#991B1B' : '#065F46', border: 'none', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                            title={user.activo ? 'Deshabilitar' : 'Habilitar'}
+                          >
+                            {user.activo ? <PowerOff size={16} /> : <Power size={16} />}
+                          </button>
                         </div>
                       )}
                     </td>
@@ -353,40 +262,30 @@ export default function AdminUsuarios() {
             )}
 
             <form onSubmit={handleGuardarUsuario}>
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label className="form-label">DNI</label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Usuario</label>
+                  <input type="text" name="usuario" className="form-input" value={formData.usuario} onChange={handleChange} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">
+                    Contraseña {usuarioEditando && <span style={{fontSize: '0.75rem', fontWeight: 'normal', color: '#64748B'}}>(Dejar en blanco para no cambiar)</span>}
+                  </label>
                   <input 
-                    type="text" 
-                    name="dni" 
+                    type="password" 
+                    name="password" 
                     className="form-input" 
-                    value={formData.dni} 
+                    value={formData.password} 
                     onChange={handleChange} 
-                    maxLength="8"
-                    disabled={!!usuarioEditando}
+                    required={!usuarioEditando} 
+                    placeholder={usuarioEditando ? '******' : ''}
                   />
-                  {!usuarioEditando && (
-                    <button 
-                      type="button" 
-                      className="btn btn-primary" 
-                      onClick={handleBuscarReniec}
-                      disabled={buscandoReniec}
-                      style={{ whiteSpace: 'nowrap' }}
-                    >
-                      {buscandoReniec ? 'Buscando...' : 'Buscar'}
-                    </button>
-                  )}
                 </div>
               </div>
 
               <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label className="form-label">Usuario</label>
-                <input type="text" name="usuario" className="form-input" value={formData.usuario} onChange={handleChange} required disabled={true} />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
                 <label className="form-label">Nombres Completos</label>
-                <input type="text" name="nombres" className="form-input" value={formData.nombres} onChange={handleChange} required disabled={true} />
+                <input type="text" name="nombres" className="form-input" value={formData.nombres} onChange={handleChange} required />
               </div>
 
               <div className="form-group" style={{ marginBottom: '1rem' }}>
@@ -405,7 +304,7 @@ export default function AdminUsuarios() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Sede Asignada</label>
-                  <select name="sede" className="form-input" value={formData.sede} onChange={handleChange} disabled={formData.rol === 'MASTER_ADMIN'}>
+                  <select name="sede" className="form-input" value={formData.sede} onChange={handleChange}>
                     <option value="">-- Global / Sin Sede --</option>
                     {sedes.filter(s => s.activo).map(s => (
                       <option key={s.id} value={s.id}>{s.nombre}</option>

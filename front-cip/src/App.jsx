@@ -17,7 +17,6 @@ import AdminDeudores from './pages/admin/AdminDeudores';
 import AdminSedes from './pages/admin/AdminSedes';
 import AdminCarreras from './pages/admin/AdminCarreras';
 import AdminUsuarios from './pages/admin/AdminUsuarios';
-import AdminResetPassword from './pages/admin/AdminResetPassword';
 
 function AdminHomeRedirect() {
   const rol = localStorage.getItem('adminRole') || 'ADMIN';
@@ -46,7 +45,6 @@ function App() {
 
         {/* Rutas del Portal Administrativo */}
         <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/reset-password/:uidb64/:token/*" element={<AdminResetPassword />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminHomeRedirect />} />
           <Route path="home" element={<AdminHome />} />

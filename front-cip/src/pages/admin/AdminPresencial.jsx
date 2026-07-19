@@ -10,13 +10,11 @@ export default function AdminPresencial() {
   
   const [carrerasOptions, setCarrerasOptions] = useState([]);
   const [sedesOptions, setSedesOptions] = useState([]);
-  const [adminUser, setAdminUser] = useState(null);
 
   const [foto, setFoto] = useState(null);
   const [fotoInfo, setFotoInfo] = useState('');
   const [titulo, setTitulo] = useState(null);
-  const [metodoPago, setMetodoPago] = useState(''); // '' | 'CAJA' | 'YAPE_PLIN'
-  const [montoEfectivo, setMontoEfectivo] = useState('');
+  const [recibo, setRecibo] = useState(null);
 
   const [isValidando, setIsValidando] = useState(false);
   const [dniValidado, setDniValidado] = useState(false);
@@ -36,20 +34,6 @@ export default function AdminPresencial() {
       } catch (err) {}
     };
     fetchCatalogos();
-
-    const userStr = localStorage.getItem('adminUser');
-    if (userStr) {
-      try {
-        const u = JSON.parse(userStr);
-        setAdminUser(u);
-        // Usar sede_id (número) que coincide con el value del <option>
-        if (u.sede_id) {
-          setSede(String(u.sede_id));
-        } else if (u.sede) {
-          setSede(String(u.sede));
-        }
-      } catch(e){}
-    }
   }, []);
 
   const handleValidarDNI = async () => {
@@ -105,16 +89,8 @@ export default function AdminPresencial() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!nombres || !carrera || !sede || !foto || !titulo) {
-      setErrorMsg("Complete todos los campos y adjunte los documentos requeridos.");
-      return;
-    }
-    if (!metodoPago) {
-      setErrorMsg("Debe seleccionar un método de pago.");
-      return;
-    }
-    if (metodoPago === 'CAJA' && Number(montoEfectivo) !== 5) {
-      setErrorMsg("El monto en efectivo debe ser exactamente S/ 5.00.");
+    if (!nombres || !carrera || !sede || !foto || !titulo || !recibo) {
+      setErrorMsg("Complete todos los campos y adjunte los documentos.");
       return;
     }
     if (dni.length !== 8) {
@@ -128,10 +104,13 @@ export default function AdminPresencial() {
       return;
     }
     if (titulo.type !== 'application/pdf') {
-      setErrorMsg("El título debe ser un archivo PDF.");
+      setErrorMsg("El Título Profesional debe ser un archivo PDF.");
       return;
     }
-
+    if (!recibo.type.startsWith('image/') && recibo.type !== 'application/pdf') {
+      setErrorMsg("El Recibo de Caja debe ser un PDF o una imagen.");
+      return;
+    }
     setErrorMsg('');
     setEnviando(true);
 
@@ -144,19 +123,34 @@ export default function AdminPresencial() {
       formData.append('sede', sede);
       formData.append('foto', foto);
       formData.append('titulo', titulo);
-      formData.append('metodo_pago', metodoPago);
-      formData.append('origen', 'PRESENCIAL');
+      formData.append('recibo', recibo);
 
       const resPost = await fetch('/api/postulaciones/', { method: 'POST', body: formData });
       if (!resPost.ok) {
         const errData = await resPost.json();
-        console.error("Error 400 payload:", errData);
-        alert("Error del servidor:\n" + JSON.stringify(errData, null, 2));
-        setErrorMsg(errData.error || errData.detail || "Error al crear la solicitud.");
+        setErrorMsg(errData.error || "Error al crear la solicitud.");
         setEnviando(false);
         return;
       }
-      setSuccess(true);
+      const postData = await resPost.json();
+      const solicitudId = postData.solicitud_id;
+
+      // 2. Auto-aprobar inmediatamente (flujo presencial)
+      const adminToken = localStorage.getItem('adminToken');
+      const resAprob = await fetch(`/api/admin/postulaciones/${solicitudId}/resolver/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ accion: 'APROBAR' })
+      });
+
+      if (resAprob.ok) {
+        setSuccess(true);
+      } else {
+        setErrorMsg("La solicitud fue creada pero no se pudo aprobar automáticamente. Apruébela desde el panel de Postulaciones.");
+      }
     } catch (err) {
       setErrorMsg("Error de conexión con el servidor.");
     } finally {
@@ -231,10 +225,10 @@ export default function AdminPresencial() {
             </div>
             <div className="form-group">
               <label className="form-label">Sede Departamental</label>
-              <select className="form-select" value={sede} onChange={(e) => setSede(e.target.value)} disabled={!!(adminUser && (adminUser.sede_id || adminUser.sede))}>
+              <select className="form-select" value={sede} onChange={(e) => setSede(e.target.value)}>
                 <option value="">Seleccione una sede</option>
                 {sedesOptions.map(s => (
-                  <option key={s.id} value={s.id}>{s.nombre}</option>
+                  <option key={s.id} value={s.nombre}>{s.nombre}</option>
                 ))}
               </select>
             </div>
@@ -269,64 +263,20 @@ export default function AdminPresencial() {
               </div>
             </div>
 
-            {/* ── Título (sin procesamiento especial) ── */}
-            <div className="form-group">
-              <label className="form-label">Título Profesional</label>
-              <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1rem', textAlign: 'center', background: '#f8fafc', cursor: 'pointer', position: 'relative' }}>
-                <input type="file" accept=".pdf" onChange={(e) => handleFileChange(e, setTitulo)} style={{ opacity: 0, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', cursor: 'pointer' }} />
-                <UploadCloud size={24} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px', margin: '0 auto' }}>{titulo ? titulo.name : 'Subir archivo'}</p>
-              </div>
-            </div>
-
-            {/* ── Método de Pago ── */}
-            <div className="form-group">
-              <label className="form-label" style={{ display: 'block', marginBottom: '0.75rem' }}>Método de Pago (S/ 5.00)</label>
-              
-              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                <button 
-                  type="button"
-                  className={`btn ${metodoPago === 'CAJA' ? 'btn-primary' : 'btn-outline-dark'}`}
-                  onClick={() => setMetodoPago('CAJA')}
-                  style={{ flex: 1, padding: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
-                >
-                  <CheckCircle2 size={18} style={{ opacity: metodoPago === 'CAJA' ? 1 : 0 }} />
-                  Efectivo en Caja
-                </button>
-                <button 
-                  type="button"
-                  className={`btn ${metodoPago === 'YAPE_PLIN' ? 'btn-primary' : 'btn-outline-dark'}`}
-                  onClick={() => setMetodoPago('YAPE_PLIN')}
-                  style={{ flex: 1, padding: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
-                >
-                  <CheckCircle2 size={18} style={{ opacity: metodoPago === 'YAPE_PLIN' ? 1 : 0 }} />
-                  QR Yape / Plin
-                </button>
-              </div>
-
-              {metodoPago === 'CAJA' && (
-                <div style={{ padding: '1.5rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label className="form-label" style={{ marginBottom: 0 }}>Ingrese el monto recibido</label>
-                  <input 
-                    type="number" 
-                    className="form-input" 
-                    placeholder="S/ 5.00" 
-                    value={montoEfectivo} 
-                    onChange={(e) => setMontoEfectivo(e.target.value)} 
-                  />
-                  {montoEfectivo === '5' ? (
-                    <p style={{ color: '#166534', fontWeight: '500', fontSize: '0.875rem', margin: 0 }}>✅ Monto validado</p>
-                  ) : (
-                    <p style={{ color: '#dc2626', fontWeight: '500', fontSize: '0.875rem', margin: 0 }}>❌ Debe ingresar S/ 5.00 exactos</p>
-                  )}
+            {/* ── Título y Recibo (sin procesamiento especial) ── */}
+            {[
+              { label: 'Título Profesional', accept: '.pdf', state: titulo, setter: setTitulo },
+              { label: 'Recibo en Caja', accept: '.pdf,image/*', state: recibo, setter: setRecibo },
+            ].map(({ label, accept, state, setter }) => (
+              <div className="form-group" key={label}>
+                <label className="form-label">{label}</label>
+                <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1rem', textAlign: 'center', background: '#f8fafc', cursor: 'pointer', position: 'relative' }}>
+                  <input type="file" accept={accept} onChange={(e) => handleFileChange(e, setter)} style={{ opacity: 0, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', cursor: 'pointer' }} />
+                  <UploadCloud size={24} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
+                  <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px', margin: '0 auto' }}>{state ? state.name : 'Subir archivo'}</p>
                 </div>
-              )}
-              {metodoPago === 'YAPE_PLIN' && (
-                <div style={{ padding: '1rem', border: '2px dashed #cbd5e1', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100px', background: '#f8fafc', color: '#64748b', textAlign: 'center', fontWeight: '500' }}>
-                  Espacio reservado para QR de Yape/Plin (S/ 5.00)
-                </div>
-              )}
-            </div>
+              </div>
+            ))}
           </div>
 
           {errorMsg && (
@@ -336,22 +286,9 @@ export default function AdminPresencial() {
           )}
 
           <div style={{ marginTop: '2.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end' }}>
-            <button type="submit" className="btn btn-primary" 
-              disabled={
-                enviando || 
-                (metodoPago !== 'YAPE_PLIN' && !(metodoPago === 'CAJA' && Number(montoEfectivo) === 5))
-              }
-              style={{ 
-                padding: '1rem 2.5rem', 
-                fontSize: '1.125rem', 
-                background: (metodoPago !== 'YAPE_PLIN' && !(metodoPago === 'CAJA' && Number(montoEfectivo) === 5)) ? '#94a3b8' : '#10B981', 
-                borderColor: (metodoPago !== 'YAPE_PLIN' && !(metodoPago === 'CAJA' && Number(montoEfectivo) === 5)) ? '#94a3b8' : '#10B981', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '0.5rem',
-                cursor: (metodoPago !== 'YAPE_PLIN' && !(metodoPago === 'CAJA' && Number(montoEfectivo) === 5)) ? 'not-allowed' : 'pointer'
-              }}>
-              {enviando ? <><Loader2 size={20} className="spin" /> Procesando...</> : 'Enviar Solicitud a Revisión'}
+            <button type="submit" className="btn btn-primary" disabled={enviando}
+              style={{ padding: '1rem 2.5rem', fontSize: '1.125rem', background: '#10B981', borderColor: '#10B981', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {enviando ? <><Loader2 size={20} className="spin" /> Procesando...</> : 'Registrar y Aprobar Colegiado'}
             </button>
           </div>
 

@@ -8,40 +8,6 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const [showResetModal, setShowResetModal] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
-  const [resetMsg, setResetMsg] = useState({ text: '', type: '' });
-  const [isResetting, setIsResetting] = useState(false);
-
-  const handlePasswordReset = async (e) => {
-    e.preventDefault();
-    if (!resetEmail) return;
-    setIsResetting(true);
-    setResetMsg({ text: '', type: '' });
-    try {
-      const res = await fetch('/api/auth/password-reset/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correo: resetEmail })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setResetMsg({ text: 'Si el correo existe, se ha enviado un enlace de recuperación', type: 'success' });
-        setTimeout(() => {
-          setShowResetModal(false);
-          setResetMsg({ text: '', type: '' });
-          setResetEmail('');
-        }, 3000);
-      } else {
-        setResetMsg({ text: data.error || 'Error al procesar la solicitud.', type: 'error' });
-      }
-    } catch (e) {
-      setResetMsg({ text: 'Error de conexión.', type: 'error' });
-    } finally {
-      setIsResetting(false);
-    }
-  };
-
   const handleLogin = async (e) => {
     e.preventDefault();
     if (usuario && password) {
@@ -58,18 +24,9 @@ export default function AdminLogin() {
           localStorage.setItem('adminUser', JSON.stringify(data.user));
           localStorage.setItem('adminRole', data.role);
           localStorage.setItem('adminSede', data.sede_nombre);
-          
-          if (data.role === 'MASTER_ADMIN') {
-            navigate('/admin/home');
-          } else if (data.role === 'ADMIN') {
-            navigate('/admin/postulaciones');
-          } else if (data.role === 'CAJERO') {
-            navigate('/admin/deudores');
-          } else {
-            navigate('/admin/home');
-          }
+          navigate('/admin/home');
         } else {
-          setErrorMsg('Credenciales inválidas o cuenta inhabilitada. Contacte al administrador.');
+          setErrorMsg(data.error || 'Credenciales inválidas');
         }
       } catch (err) {
         setErrorMsg('Error al conectar con el servidor.');
@@ -174,56 +131,10 @@ export default function AdminLogin() {
             <button type="submit" className="btn btn-primary btn-block" style={{ padding: '0.875rem', fontSize: '1.125rem' }}>
               Ingresar al Sistema
             </button>
-            <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-              <button 
-                type="button" 
-                onClick={() => setShowResetModal(true)}
-                style={{ background: 'none', border: 'none', color: 'var(--cip-blue)', cursor: 'pointer', textDecoration: 'underline' }}
-              >
-                ¿Olvidaste tu contraseña?
-              </button>
-            </div>
           </form>
 
         </div>
       </div>
-
-      {/* Reset Password Modal */}
-      {showResetModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-          <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', color: 'var(--cip-blue)' }}>Recuperar Contraseña</h2>
-            {resetMsg.text && (
-              <div style={{ background: resetMsg.type === 'error' ? '#FEE2E2' : '#D1FAE5', color: resetMsg.type === 'error' ? '#991B1B' : '#065F46', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem' }}>
-                {resetMsg.text}
-              </div>
-            )}
-            <form onSubmit={handlePasswordReset}>
-              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <label className="form-label">Correo Electrónico</label>
-                <input 
-                  type="email" 
-                  className="form-input" 
-                  value={resetEmail} 
-                  onChange={(e) => setResetEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn" style={{ background: '#E2E8F0', color: '#475569' }} onClick={() => setShowResetModal(false)} disabled={isResetting}>
-                  Cancelar
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={isResetting}>
-                  {isResetting ? 'Enviando...' : 'Enviar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

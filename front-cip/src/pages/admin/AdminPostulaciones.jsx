@@ -10,9 +10,6 @@ export default function AdminPostulaciones() {
   const [vista, setVista] = useState('tabla'); // 'tabla' | 'detalle'
   const [expediente, setExpediente] = useState(null);
   const [procesando, setProcesando] = useState(false);
-  const [filtroOrigen, setFiltroOrigen] = useState('TODAS');
-  const [modoEdicion, setModoEdicion] = useState(false);
-  const [archivosNuevos, setArchivosNuevos] = useState({ foto: null, titulo: null, recibo: null });
 
   // Panel State
   const [showRechazoPanel, setShowRechazoPanel] = useState(false);
@@ -41,7 +38,7 @@ export default function AdminPostulaciones() {
       });
       if (res.ok) {
         const data = await res.json();
-        setPostulaciones(data.results || data);
+        setPostulaciones(data);
       } else {
         let txt = '';
         try { txt = await res.text(); } catch (_) {}
@@ -66,46 +63,13 @@ export default function AdminPostulaciones() {
   const handleRevisar = (exp) => {
     setExpediente(exp);
     setVista('detalle');
-    setModoEdicion(false);
-    setArchivosNuevos({ foto: null, titulo: null, recibo: null });
     resetPanelState();
   };
 
   const handleBackToTable = () => {
     setVista('tabla');
     setExpediente(null);
-    setModoEdicion(false);
     resetPanelState();
-  };
-
-  const handleGuardarArchivos = async () => {
-    setProcesando(true);
-    try {
-      const token = localStorage.getItem('adminToken');
-      const formData = new FormData();
-      if (archivosNuevos.foto) formData.append('foto', archivosNuevos.foto);
-      if (archivosNuevos.titulo) formData.append('titulo', archivosNuevos.titulo);
-      if (archivosNuevos.recibo) formData.append('recibo', archivosNuevos.recibo);
-
-      const res = await fetch(`/api/admin/postulaciones/${expediente.id}/actualizar_archivos/`, {
-        method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
-      });
-      if (res.ok) {
-        setModoEdicion(false);
-        setArchivosNuevos({ foto: null, titulo: null, recibo: null });
-        fetchPostulaciones();
-        handleBackToTable();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Error al actualizar archivos');
-      }
-    } catch (e) {
-      alert('Error de conexión');
-    } finally {
-      setProcesando(false);
-    }
   };
 
   const handleAprobar = async () => {
@@ -181,22 +145,6 @@ export default function AdminPostulaciones() {
             <p style={{ color: 'var(--text-muted)' }}>Procese los expedientes en orden de llegada.</p>
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-            <div style={{ display: 'flex', background: '#F1F5F9', padding: '0.25rem', borderRadius: '8px' }}>
-              {['TODAS', 'WEB', 'PRESENCIAL'].map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setFiltroOrigen(tab)}
-                  style={{
-                    padding: '0.4rem 1rem', border: 'none', borderRadius: '6px', fontSize: '0.875rem', fontWeight: '600', cursor: 'pointer',
-                    background: filtroOrigen === tab ? 'white' : 'transparent',
-                    color: filtroOrigen === tab ? 'var(--cip-blue)' : '#64748B',
-                    boxShadow: filtroOrigen === tab ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                  }}
-                >
-                  {tab === 'TODAS' ? 'Todas' : tab === 'WEB' ? 'Web (🌐)' : 'Presencial (🏢)'}
-                </button>
-              ))}
-            </div>
             <div style={{ position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
               <input type="text" className="form-input" placeholder="Buscar por DNI o ID..." style={{ paddingLeft: '2.5rem' }} />
@@ -238,17 +186,12 @@ export default function AdminPostulaciones() {
               </tr>
             </thead>
             <tbody>
-              {(() => {
-                const postulacionesFiltradas = postulaciones.filter(p => filtroOrigen === 'TODAS' || p.origen === filtroOrigen);
-                
-                if (cargando) {
-                  return <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}><Loader2 className="spin" style={{margin: '0 auto'}}/> Cargando postulaciones...</td></tr>;
-                }
-                if (postulacionesFiltradas.length === 0) {
-                  return <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay postulaciones pendientes para este filtro.</td></tr>;
-                }
-                
-                return postulacionesFiltradas.map((p, index) => (
+              {cargando ? (
+                <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}><Loader2 className="spin" style={{margin: '0 auto'}}/> Cargando postulaciones...</td></tr>
+              ) : postulaciones.length === 0 ? (
+                <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay postulaciones pendientes.</td></tr>
+              ) : (
+                postulaciones.map((p, index) => (
                   <tr key={p.id} style={{ borderBottom: '1px solid var(--border-color)', background: index === 0 ? '#FEF2F2' : 'white', cursor: 'pointer', transition: 'background 0.2s' }} onClick={() => handleRevisar(p)} onMouseOver={(e) => e.currentTarget.style.background = '#EFF6FF'} onMouseOut={(e) => e.currentTarget.style.background = index === 0 ? '#FEF2F2' : 'white'}>
                     <td style={{ padding: '1rem 1.5rem', fontWeight: '600', color: 'var(--text-main)' }}>EXP-{p.id}</td>
                     <td style={{ padding: '1rem 1.5rem', color: 'var(--text-muted)' }}>
@@ -269,12 +212,12 @@ export default function AdminPostulaciones() {
                       </button>
                     </td>
                   </tr>
-                ));
-              })()}
+                ))
+              )}
             </tbody>
           </table>
           <div style={{ padding: '1rem 1.5rem', background: '#F8FAFC', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-            Mostrando {postulaciones.filter(p => filtroOrigen === 'TODAS' || p.origen === filtroOrigen).length} expedientes en cola. (El expediente resaltado es el más antiguo).
+            Mostrando {postulaciones.length} expedientes en cola. (El expediente resaltado es el más antiguo).
           </div>
         </div>
         <VisorModal visor={visorArchivo} onClose={() => setVisorArchivo(null)} />
@@ -307,19 +250,14 @@ export default function AdminPostulaciones() {
             <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>DNI</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.dni}</p></div>
             <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Especialidad / Carrera</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.carrera?.nombre}</p></div>
             <div><p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Sede</p><p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.sede?.nombre || '—'}</p></div>
-            
-            {expediente.origen !== 'PRESENCIAL' && (
-              <>
-                <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '1rem', marginTop: '0.5rem' }}>
-                  <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>N° Operación (Banco de la Nación)</p>
-                  <p style={{ fontWeight: '600', color: 'var(--text-main)', fontFamily: 'monospace', fontSize: '1rem' }}>{expediente.numero_operacion || 'No registrado'}</p>
-                </div>
-                <div>
-                  <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Fecha de Pago</p>
-                  <p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.fecha_pago || 'No registrada'}</p>
-                </div>
-              </>
-            )}
+            <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '1rem', marginTop: '0.5rem' }}>
+              <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>N° Operación (Banco de la Nación)</p>
+              <p style={{ fontWeight: '600', color: 'var(--text-main)', fontFamily: 'monospace', fontSize: '1rem' }}>{expediente.numero_operacion || 'No registrado'}</p>
+            </div>
+            <div>
+              <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>Fecha de Pago</p>
+              <p style={{ fontWeight: '600', color: 'var(--text-main)' }}>{expediente.fecha_pago || 'No registrada'}</p>
+            </div>
           </div>
         </div>
 
@@ -339,8 +277,6 @@ export default function AdminPostulaciones() {
                 btnLabel="Ver Imagen"
                 btnIcono={<ImageIcon size={14} />}
                 onVer={() => abrirArchivo(expediente.foto_url, 'Fotografía — ' + expediente.nombres)}
-                modoEdicion={modoEdicion}
-                onFileChange={(f) => setArchivosNuevos(prev => ({...prev, foto: f}))}
               />
 
               {/* Box Título */}
@@ -351,67 +287,38 @@ export default function AdminPostulaciones() {
                 btnLabel="Ver PDF"
                 btnIcono={<FileText size={14} />}
                 onVer={() => abrirArchivo(expediente.titulo_pdf_url, 'Título Profesional — ' + expediente.nombres)}
-                modoEdicion={modoEdicion}
-                onFileChange={(f) => setArchivosNuevos(prev => ({...prev, titulo: f}))}
               />
 
               {/* Box Recibo */}
-              {expediente.origen !== 'PRESENCIAL' && (
-                <DocBox
-                  icono={<FileSpreadsheet size={32} color="var(--cip-blue)" />}
-                  titulo="3. Recibo S/1500"
-                  url={expediente.recibo_pago_url}
-                  btnLabel="Ver Recibo"
-                  btnIcono={<FileSpreadsheet size={14} />}
-                  onVer={() => abrirArchivo(expediente.recibo_pago_url, 'Recibo de Pago — ' + expediente.nombres)}
-                />
-              )}
+              <DocBox
+                icono={<FileSpreadsheet size={32} color="var(--cip-blue)" />}
+                titulo="3. Recibo S/1500"
+                url={expediente.recibo_pago_url}
+                btnLabel="Ver Recibo"
+                btnIcono={<FileSpreadsheet size={14} />}
+                onVer={() => abrirArchivo(expediente.recibo_pago_url, 'Recibo de Pago — ' + expediente.nombres)}
+              />
             </div>
           </div>
 
           {/* Botones de Acción */}
           <div style={{ display: 'flex', gap: '1rem' }}>
-            {expediente.origen === 'PRESENCIAL' ? (
-              modoEdicion ? (
-                <button
-                  className="btn btn-outline"
-                  style={{ flex: 1, borderColor: '#3B82F6', color: 'white', background: '#3B82F6', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                  onClick={handleGuardarArchivos}
-                  disabled={procesando}
-                >
-                  {procesando ? <Loader2 className="spin" size={20} /> : 'Guardar Nuevos Archivos'}
-                </button>
-              ) : (
-                <button
-                  className="btn btn-outline"
-                  style={{ flex: 1, borderColor: '#3B82F6', color: '#1D4ED8', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                  onClick={() => setModoEdicion(true)}
-                  disabled={procesando}
-                >
-                  Cambiar Archivos
-                </button>
-              )
-            ) : (
-              <button
-                className="btn btn-outline"
-                style={{ flex: 1, borderColor: '#EF4444', color: '#B91C1C', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                onClick={() => { setShowRechazoPanel(true); setPanelMinimized(false); }}
-                disabled={procesando}
-              >
-                <XCircle size={20} /> Expediente Incorrecto (Observar)
-              </button>
-            )}
-
-            {!modoEdicion && (
-              <button
-                className="btn btn-primary"
-                style={{ flex: 1, background: '#10B981', borderColor: '#10B981', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                onClick={handleAprobar}
-                disabled={procesando}
-              >
-                {procesando ? <Loader2 className="spin" size={20} /> : <><CheckCircle size={20} /> Todo Conforme (Aprobar)</>}
-              </button>
-            )}
+            <button
+              className="btn btn-outline"
+              style={{ flex: 1, borderColor: '#EF4444', color: '#B91C1C', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+              onClick={() => { setShowRechazoPanel(true); setPanelMinimized(false); }}
+              disabled={procesando}
+            >
+              <XCircle size={20} /> Expediente Incorrecto (Observar)
+            </button>
+            <button
+              className="btn btn-primary"
+              style={{ flex: 1, background: '#10B981', borderColor: '#10B981', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+              onClick={handleAprobar}
+              disabled={procesando}
+            >
+              {procesando ? <Loader2 className="spin" size={20} /> : <><CheckCircle size={20} /> Todo Conforme (Aprobar)</>}
+            </button>
           </div>
 
         </div>
@@ -536,7 +443,7 @@ export default function AdminPostulaciones() {
 }
 
 // ── Componente auxiliar: tarjeta de documento ────────────────────────────────
-function DocBox({ icono, titulo, url, btnLabel, btnIcono, onVer, modoEdicion, onFileChange }) {
+function DocBox({ icono, titulo, url, btnLabel, btnIcono, onVer }) {
   return (
     <div style={{
       border: '1px solid var(--border-color)', borderRadius: '8px',
@@ -547,13 +454,7 @@ function DocBox({ icono, titulo, url, btnLabel, btnIcono, onVer, modoEdicion, on
       <p style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '1rem', color: 'var(--text-main)' }}>
         {titulo}
       </p>
-      {modoEdicion ? (
-        <input 
-          type="file" 
-          onChange={(e) => onFileChange(e.target.files[0])} 
-          style={{ fontSize: '0.75rem', width: '100%' }} 
-        />
-      ) : url ? (
+      {url ? (
         <button
           onClick={onVer}
           style={{
