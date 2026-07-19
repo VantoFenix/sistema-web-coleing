@@ -5,6 +5,7 @@ import {
   Smartphone, Building2, UploadCloud, CheckCheck, ExternalLink,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import ComprobanteModal from '../../components/UI/ComprobanteModal';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const MESES = [
@@ -207,7 +208,7 @@ function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSol
         </div>
         <div>
           <h4 style={{ margin: '0 0 0.25rem 0', color: 'var(--cip-blue)', fontSize: '1rem', fontWeight: '800' }}>Medio de Pago</h4>
-          <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748B' }}>Yape / Tarjeta (Checkout MercadoPago)</p>
+          <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748B' }}>Yape / Plin / Tarjeta (Flow)</p>
         </div>
         <div style={{ marginLeft: 'auto' }}>
           <CheckCircle2 size={24} color="#059669" />
@@ -362,7 +363,7 @@ function StepPendiente({ resultado, onVerHistorial }) {
 }
 
 // ── Paso: Éxito tarjeta (inmediato) ────────────────────────────────────────
-function StepExito({ resultado, onNuevoPago }) {
+function StepExito({ resultado, onNuevoPago, onVerComprobante }) {
   return (
     <div style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
       <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#D1FAE5', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem auto' }}>
@@ -411,6 +412,15 @@ function StepExito({ resultado, onNuevoPago }) {
         </span>
       </div>
 
+      {resultado.comprobante && (
+        <button
+          onClick={() => onVerComprobante(resultado.comprobante)}
+          className="btn btn-primary btn-block"
+          style={{ padding: '0.8rem', marginBottom: '0.75rem', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', border: 'none' }}
+        >
+          📥 Descargar Comprobante
+        </button>
+      )}
       <button onClick={onNuevoPago} className="btn btn-primary btn-block" style={{ padding: '0.8rem' }}>
         Ver historial de pagos
       </button>
@@ -419,6 +429,65 @@ function StepExito({ resultado, onNuevoPago }) {
 }
 
 
+// ── Comprobantes Anteriores ────────────────────────────────────────────────
+const ComprobantesAnteriores = ({ onVerComprobante }) => {
+  const [comprobantes, setComprobantes] = useState([]);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    // El backend ahora soporta no enviar colegiado_id y usar el request.user
+    fetch('/api/finanzas/comprobantes/historial/')
+      .then(r => r.json())
+      .then(data => {
+        setComprobantes(data.results || data);
+        setCargando(false);
+      })
+      .catch(() => setCargando(false));
+  }, []);
+
+  if (cargando) return <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Cargando comprobantes...</p>;
+  if (comprobantes.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: '2rem' }}>
+      <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '1rem' }}>
+        Comprobantes Electrónicos
+      </h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {comprobantes.map(comp => (
+          <div
+            key={comp.id}
+            style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '0.875rem', background: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0',
+            }}
+          >
+            <div>
+              <p style={{ fontWeight: '600', margin: 0, marginBottom: '0.2rem' }}>
+                {comp.numero_comprobante}
+              </p>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+                S/ {parseFloat(comp.monto).toFixed(2)} • {comp.fecha_hora_pago_formateada || comp.fecha_formateada}
+              </p>
+            </div>
+            <button
+              onClick={() => onVerComprobante(comp)}
+              style={{
+                background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+                color: 'white', border: 'none', borderRadius: '6px',
+                padding: '0.5rem 1rem', fontSize: '0.85rem', fontWeight: '600',
+                cursor: 'pointer', transition: 'all 0.2s',
+              }}
+            >
+              📥 Descargar
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // ══════════════════════════════════════════════════════════════════════════════
 // PÁGINA PRINCIPAL
 // ══════════════════════════════════════════════════════════════════════════════
@@ -426,6 +495,8 @@ export default function MisPagos() {
   const [tab, setTab]                     = useState('pagar');
   const [cargando, setCargando]           = useState(true);
   const [error, setError]                 = useState('');
+
+  const [comprobanteParaMostrar, setComprobanteParaMostrar] = useState(null);
 
   const [pendientes, setPendientes]       = useState([]);
   const [historial, setHistorial]         = useState([]);
@@ -437,22 +508,20 @@ export default function MisPagos() {
   const [extRef, setExtRef]               = useState(null);
   const [resultadoPago, setResultadoPago] = useState(null);
 
-  const handlePagarCheckoutPro = async (periodosArray) => {
+  const handlePagarFlow = async (periodosArray) => {
     try {
       const token = localStorage.getItem('colToken');
-      const res = await fetch('/api/pagos/preferencia/', {
+      const res = await fetch('/api/pagos/flow/crear/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ periodos: periodosArray })
       });
       const data = await res.json();
       if (data.init_point) {
-        setInitPoint(data.init_point);
-        // external_reference format: cip-{id}~{p1}~{p2}
-        const extRefStr = `cip-${JSON.parse(atob(token.split('.')[1])).user_id}~${periodosArray.sort().join('~')}`;
-        setExtRef(extRefStr);
+        // Redirigir directamente a la pasarela de Flow
+        window.location.href = data.init_point;
       } else {
-        setError(data.error || 'No se pudo crear el enlace de pago.');
+        setError(data.error || 'No se pudo crear el enlace de pago con Flow.');
       }
     } catch {
       setError('Error de conexion al crear el enlace de pago.');
@@ -467,17 +536,37 @@ export default function MisPagos() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const paymentId = params.get('payment_id');
-    const status = params.get('status');
-    const externalRef = params.get('external_reference');
+    const tokenFlow = params.get('token');
 
-    if (paymentId && status && externalRef) {
-      verificarPagoMP(paymentId, externalRef, status);
+    if (tokenFlow) {
+      verificarPagoFlow(tokenFlow);
       window.history.replaceState({}, document.title, window.location.pathname);
     } else {
       cargarDatos();
     }
   }, []);
+
+  const verificarPagoFlow = async (tokenFlow) => {
+    setCargando(true);
+    try {
+      const token = localStorage.getItem('colToken');
+      const res = await fetch('/api/pagos/flow/confirmar/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ token: tokenFlow })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setResultadoPago(data);
+      } else {
+        setErrPago(data.error || 'Error al confirmar el pago en Flow.');
+      }
+    } catch (err) {
+      setErrPago('Error de conexión al verificar el pago.');
+    }
+    cargarDatos();
+    setCargando(false);
+  };
 
   const cargarDatos = async () => {
     setCargando(true);
@@ -667,7 +756,7 @@ export default function MisPagos() {
                   <span>{errPago}</span>
                 </div>
               )}
-              {!initPoint && !resultadoPago && (
+              {!resultadoPago && (
                 <StepPeriodos
                   pendientes={pendientes}
                   historial={historial}
@@ -677,31 +766,14 @@ export default function MisPagos() {
                   onDeselAll={() => setSeleccionados(new Set())}
                   montoUnit={montoUnit}
                   onError={(msg) => setErrPago(msg)}
-                  onGenerarQR={handlePagarCheckoutPro}
+                  onGenerarQR={handlePagarFlow}
                 />
               )}
 
-              {initPoint && !resultadoPago && (
-                <StepCheckoutMP
-                  initPoint={initPoint}
-                  extRef={extRef}
-                  total={seleccionados.size * parseFloat(montoUnit)}
-                  onExito={(data) => {
-                    setInitPoint(null);
-                    setExtRef(null);
-                    setResultadoPago(data);
-                    cargarDatos();
-                  }}
-                  onError={setError}
-                  onCancelar={() => {
-                    setInitPoint(null);
-                    setExtRef(null);
-                  }}
-                />
-              )}
+              {/* StepCheckoutMP removed for Flow */}
 
               {resultadoPago && (
-                <StepExito resultado={resultadoPago} onNuevoPago={() => {
+                <StepExito resultado={resultadoPago} onVerComprobante={setComprobanteParaMostrar} onNuevoPago={() => {
                   setResultadoPago(null);
                   setInitPoint(null);
                   setExtRef(null);
@@ -800,6 +872,7 @@ export default function MisPagos() {
                 </table>
               </div>
             )}
+              <ComprobantesAnteriores onVerComprobante={setComprobanteParaMostrar} />
             </>
           )}
         </div>
@@ -809,6 +882,23 @@ export default function MisPagos() {
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
       `}} />
+
+      {/* NUEVO: MODAL DE COMPROBANTE */}
+      {comprobanteParaMostrar && (
+        <ComprobanteModal
+          comprobante={comprobanteParaMostrar}
+          colegiado={{}} // Pasamos un objeto vacío o los datos del colegiado si los tuviéramos a la mano
+          onClose={() => setComprobanteParaMostrar(null)}
+          onDescargar={(comp) => {
+            console.log('Comprobante descargado:', comp.numero_comprobante);
+            fetch(`/api/finanzas/comprobantes/${comp.id}/`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ estado: 'DESCARGADO' }),
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

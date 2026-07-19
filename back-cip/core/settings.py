@@ -13,6 +13,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 env_path = BASE_DIR.parent / '.env'
 load_dotenv(dotenv_path=env_path, override=True)
 
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', '')
+AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME', '')
+
+# FLOW CONFIG
+FLOW_API_KEY = os.getenv('FLOW_API_KEY', '')
+FLOW_SECRET_KEY = os.getenv('FLOW_SECRET_KEY', '')
+FLOW_ENV = os.getenv('FLOW_ENV', 'sandbox')
+
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-ip*qg4%=ko-)+2kw@+v5s#l+c4%#db*)bocmukvafc3)(ot+k0'
 
@@ -256,11 +264,13 @@ MP_PUBLIC_KEY   = os.getenv('MP_PUBLIC_KEY', '')
 MP_ACCESS_TOKEN = os.getenv('MP_ACCESS_TOKEN', '')
 SITE_URL        = os.getenv('SITE_URL', '')   # URL pública del sitio, ej: https://cip.tudominio.com
 
-# FLOW (Pasarela QR Yape / Plin)
+# ==============================================================================
+# FLOW (Pasarela QR Yape / Plin y Chile/Peru)
 # ==============================================================================
 FLOW_API_KEY    = os.getenv('FLOW_API_KEY', '')
 FLOW_SECRET_KEY = os.getenv('FLOW_SECRET_KEY', '')
 FLOW_API_URL    = os.getenv('FLOW_API_URL', 'https://www.flow.cl/api')  # producción
+FLOW_ENV        = os.getenv('FLOW_ENV', 'sandbox') # sandbox o live
 
 # URL del Frontend (para enlaces de correos, etc)
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')

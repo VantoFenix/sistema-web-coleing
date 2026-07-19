@@ -50,16 +50,19 @@ urlpatterns = [
     path('api/admin/pagos/tarjeta/', views.AdminPagoTarjetaView.as_view(), name='admin-pago-tarjeta'),
     
     # Pago Online — MercadoPago
-    path('api/pagos/mp-config/',    views.MPConfigView.as_view(),                    name='mp-config'),
-    path('api/pagos/online/',       views.PagoOnlineView.as_view(),                  name='pago-online'),
-    path('api/pagos/online/status/<str:mp_id>/', views.PagoOnlineStatusView.as_view(), name='pago-online-status'),
-    # Checkout Pro (Yape automático)
-    path('api/pagos/preferencia/',  views.PagoPreferenciaView.as_view(),             name='pago-preferencia'),
-    path('api/pagos/verificar/',    views.PagoVerificarPreferenciaView.as_view(),    name='pago-verificar'),
+    # path('api/pagos/mp-config/',    views.MPConfigView.as_view(),                    name='mp-config'),
+    # path('api/pagos/online/',       views.PagoOnlineView.as_view(),                  name='pago-online'),
+    # path('api/pagos/online/status/<str:mp_id>/', views.PagoOnlineStatusView.as_view(), name='pago-online-status'),
+    # Pago Online — Flow (Reemplaza MercadoPago)
+    path('api/pagos/flow/crear/',  views.PagoFlowCrearView.as_view(),             name='pago-flow-crear'),
+    path('api/pagos/flow/confirmar/',    views.PagoFlowConfirmarView.as_view(),    name='pago-flow-confirmar'),
 
     # Flow — QR Yape / Plin
     path('api/flow/generar-qr/', views.FlowGenerarQRView.as_view(), name='flow-generar-qr'),
     path('api/flow/webhook/',    views.FlowWebhookView.as_view(),   name='flow-webhook'),
+
+    # Finanzas
+    path('api/finanzas/', include('apps.finanzas.urls')),
 
     # Portal Colegiado
     path('api/portal/yo/', views.PortalPerfilView.as_view(), name='portal-yo'),

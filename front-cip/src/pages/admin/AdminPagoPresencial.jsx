@@ -4,6 +4,7 @@ import {
   Calendar, AlertCircle, BadgeCheck, CreditCard,
   Banknote, Smartphone, Building2, Wallet, ChevronRight,
 } from 'lucide-react';
+import ComprobanteModal from '../../components/UI/ComprobanteModal';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const MESES = [
@@ -58,6 +59,9 @@ export default function AdminPagoPresencial() {
   const [buscando, setBuscando]     = useState(false);
   const [resultados, setResultados] = useState(null);
   const [errBusqueda, setErrBusqueda] = useState('');
+
+  const [comprobanteParaMostrar, setComprobanteParaMostrar] = useState(null);
+  const [comprobanteDescargando, setComprobanteDescargando] = useState(false);
 
   const [colegiado, setColegiado]   = useState(null);
   const [deuda, setDeuda]           = useState(null);
@@ -402,28 +406,48 @@ export default function AdminPagoPresencial() {
           </div>
 
           {/* Botones comprobante */}
-          <button
-            onClick={generarComprobante}
-            style={{
-              width: '100%', padding: '0.9rem', marginBottom: '0.75rem',
-              background: 'linear-gradient(135deg, #1e3a5f, #2563EB)',
-              color: 'white', border: 'none', borderRadius: '10px',
-              fontWeight: '800', fontSize: '1rem', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-            }}
-          >
-            <CreditCard size={18} /> Imprimir / Descargar Comprobante
-          </button>
-
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button onClick={handleNuevoPago} className="btn btn-primary" style={{ flex: 1 }}>
-              Registrar otro pago
-            </button>
-            <button onClick={recargarDeuda} className="btn btn-outline" style={{ flex: 1, borderColor: 'var(--cip-blue)', color: 'var(--cip-blue)' }}>
-              Ver deuda restante
-            </button>
+          <div style={{ display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
+            {resultado.comprobante && (
+              <button 
+                onClick={() => setComprobanteParaMostrar(resultado.comprobante)}
+                className="btn btn-primary"
+                style={{ 
+                  background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  width: '100%',
+                  padding: '0.9rem',
+                  border: 'none', borderRadius: '10px',
+                  fontWeight: '800', fontSize: '1rem', cursor: 'pointer'
+                }}
+              >
+                📥 Descargar Comprobante
+              </button>
+            )}
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button onClick={handleNuevoPago} className="btn btn-primary" style={{ flex: 1 }}>
+                Registrar otro pago
+              </button>
+              <button onClick={recargarDeuda} className="btn btn-outline" style={{ flex: 1, borderColor: 'var(--cip-blue)', color: 'var(--cip-blue)' }}>
+                Ver deuda restante
+              </button>
+            </div>
           </div>
         </div>
+        
+        {/* NUEVO: MODAL DE COMPROBANTE */}
+        {comprobanteParaMostrar && (
+          <ComprobanteModal
+            comprobante={comprobanteParaMostrar}
+            colegiado={colegiado}
+            onClose={() => setComprobanteParaMostrar(null)}
+            onDescargar={(comp) => {
+              console.log('Comprobante descargado:', comp.numero_comprobante);
+            }}
+          />
+        )}
       </div>
     );
   }

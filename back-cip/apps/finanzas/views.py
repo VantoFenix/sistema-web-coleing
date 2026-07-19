@@ -295,10 +295,13 @@ class ComprobanteViewSet(viewsets.ReadOnlyModelViewSet):
         colegiado_id = request.query_params.get('colegiado_id')
         
         if not colegiado_id:
-            return Response(
-                {'error': 'El parámetro colegiado_id es requerido'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            if hasattr(request.user, 'id'):
+                colegiado_id = request.user.id
+            else:
+                return Response(
+                    {'error': 'El parámetro colegiado_id es requerido'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         
         try:
             colegiado = Colegiado.objects.get(id=colegiado_id)

@@ -1224,148 +1224,136 @@ class AdminRegistrarPagoPresencialView(APIView):
         })
 
 # ==============================================================================
-# PAGO ONLINE — MercadoPago
+# PAGO ONLINE — PagoFlow
 # ==============================================================================
 
-class MPConfigView(APIView):
-    """Devuelve solo la public key al frontend (nunca el access token)."""
-    authentication_classes = []
-    permission_classes = [AllowAny]
-
-    def get(self, request):
-        return Response({'public_key': settings.MP_PUBLIC_KEY})
-
-
-class PagoPreferenciaView(APIView):
+class PagoFlowCrearView(APIView):
     """
-    Crea una preferencia de MercadoPago Checkout Pro.
-    Usado para Yape: redirige al checkout nativo de MP donde el usuario paga.
-    Al volver, PagoVerificarPreferenciaView registra el pago automáticamente.
+    Crea un intento de pago en Flow.cl (QR Interoperable y otros métodos).
     """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        import mercadopago, sys
+        import time, os, sys
+        from core.flow_api import FlowAPI
 
         periodos = request.data.get('periodos', [])
         if not periodos:
             return Response({'error': 'Seleccione al menos un periodo.'}, status=400)
 
-        colegiado   = request.user
+        colegiado = request.user
         monto_total = round(len(periodos) * _get_monto_mensualidad(), 2)
 
-        # external_reference: "cip-{id}~{p1}~{p2}" — URL-safe, parseable en el retorno
-        external_ref = 'cip-{}~{}'.format(colegiado.id, '~'.join(sorted(periodos)))
-
-        sdk = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
+        # Usar timestamp para evitar duplicados en pruebas
+        timestamp = int(time.time())
+        commerce_order = f"{colegiado.id}_{timestamp}_{'-'.join(sorted(periodos))}"
 
         frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
-        
-        # MercadoPago rechaza auto_return si las URLs son localhost o HTTP en producción.
-        # Por seguridad en desarrollo local, usamos un dominio temporal si es localhost.
         safe_url = "https://sistema-web-coleing.onrender.com" if "localhost" in frontend_url else frontend_url
         
-        success_url = f"{safe_url}/portal/mis-pagos"
-        failure_url = f"{safe_url}/portal/mis-pagos"
-        pending_url = f"{safe_url}/portal/mis-pagos"
+        url_return = f"{safe_url}/portal/mis-pagos"
+        url_confirmation = f"{safe_url}/api/pagos/flow/confirmar/" # No se usa directamente frontend porque retorna JWT, pero Flow usa su propio retorno
 
-        preference_data = {
-            "items": [{
-                "title":       "CIP - {} cuota(s) mensual(es)".format(len(periodos)),
-                "quantity":    1,
-                "unit_price":  float(monto_total),
-                "currency_id": "PEN",
-            }],
+        subject = f"CIP - {len(periodos)} cuota(s) mensual(es)"
+        email = getattr(colegiado, 'correo', None) or "pagador@cip.org.pe"
 
-            "back_urls": {
-                "success": success_url,
-                "failure": failure_url,
-                "pending": pending_url,
-            },
-            "auto_return": "approved",
-            "external_reference": external_ref,
-        }
+        try:
+            from django.conf import settings
+            if not getattr(settings, 'FLOW_API_KEY', ''):
+                # Modo Mock
+                mock_token = f"mock_token_{commerce_order}"
+                return Response({
+                    'init_point': f"{url_return}?token={mock_token}",
+                    'token': mock_token,
+                    'external_reference': commerce_order
+                })
 
-        print("[MP PREF] Creando preferencia: {} monto={}".format(external_ref, monto_total), file=sys.stderr)
-        result   = sdk.preference().create(preference_data)
-        response = result.get("response", {})
-        pref_id  = response.get("id")
-        init_pt  = response.get("init_point")
+            flow_api = FlowAPI()
+            res = flow_api.create_payment(
+                commerce_order=commerce_order,
+                subject=subject,
+                amount=monto_total,
+                email=email,
+                url_confirmation=url_confirmation, # Webhook server-to-server opcional, por ahora usaremos retorno o polling
+                url_return=url_return
+            )
+            
+            print("[FLOW PREF] Respuesta:", res, file=sys.stderr)
 
-        print("[MP PREF] Respuesta: {}".format(response), file=sys.stderr)
+            if "url" in res and "token" in res:
+                # url_pago es la URL a la que se redirige al cliente
+                url_pago = f"{res['url']}?token={res['token']}"
+                return Response({
+                    'init_point': url_pago,
+                    'token': res['token'],
+                    'external_reference': commerce_order
+                })
+            else:
+                err = res.get('message', 'Error desconocido')
+                return Response({'error': f"Error de Flow: {err}"}, status=400)
 
-        if not pref_id or not init_pt:
-            err = response.get("message") or response.get("error") or "Error desconocido"
-            return Response({'error': 'No se pudo crear el enlace de pago: {}'.format(err)}, status=500)
-
-        return Response({'preference_id': pref_id, 'init_point': init_pt})
+        except Exception as e:
+            print("[FLOW ERROR]", e, file=sys.stderr)
+            return Response({'error': str(e)}, status=500)
 
 
-class PagoVerificarPreferenciaView(APIView):
+class PagoFlowConfirmarView(APIView):
     """
-    Verifica y registra un pago de Checkout Pro luego de la redirección desde MP.
-    Soporta dos modos:
-    - Con payment_id: verifica ese pago específico (redirección desde MP).
-    - Sin payment_id pero con external_reference: busca pagos aprobados (polling desde frontend).
+    Verifica un pago en Flow mediante el token (haciendo polling o retorno).
     """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        import mercadopago, sys
+        import sys
+        from core.flow_api import FlowAPI
 
-        payment_id   = request.data.get('payment_id', '')
-        external_ref = request.data.get('external_reference', '')
+        token = request.data.get('token', '')
+        if not token:
+            return Response({'error': 'Token de Flow requerido.'}, status=400)
 
-        sdk = mercadopago.SDK(settings.MP_ACCESS_TOKEN)
-
-        if not payment_id and external_ref:
-            # Modo polling: buscar pagos por external_reference
-            search_result = sdk.payment().search({
-                'external_reference': external_ref,
-                'sort': 'date_created',
-                'criteria': 'desc',
-            })
-            results = search_result.get("response", {}).get("results", [])
-            approved = next((p for p in results if p.get('status') == 'approved'), None)
-            
-            if not approved:
-                return Response({'pagado': False, 'status': 'pending'}, status=202)
-            
-            payment_id = str(approved.get('id'))
-            mp_status = 'approved'
-            response = approved
-            print("[MP VERIFY POLL] Encontrado pago aprobado: {} ref={}".format(payment_id, external_ref), file=sys.stderr)
-        elif payment_id:
-            # Modo directo: verificar un payment_id específico
-            result   = sdk.payment().get(payment_id)
-            response = result.get("response", {})
-            mp_status = response.get("status")
-            print("[MP VERIFY] payment_id={} status={}".format(payment_id, mp_status), file=sys.stderr)
-        else:
-            return Response({'error': 'payment_id o external_reference requerido.'}, status=400)
-
-        if mp_status != "approved":
-            return Response(
-                {'error': 'El pago no fue aprobado (estado: {}).'.format(mp_status)},
-                status=402,
-            )
-
-        # Decodificar external_reference → "cip-{id}~{p1}~{p2}"
         try:
-            parts        = external_ref.split('~')
-            col_id_str   = parts[0].replace('cip-', '')
-            periodos     = parts[1:]
+            if token.startswith("mock_token_"):
+                commerce_order = token.replace("mock_token_", "")
+                res = {
+                    'status': 2,
+                    'commerceOrder': commerce_order
+                }
+            else:
+                flow_api = FlowAPI()
+                res = flow_api.get_payment_status(token)
+            
+            print("[FLOW STATUS]", res, file=sys.stderr)
+
+            # status 2 = pagado (en Flow)
+            if res.get('status') != 2:
+                # Si no es 2, significa que está pendiente (1) o rechazado (3, 4)
+                estado = res.get('status')
+                if estado == 1:
+                    return Response({'pagado': False, 'status': 'pending'}, status=202)
+                else:
+                    return Response({'error': f"El pago no fue aprobado (estado Flow: {estado})."}, status=402)
+
+            commerce_order = res.get('commerceOrder', '')
+            
+            # Formato: "{colegiado.id}_{timestamp}_{p1}-{p2}"
+            parts = commerce_order.split('_')
+            col_id_str = parts[0]
+            periodos = parts[2].split('-')
+            
             assert int(col_id_str) == request.user.id, "colegiado_id no coincide"
+
         except Exception as ex:
-            print("[MP VERIFY] external_ref inválido: {} → {}".format(external_ref, ex), file=sys.stderr)
+            print("[FLOW VERIFY ERROR] Error decodificando commerce_order: {} → {}".format(commerce_order, ex), file=sys.stderr)
             return Response({'error': 'Referencia de pago inválida.'}, status=400)
 
         if not periodos:
             return Response({'error': 'No se determinaron los periodos a registrar.'}, status=400)
 
         colegiado   = request.user
+        from datetime import date
         hoy         = date.today()
-        metodo_str  = (response.get('payment_method_id') or 'CHECKOUT_PRO').upper()
+        metodo_str  = f"FLOW ({res.get('paymentData', {}).get('media', 'Desconocido')})"
+        nro_operacion = str(res.get('flowOrder', commerce_order))
         registrados = []
         ya_existian = []
 
@@ -1380,21 +1368,39 @@ class PagoVerificarPreferenciaView(APIView):
                         'monto':         _get_monto_mensualidad(),
                         'canal':         'PORTAL',
                         'metodo':        metodo_str,
-                        'nro_operacion': str(payment_id),
+                        'nro_operacion': nro_operacion,
                         'fecha_pago':    hoy,
                     }
                 )
                 (registrados if created else ya_existian).append(periodo_str)
             except Exception as ex:
-                print("[MP VERIFY] Error guardando {}: {}".format(periodo_str, ex), file=sys.stderr)
+                print("[FLOW VERIFY] Error guardando {}: {}".format(periodo_str, ex), file=sys.stderr)
+
+        comprobante_data = None
+        if registrados:
+            try:
+                from apps.finanzas.services import crear_comprobante_pago
+                from apps.finanzas.serializers import ComprobanteSerializer
+                comp = crear_comprobante_pago(
+                    colegiado=colegiado,
+                    monto=round(len(periodos) * _get_monto_mensualidad(), 2),
+                    canal='PORTAL',
+                    metodo_pago=metodo_str,
+                    transaccion_id=nro_operacion,
+                    observaciones=f"Pago de cuotas: {', '.join(registrados)}"
+                )
+                comprobante_data = ComprobanteSerializer(comp).data
+            except Exception as e:
+                print(f"[FLOW COMPROBANTE ERROR] {e}", file=sys.stderr)
 
         return Response({
             'success':          True,
             'periodos_pagados': registrados,
             'ya_existian':      ya_existian,
-            'nro_operacion':    str(payment_id),
+            'nro_operacion':    nro_operacion,
             'habilitado_nuevo': _get_habilitado(colegiado.id),
             'monto_cobrado':    round(len(periodos) * _get_monto_mensualidad(), 2),
+            'comprobante':      comprobante_data
         })
 
 
