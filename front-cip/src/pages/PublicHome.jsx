@@ -87,7 +87,7 @@ export default function PublicHome() {
       if (res.ok) {
         const data = await res.json();
         setEstadoConsulta(data.estado);
-        setMotivoRechazo(data.motivo_rechazo || '');
+        setMotivoRechazo(data.observaciones || data.motivo_rechazo || '');
       } else {
         setConsultaError("No se encontró ninguna solicitud de colegiatura para este DNI.");
         setEstadoConsulta(null);

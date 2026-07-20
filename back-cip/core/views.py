@@ -194,10 +194,13 @@ class PublicConsultaSolicitudView(APIView):
         if not sol:
             return Response({'error': 'No se encontró ninguna solicitud con ese DNI'}, status=status.HTTP_404_NOT_FOUND)
         
-        return Response({
+        resp = {
             'estado': sol.estado,
             'motivo_rechazo': sol.motivo_rechazo
-        })
+        }
+        if sol.estado == 'RECHAZADA':
+            resp['observaciones'] = sol.motivo_rechazo
+        return Response(resp)
 
 class PublicPostulacionView(APIView):
     authentication_classes = []
@@ -383,6 +386,30 @@ class SolicitudViewSet(viewsets.ModelViewSet):
             qs = qs.filter(sede_id=user.sede_id)
             
         return qs
+
+    @action(detail=True, methods=['post'], url_path='resolver')
+    def resolver(self, request, pk=None):
+        user = request.user
+        if getattr(user, 'rol', None) not in ['ADMIN', 'MASTER_ADMIN']:
+            return Response({'error': 'No tiene permisos para resolver expedientes.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        solicitud = self.get_object()
+        if solicitud.estado != 'EN_REVISION':
+            return Response({'error': 'La solicitud no está en revisión.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        accion = request.data.get('accion')
+        
+        if accion == 'APROBAR':
+            return self.aprobar_documentos(request, pk)
+        elif accion == 'RECHAZAR':
+            comentarios = request.data.get('comentarios', '')
+            solicitud.estado = 'RECHAZADA'
+            solicitud.motivo_rechazo = comentarios
+            solicitud.resuelto_en = datetime.utcnow()
+            solicitud.save()
+            return Response({'success': True, 'estado': 'RECHAZADA'})
+        else:
+            return Response({'error': 'Acción no válida.'}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['patch'])
     def aprobar_documentos(self, request, pk=None):

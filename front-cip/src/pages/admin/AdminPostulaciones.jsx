@@ -11,6 +11,7 @@ export default function AdminPostulaciones() {
   const [expediente, setExpediente] = useState(null);
   const [procesando, setProcesando] = useState(false);
   const [filtroOrigen, setFiltroOrigen] = useState('TODAS');
+  const [filtroEstado, setFiltroEstado] = useState('EN_REVISION');
   const [modoEdicion, setModoEdicion] = useState(false);
   const [archivosNuevos, setArchivosNuevos] = useState({ foto: null, titulo: null, recibo: null });
 
@@ -112,13 +113,12 @@ export default function AdminPostulaciones() {
     setProcesando(true);
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch(`/api/admin/postulaciones/${expediente.id}/resolver/`, {
-        method: 'POST',
+      const res = await fetch(`/api/admin/postulaciones/${expediente.id}/aprobar_documentos/`, {
+        method: 'PATCH',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ accion: 'APROBAR' })
+        }
       });
       if (res.ok) {
         setPostulaciones(postulaciones.filter(p => p.id !== expediente.id));
@@ -142,13 +142,13 @@ export default function AdminPostulaciones() {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch(`/api/admin/postulaciones/${expediente.id}/resolver/`, {
-        method: 'POST',
+      const res = await fetch(`/api/admin/postulaciones/${expediente.id}/rechazar_documentos/`, {
+        method: 'PATCH',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ accion: 'RECHAZAR', comentarios: observaciones })
+        body: JSON.stringify({ comentarios: observaciones })
       });
       if (res.ok) {
         setPostulaciones(postulaciones.filter(p => p.id !== expediente.id));
@@ -178,6 +178,16 @@ export default function AdminPostulaciones() {
             <p style={{ color: 'var(--text-muted)' }}>Procese los expedientes en orden de llegada.</p>
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <select
+              className="form-input"
+              value={filtroEstado}
+              onChange={(e) => setFiltroEstado(e.target.value)}
+              style={{ width: 'auto', padding: '0.4rem 1rem', borderRadius: '8px', cursor: 'pointer', border: '1px solid var(--border-color)' }}
+            >
+              <option value="EN_REVISION">En Revisión</option>
+              <option value="APROBADA">Aprobadas</option>
+              <option value="RECHAZADA">Rechazadas</option>
+            </select>
             <div style={{ display: 'flex', background: '#F1F5F9', padding: '0.25rem', borderRadius: '8px' }}>
               {['TODAS', 'WEB', 'PRESENCIAL'].map(tab => (
                 <button
@@ -236,7 +246,7 @@ export default function AdminPostulaciones() {
             </thead>
             <tbody>
               {(() => {
-                const postulacionesFiltradas = postulaciones.filter(p => filtroOrigen === 'TODAS' || p.origen === filtroOrigen);
+                const postulacionesFiltradas = postulaciones.filter(p => (filtroOrigen === 'TODAS' || p.origen === filtroOrigen) && p.estado === filtroEstado);
                 
                 if (cargando) {
                   return <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}><Loader2 className="spin" style={{margin: '0 auto'}}/> Cargando postulaciones...</td></tr>;
@@ -317,6 +327,13 @@ export default function AdminPostulaciones() {
                 </div>
               </>
             )}
+            
+            {expediente.estado === 'RECHAZADA' && (
+              <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '1rem', marginTop: '0.5rem' }}>
+                <p className="text-muted" style={{ fontSize: '0.875rem', marginBottom: '0.25rem', color: 'var(--cip-red)', fontWeight: '600' }}>Motivo de Rechazo:</p>
+                <p style={{ fontWeight: '500', color: 'var(--cip-red)', fontSize: '0.95rem' }}>{expediente.motivo_rechazo || 'Sin observaciones especificadas.'}</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -367,49 +384,51 @@ export default function AdminPostulaciones() {
           </div>
 
           {/* Botones de Acción */}
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            {expediente.origen === 'PRESENCIAL' ? (
-              modoEdicion ? (
-                <button
-                  className="btn btn-outline"
-                  style={{ flex: 1, borderColor: '#3B82F6', color: 'white', background: '#3B82F6', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                  onClick={handleGuardarArchivos}
-                  disabled={procesando}
-                >
-                  {procesando ? <Loader2 className="spin" size={20} /> : 'Guardar Nuevos Archivos'}
-                </button>
+          {expediente.estado === 'EN_REVISION' && (
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              {expediente.origen === 'PRESENCIAL' ? (
+                modoEdicion ? (
+                  <button
+                    className="btn btn-outline"
+                    style={{ flex: 1, borderColor: '#3B82F6', color: 'white', background: '#3B82F6', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                    onClick={handleGuardarArchivos}
+                    disabled={procesando}
+                  >
+                    {procesando ? <Loader2 className="spin" size={20} /> : 'Guardar Nuevos Archivos'}
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-outline"
+                    style={{ flex: 1, borderColor: '#3B82F6', color: '#1D4ED8', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                    onClick={() => setModoEdicion(true)}
+                    disabled={procesando}
+                  >
+                    Cambiar Archivos
+                  </button>
+                )
               ) : (
                 <button
                   className="btn btn-outline"
-                  style={{ flex: 1, borderColor: '#3B82F6', color: '#1D4ED8', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                  onClick={() => setModoEdicion(true)}
+                  style={{ flex: 1, borderColor: '#EF4444', color: '#B91C1C', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                  onClick={() => { setShowRechazoPanel(true); setPanelMinimized(false); }}
                   disabled={procesando}
                 >
-                  Cambiar Archivos
+                  <XCircle size={20} /> Expediente Incorrecto (Observar)
                 </button>
-              )
-            ) : (
-              <button
-                className="btn btn-outline"
-                style={{ flex: 1, borderColor: '#EF4444', color: '#B91C1C', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                onClick={() => { setShowRechazoPanel(true); setPanelMinimized(false); }}
-                disabled={procesando}
-              >
-                <XCircle size={20} /> Expediente Incorrecto (Observar)
-              </button>
-            )}
+              )}
 
-            {!modoEdicion && (
-              <button
-                className="btn btn-primary"
-                style={{ flex: 1, background: '#10B981', borderColor: '#10B981', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                onClick={handleAprobar}
-                disabled={procesando}
-              >
-                {procesando ? <Loader2 className="spin" size={20} /> : <><CheckCircle size={20} /> Todo Conforme (Aprobar)</>}
-              </button>
-            )}
-          </div>
+              {!modoEdicion && (
+                <button
+                  className="btn btn-primary"
+                  style={{ flex: 1, background: '#10B981', borderColor: '#10B981', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                  onClick={handleAprobar}
+                  disabled={procesando}
+                >
+                  {procesando ? <Loader2 className="spin" size={20} /> : <><CheckCircle size={20} /> Todo Conforme (Aprobar)</>}
+                </button>
+              )}
+            </div>
+          )}
 
         </div>
       </div>
