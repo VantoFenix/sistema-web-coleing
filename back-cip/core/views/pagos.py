@@ -33,6 +33,7 @@ from django.core.mail import send_mail
 
 # pyrefly: ignore [missing-import]
 from .utils import _get_monto_mensualidad, _get_habilitado
+from .utils import _get_monto_mensualidad, _get_habilitado
 
 class PagoFlowCrearView(APIView):
     """
@@ -70,10 +71,12 @@ class PagoFlowCrearView(APIView):
         commerce_order = f"{colegiado.id}_{timestamp}_{','.join(sorted(periodos))}"
 
         frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
-        safe_url = "https://sistema-web-coleing.onrender.com" if "localhost" in frontend_url else frontend_url
         
-        url_return = f"{safe_url}/portal/pagos"
-        url_confirmation = f"{safe_url}/api/pagos/flow/confirmar/" # No se usa directamente frontend porque retorna JWT, pero Flow usa su propio retorno
+        url_return = f"{frontend_url.rstrip('/')}/portal/pagos"
+        
+        url_confirmation = request.build_absolute_uri('/api/pagos/flow/confirmar/')
+        if "localhost" in url_confirmation or "127.0.0.1" in url_confirmation:
+            url_confirmation = "https://sistema-web-coleing.onrender.com/api/pagos/flow/confirmar/"
 
         subject = f"CIP - {len(periodos)} cuota(s) mensual(es)"
         email = getattr(colegiado, 'correo', None) or "usuario.cip.peru@gmail.com"
