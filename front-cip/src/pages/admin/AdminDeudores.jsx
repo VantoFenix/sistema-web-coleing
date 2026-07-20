@@ -172,7 +172,7 @@ export default function AdminDeudores() {
                       <div style={{ display: 'inline-flex', gap: '8px' }}>
                         {/* Botón Cobrar/Adelantar */}
                         <button 
-                          onClick={() => navigate('/admin/pagos-presencial', { state: { dni: colegiado.dni } })}
+                          onClick={() => navigate('/admin/pagos-presencial', { state: { dni: colegiado.dni, fromDeudores: true } })}
                           style={{ 
                             background: '#0F172A', 
                             color: '#FFFFFF', 

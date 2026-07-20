@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, User, CheckCircle2, XCircle, Loader2,
   Calendar, AlertCircle, BadgeCheck, CreditCard,
@@ -53,6 +54,11 @@ function BadgeHabilitado({ habilitado }) {
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function AdminPagoPresencial() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const [cameFromDeudores, setCameFromDeudores] = useState(false);
+
   const [query, setQuery] = useState('');
   const [buscando, setBuscando] = useState(false);
   const [resultados, setResultados] = useState(null);
@@ -101,11 +107,11 @@ export default function AdminPagoPresencial() {
   const [monto1, setMonto1] = useState('');
   const [metodo2, setMetodo2] = useState('');
   const [monto2, setMonto2] = useState('');
-  const [errForm, setErrForm] = useState('');
+  const [montoMensual, setMontoMensual] = useState(0);
 
   const [enviando, setEnviando] = useState(false);
+  const [errForm, setErrForm] = useState('');
   const [resultado, setResultado] = useState(null);
-  const [montoMensual, setMontoMensual] = useState(20.00);
 
   const [flowInitPoint, setFlowInitPoint] = useState(null);
   const [flowToken, setFlowToken] = useState(null);
@@ -125,14 +131,22 @@ export default function AdminPagoPresencial() {
       .then(d => { if (d.monto_mensualidad) setMontoMensual(parseFloat(d.monto_mensualidad)); })
       .catch(() => { });
 
-    // Restaurar sesión de admin pago si existe
-    const savedCol = sessionStorage.getItem('admin_pago_colegiado');
-    if (savedCol) {
-      try {
-        const colParsed = JSON.parse(savedCol);
-        handleSeleccionarColegiado(colParsed, true);
-      } catch (e) {
-        sessionStorage.removeItem('admin_pago_colegiado');
+    if (location.state && location.state.dni) {
+      if (location.state.fromDeudores) setCameFromDeudores(true);
+      setQuery(location.state.dni);
+      handleBuscar(location.state.dni);
+      // Limpiar el state para no buscar siempre que se refresque
+      navigate(location.pathname, { replace: true, state: {} });
+    } else {
+      // Restaurar sesión de admin pago si existe
+      const savedCol = sessionStorage.getItem('admin_pago_colegiado');
+      if (savedCol) {
+        try {
+          const colParsed = JSON.parse(savedCol);
+          handleSeleccionarColegiado(colParsed, true);
+        } catch (e) {
+          sessionStorage.removeItem('admin_pago_colegiado');
+        }
       }
     }
   }, []);
@@ -197,8 +211,8 @@ export default function AdminPagoPresencial() {
     }
   }, [periodosSeleccionados, montoMensual]);
 
-  const handleBuscar = async () => {
-    const q = query.trim();
+  const handleBuscar = async (overrideQuery = null) => {
+    const q = (typeof overrideQuery === 'string' ? overrideQuery : query).trim();
     if (q.length < 2) { setErrBusqueda('Ingrese al menos 2 caracteres'); return; }
     setErrBusqueda('');
     setBuscando(true);
@@ -209,6 +223,10 @@ export default function AdminPagoPresencial() {
       });
       const data = await res.json();
       setResultados(Array.isArray(data) ? data : []);
+      // Si fue una búsqueda directa por DNI y hay exactamente 1 resultado, seleccionarlo
+      if (typeof overrideQuery === 'string' && Array.isArray(data) && data.length === 1) {
+        handleSeleccionarColegiado(data[0]);
+      }
     } catch {
       setErrBusqueda('Error de conexión con el servidor.');
     } finally {
@@ -665,6 +683,11 @@ export default function AdminPagoPresencial() {
       <div>
         {/* Cabecera */}
         <div style={{ marginBottom: '2rem' }}>
+          {cameFromDeudores && (
+            <button onClick={() => navigate('/admin/deudores')} className="btn btn-outline" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', borderColor: '#CBD5E1', color: 'var(--text-main)', fontSize: '0.85rem' }}>
+              <ChevronRight style={{ transform: 'rotate(180deg)' }} size={16} /> Volver al Panel de Deudores
+            </button>
+          )}
           <h1 style={{ fontSize: '1.75rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.25rem' }}>
             Registrar Pago Presencial
           </h1>
@@ -780,6 +803,12 @@ export default function AdminPagoPresencial() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, height: '100%' }}>
+
+      {cameFromDeudores && (
+        <button onClick={() => navigate('/admin/deudores')} className="btn btn-outline" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', borderColor: '#CBD5E1', color: 'var(--text-main)', fontSize: '0.85rem', alignSelf: 'flex-start' }}>
+          <ChevronRight style={{ transform: 'rotate(180deg)' }} size={16} /> Volver al Panel de Deudores
+        </button>
+      )}
 
       {/* ── BANNER SUPERIOR: info del colegiado ── */}
       <div style={{
