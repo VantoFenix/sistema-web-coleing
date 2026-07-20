@@ -78,9 +78,8 @@ class Command(BaseCommand):
         """
         
         # Obtenemos la mensualidad de la configuracion (MVP)
-        from core.models import Configuracion
-        conf = Configuracion.objects.first()
-        mensualidad = conf.monto_mensualidad if conf else 20.00
+        from core.views.utils import _get_monto_mensualidad
+        mensualidad = _get_monto_mensualidad()
         
         with connection.cursor() as cursor:
             cursor.execute(sql_inhabilitados)
@@ -111,9 +110,8 @@ class Command(BaseCommand):
         """
 
         # Obtenemos la mensualidad de la configuracion (MVP)
-        from core.models import Configuracion
-        conf = Configuracion.objects.first()
-        mensualidad = conf.monto_mensualidad if conf else 20.00
+        from core.views.utils import _get_monto_mensualidad
+        mensualidad = _get_monto_mensualidad()
         
         with connection.cursor() as cursor:
             cursor.execute(sql_recordatorios)
