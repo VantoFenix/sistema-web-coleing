@@ -269,8 +269,6 @@ elif os.getenv('MAILTRAP_API_KEY') or os.getenv('MAILTRAP_API_TOKEN'):
     EMAIL_BACKEND = 'anymail.backends.mailtrap.EmailBackend'
     ANYMAIL = {
         'MAILTRAP_API_TOKEN': os.getenv('MAILTRAP_API_TOKEN') or os.getenv('MAILTRAP_API_KEY'),
-        # URL por defecto para Producción/Live Sending en Mailtrap
-        'MAILTRAP_API_URL': os.getenv('MAILTRAP_API_URL', 'https://send.api.mailtrap.io'),
     }
 elif os.getenv('EMAIL_HOST'):
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
