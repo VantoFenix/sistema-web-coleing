@@ -70,7 +70,9 @@ class PagoFlowCrearView(APIView):
         timestamp = int(time.time())
         commerce_order = f"{colegiado.id}_{timestamp}_{','.join(sorted(periodos))}"
 
-        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173').strip()
+        if not frontend_url.startswith('http'):
+            frontend_url = f"https://{frontend_url}"
         
         url_return = f"{frontend_url.rstrip('/')}/portal/pagos"
         
