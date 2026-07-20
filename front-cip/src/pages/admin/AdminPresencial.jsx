@@ -61,7 +61,7 @@ export default function AdminPresencial() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ email: correo || 'vantofortnite@gmail.com', amount: monto }),
+        body: JSON.stringify({ email: 'no-reply@cip.org.pe', amount: monto }),
       });
       const data = await res.json();
       if (res.ok && data.url) {
@@ -92,7 +92,7 @@ export default function AdminPresencial() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ email: correo || 'vantofortnite@gmail.com', amount: '5' }),
+        body: JSON.stringify({ email: 'no-reply@cip.org.pe', amount: '5' }),
       });
       const data = await res.json();
       if (res.ok && data.url) {
