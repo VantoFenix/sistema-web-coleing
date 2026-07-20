@@ -54,7 +54,7 @@ class AdminRegistrarPagoPresencialView(APIView):
             return Response({'error': 'Seleccione al menos un periodo'}, status=status.HTTP_400_BAD_REQUEST)
         if not monto_total:
             return Response({'error': 'Ingrese el monto del pago'}, status=status.HTTP_400_BAD_REQUEST)
-        if metodo not in ('YAPE_PLIN', 'EFECTIVO'):
+        if metodo not in ('YAPE_PLIN', 'EFECTIVO', 'TRANSFERENCIA', 'MIXTO'):
             return Response({'error': 'Método de pago inválido'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:

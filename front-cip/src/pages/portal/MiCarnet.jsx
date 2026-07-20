@@ -119,7 +119,7 @@ export default function MiCarnet() {
               {/* Datos */}
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', paddingTop: '5px' }}>
                 {/* Dividir Nombres y Apellidos */}
-                <div style={{ color: '#000', fontWeight: '900', fontSize: '1.3rem', lineHeight: 1.35, marginBottom: '0.5rem' }}>
+                <div style={{ color: '#000', fontWeight: '900', fontSize: '1.2rem', lineHeight: 1.35, marginBottom: '0.5rem' }}>
                   {(() => {
                     const parts = (colegiado.nombres || '').toUpperCase().trim().split(/\s+/);
                     let p = '', m = '', n = '';
