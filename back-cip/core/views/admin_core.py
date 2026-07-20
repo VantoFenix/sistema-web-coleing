@@ -45,7 +45,7 @@ class AdministradorViewSet(ModelViewSet):
     pagination_class = None
 
     def perform_create(self, serializer):
-        user = serializer.save()
+        user = serializer.save(cuenta_confirmada=False)
         
         # Enviar correo para que configuren su contraseña
         try:
@@ -53,8 +53,9 @@ class AdministradorViewSet(ModelViewSet):
             from django.contrib.auth.tokens import default_token_generator
             from django.utils.http import urlsafe_base64_encode
             from django.utils.encoding import force_bytes
-            from django.core.mail import send_mail
             from django.conf import settings
+            from sendgrid import SendGridAPIClient
+            from sendgrid.helpers.mail import Mail
             
             token_user = _prepare_user_for_token(user)
             token = default_token_generator.make_token(token_user)
@@ -64,29 +65,40 @@ class AdministradorViewSet(ModelViewSet):
             
             rol_display = dict(Administrador._meta.get_field('rol').choices).get(user.rol, user.rol)
             
-            print(f"\n==================================================")
-            print(f"ENLACE DE CONFIGURACION DE CUENTA ADMIN ({user.correo}):")
-            print(f"{link}")
-            print(f"==================================================\n")
+            plain_text = f"Hola {user.nombres},\n\nSe ha creado una cuenta para ti en el Sistema CIP ({rol_display}).\nHaz clic aquí para configurarla: {link}\n\nTienes 10 minutos."
             
-            send_mail(
-                'Bienvenido al Sistema CIP - Configura tu contraseña',
-                f'''Hola {user.nombres},
+            html_text = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <h2 style="color: #2c3e50;">Colegio de Ingenieros del Perú</h2>
+                </div>
+                <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px;">
+                    <h3 style="color: #34495e; margin-top: 0;">Bienvenido al Sistema CIP</h3>
+                    <p style="color: #555; line-height: 1.5;">Hola <strong>{user.nombres}</strong>,</p>
+                    <p style="color: #555; line-height: 1.5;">Se ha creado una cuenta interna para ti en el sistema con el rol de <strong>{rol_display}</strong>.</p>
+                    <p style="color: #555; line-height: 1.5;">Tu usuario de acceso es: <strong>{user.usuario}</strong></p>
+                    <p style="color: #555; line-height: 1.5;">Por favor, haz clic en el siguiente botón para configurar tu contraseña y activar tu cuenta:</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{link}" style="background-color: #b32821; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Configurar Contraseña</a>
+                    </div>
+                </div>
+                <div style="margin-top: 20px; font-size: 12px; color: #7f8c8d; text-align: center;">
+                    <p><strong>Atención:</strong> Tienes 10 minutos para utilizar este enlace, de lo contrario tu solicitud expirará.</p>
+                </div>
+            </div>
+            """
 
-Se ha creado una cuenta interna para ti en el Sistema CIP con el rol de {rol_display}.
-Tu usuario de acceso es: {user.usuario} (o puedes usar tu correo).
-
-Por favor, haz clic en el siguiente enlace para configurar tu contraseña y activar tu cuenta:
-{link}
-
-Atención: Tienes 10 minutos para utilizar este enlace.
-
-Atentamente,
-Colegio de Ingenieros del Perú''',
-                settings.DEFAULT_FROM_EMAIL or 'admin@cip.com',
-                [user.correo],
-                fail_silently=False,
+            message = Mail(
+                from_email=settings.DEFAULT_FROM_EMAIL or 'vantofortnite@gmail.com',
+                to_emails=user.correo,
+                subject='Bienvenido al Sistema CIP - Configura tu contraseña',
+                plain_text_content=plain_text,
+                html_content=html_text
             )
+            
+            sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+            response = sg.send(message)
+            print(f"[EMAIL SUCCESS] SendGrid StatusCode: {response.status_code}")
         except Exception as e:
             import sys
             print(f"[EMAIL ERROR CREATING ADMIN] {e}", file=sys.stderr)

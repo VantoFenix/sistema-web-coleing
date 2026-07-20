@@ -400,7 +400,6 @@ export default function AdminUsuarios() {
                   <select name="rol" className="form-input" value={formData.rol} onChange={handleChange} required>
                     <option value="ADMIN">ADMIN (Jefe de Sede)</option>
                     <option value="CAJERO">CAJERO (Atención Sede)</option>
-                    <option value="MASTER_ADMIN">MASTER_ADMIN</option>
                   </select>
                 </div>
                 <div className="form-group">
