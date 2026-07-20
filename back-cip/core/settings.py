@@ -261,9 +261,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Si BREVO_API_KEY está definido en .env, usa Anymail (HTTP API port 443)
 # de lo contrario, si EMAIL_HOST está, usa SMTP tradicional.
 if os.getenv('BREVO_API_KEY'):
-    EMAIL_BACKEND = 'anymail.backends.sendinblue.EmailBackend'
+    EMAIL_BACKEND = 'anymail.backends.brevo.EmailBackend'
     ANYMAIL = {
-        'SENDINBLUE_API_KEY': os.getenv('BREVO_API_KEY'),
+        'BREVO_API_KEY': os.getenv('BREVO_API_KEY'),
     }
 elif os.getenv('EMAIL_HOST'):
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
