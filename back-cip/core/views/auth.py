@@ -70,7 +70,8 @@ class AuthLoginView(APIView):
                     'token': token,
                     'user': AdministradorSerializer(admin).data,
                     'role': admin.rol,
-                    'sede_nombre': admin.sede.nombre if admin.sede else 'Sede Global'
+                    'sede_nombre': admin.sede.nombre if admin.sede else 'Sede Global',
+                    'sede_id': admin.sede.id if admin.sede else None
                 })
             return Response({'error': 'Credenciales inválidas'}, status=status.HTTP_401_UNAUTHORIZED)
 

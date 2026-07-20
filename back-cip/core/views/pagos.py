@@ -785,19 +785,20 @@ class FlowGenerarQRView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        # 2. Construir los parámetros del pago (todos como strings)
         email = request.data.get('email', '')
         if not email:
             email = 'vantofortnite@gmail.com'
             
         commerce_order = f'FICHA-{int(time.time())}'
+        monto = request.data.get('amount', '5')
+        concepto = request.data.get('subject', 'Pago Ficha de Inscripcion Presencial')
 
         params = {
             'apiKey':          api_key,
             'commerceOrder':   commerce_order,
-            'subject':         'Pago Ficha de Inscripcion Presencial',
+            'subject':         concepto,
             'currency':        'PEN',
-            'amount':          '5',
+            'amount':          str(monto),
             'email':           email,
             'urlConfirmation': 'https://sistema-web-coleing.onrender.com/api/flow/webhook/',
             'urlReturn':       'https://sistema-web-coleing.onrender.com/admin/presencial',

@@ -58,6 +58,7 @@ export default function AdminLogin() {
           localStorage.setItem('adminUser', JSON.stringify(data.user));
           localStorage.setItem('adminRole', data.role);
           localStorage.setItem('adminSede', data.sede_nombre);
+          localStorage.setItem('adminSedeId', data.sede_id || '');
           
           if (data.role === 'MASTER_ADMIN') {
             navigate('/admin/home');

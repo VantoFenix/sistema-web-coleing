@@ -12,6 +12,7 @@ export default function AdminPresencial() {
   
   const [carrerasOptions, setCarrerasOptions] = useState([]);
   const [sedesOptions, setSedesOptions] = useState([]);
+  const [isSedeLocked, setIsSedeLocked] = useState(false);
 
   const [foto, setFoto] = useState(null);
   const [fotoInfo, setFotoInfo] = useState('');
@@ -73,6 +74,12 @@ export default function AdminPresencial() {
       }
     };
     fetchCatalogos();
+
+    const storedSede = localStorage.getItem('adminSede');
+    if (storedSede && storedSede !== 'Sede Global') {
+      setSede(storedSede);
+      setIsSedeLocked(true);
+    }
   }, []);
 
   const handleValidarDNI = async () => {
@@ -210,7 +217,8 @@ export default function AdminPresencial() {
   };
 
   const resetForm = () => {
-    setSuccess(false); setDni(''); setNombres(''); setCarrera(''); setSede('');
+    setSuccess(false); setDni(''); setNombres(''); setCarrera(''); 
+    if (!isSedeLocked) setSede('');
     setFoto(null); setFotoInfo(''); setTitulo(null); setDniAnverso(null); setDniReverso(null);
     setCorreo(''); setCelular('');
     setDniValidado(false); setErrorMsg('');
@@ -277,7 +285,13 @@ export default function AdminPresencial() {
             </div>
             <div className="form-group">
               <label className="form-label">Sede Departamental</label>
-              <select className="form-select" value={sede} onChange={(e) => setSede(e.target.value)}>
+              <select 
+                className="form-select" 
+                value={sede} 
+                onChange={(e) => setSede(e.target.value)}
+                disabled={isSedeLocked}
+                style={isSedeLocked ? { background: '#f1f5f9', cursor: 'not-allowed' } : {}}
+              >
                 <option value="">Seleccione una sede</option>
                 {sedesOptions.map(s => (
                   <option key={s.id} value={s.nombre}>{s.nombre}</option>

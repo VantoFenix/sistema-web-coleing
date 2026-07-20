@@ -58,6 +58,31 @@ export default function AdminPagoPresencial() {
   const [resultados, setResultados] = useState(null);
   const [errBusqueda, setErrBusqueda] = useState('');
 
+  const [cargandoQr, setCargandoQr] = useState(false);
+  const [qrError, setQrError] = useState('');
+
+  const generarQrMixto = async (montoQr) => {
+    setCargandoQr(true); setQrError('');
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch('/api/flow/generar-qr/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ amount: montoQr, subject: 'Pago Mixto - CIP' })
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        window.open(`${data.url}?token=${data.token}`, '_blank', 'width=500,height=700');
+      } else {
+        setQrError(data.error || 'Error al generar QR');
+      }
+    } catch {
+      setQrError('Error de red al generar QR');
+    } finally {
+      setCargandoQr(false);
+    }
+  };
+
   const [comprobanteParaMostrar, setComprobanteParaMostrar] = useState(null);
   const [comprobanteDescargando, setComprobanteDescargando] = useState(false);
 
@@ -1069,6 +1094,9 @@ export default function AdminPagoPresencial() {
                         {METODOS.map(m => <option key={m.valor} value={m.valor}>{m.label}</option>)}
                       </select>
                       <input type="number" step="0.01" min="0" placeholder="Monto S/" value={monto1} onChange={e => setMonto1(e.target.value)} style={{ width: '80px', padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }} />
+                      {metodo1 === 'YAPE_PLIN' && monto1 && parseFloat(monto1) > 0 && (
+                        <button type="button" onClick={() => generarQrMixto(monto1)} disabled={cargandoQr} style={{ padding: '0.4rem 0.6rem', background: '#3B82F6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}>QR</button>
+                      )}
                     </div>
                   </div>
                   <div>
@@ -1079,8 +1107,14 @@ export default function AdminPagoPresencial() {
                         {METODOS.map(m => <option key={m.valor} value={m.valor}>{m.label}</option>)}
                       </select>
                       <input type="number" step="0.01" min="0" placeholder="Monto S/" value={monto2} onChange={e => setMonto2(e.target.value)} style={{ width: '80px', padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }} />
+                      {metodo2 === 'YAPE_PLIN' && monto2 && parseFloat(monto2) > 0 && (
+                        <button type="button" onClick={() => generarQrMixto(monto2)} disabled={cargandoQr} style={{ padding: '0.4rem 0.6rem', background: '#3B82F6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}>QR</button>
+                      )}
                     </div>
                   </div>
+                  {qrError && (
+                    <div style={{ marginTop: '0.5rem', color: '#DC2626', fontSize: '0.75rem', fontWeight: '600' }}>{qrError}</div>
+                  )}
                   {monto1 && monto2 && monto && (
                     <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', textAlign: 'right', fontWeight: '600', color: Math.abs(parseFloat(monto1) + parseFloat(monto2) - parseFloat(monto)) < 0.01 ? '#059669' : '#DC2626' }}>
                       Suma: S/ {(parseFloat(monto1) + parseFloat(monto2)).toFixed(2)} / S/ {parseFloat(monto).toFixed(2)}
