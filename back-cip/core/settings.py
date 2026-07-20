@@ -9,7 +9,7 @@ import dj_database_url
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Cargar las variables del archivo .env desde la raíz del proyecto
+# Cargar las variables del archivo .env desde la raíz del proyect
 env_path = BASE_DIR.parent / '.env'
 load_dotenv(dotenv_path=env_path, override=True)
 
