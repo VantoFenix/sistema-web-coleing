@@ -267,6 +267,8 @@ if os.getenv('EMAIL_HOST'):
 else:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
+EMAIL_TIMEOUT = 10
+
 DEFAULT_FROM_EMAIL = os.getenv(
     'DEFAULT_FROM_EMAIL',
     os.getenv('EMAIL_HOST_USER') or 'Colegio de Ingenieros del Perú <noreply@cip.org.pe>'
