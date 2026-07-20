@@ -489,6 +489,21 @@ export default function AdminPagoPresencial() {
     </tbody>
   </table>
 
+  ${r.pagos_parciales && r.pagos_parciales.length > 0 ? `
+  <div class="totales" style="border-top: none; padding-top: 0; margin-bottom: 10px;">
+    <div style="font-weight: bold; font-size: 11px; margin-bottom: 4px;">Detalle de Pago:</div>
+    <table class="totales-table">
+      ${r.pagos_parciales.map(p => `<tr><td>${p.metodo === 'YAPE_PLIN' ? 'Yape/Plin/Online' : p.metodo}</td><td>S/ ${parseFloat(p.monto).toFixed(2)}</td></tr>`).join('')}
+    </table>
+  </div>
+  ` : `
+  <div class="totales" style="border-top: none; padding-top: 0; margin-bottom: 10px;">
+    <table class="totales-table">
+      <tr><td>Forma de pago</td><td>${r.metodo}</td></tr>
+    </table>
+  </div>
+  `}
+
   <div class="totales">
     <table class="totales-table">
       <tr><td>Op. inafecta</td><td>S/ ${parseFloat(r.monto_total || 0).toFixed(2)}</td></tr>

@@ -158,6 +158,7 @@ class AdminRegistrarPagoPresencialView(APIView):
             'metodo':             metodo,
             'fecha_pago':         fecha_pago.strftime('%d/%m/%Y'),
             'emision':            emision,
+            'pagos_parciales':    request.data.get('pagos_parciales', []),
             # datos operativos
             'periodos_registrados': registrados,
             'ya_existian':          ya_existian,
