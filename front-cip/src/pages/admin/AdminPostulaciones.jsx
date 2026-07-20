@@ -159,34 +159,24 @@ export default function AdminPostulaciones() {
               value={filtroEstado}
               onChange={(e) => setFiltroEstado(e.target.value)}
               className="form-input"
-              style={{ background: '#FEF2F2', borderColor: '#FECACA', color: '#991B1B', fontWeight: '600', padding: '0.5rem 2rem 0.5rem 1rem' }}
+              style={{ background: 'white', borderColor: 'var(--border-color)', color: 'var(--text-main)', fontWeight: '500', padding: '0.5rem 2rem 0.5rem 1rem' }}
             >
-              <option value="EN_REVISION">En Revisión</option>
-              <option value="APROBADA">Aprobadas</option>
-              <option value="RECHAZADA">Rechazadas</option>
-              <option value="TODAS">Todas</option>
+              <option value="EN_REVISION">Estado: En Revisión</option>
+              <option value="APROBADA">Estado: Aprobadas</option>
+              <option value="RECHAZADA">Estado: Rechazadas</option>
+              <option value="TODAS">Estado: Todas</option>
             </select>
 
-            <div style={{ display: 'flex', background: '#F1F5F9', borderRadius: '8px', padding: '0.25rem' }}>
-              <button
-                onClick={() => setFiltroOrigen('TODAS')}
-                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.875rem', fontWeight: '500', background: filtroOrigen === 'TODAS' ? 'white' : 'transparent', boxShadow: filtroOrigen === 'TODAS' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', color: filtroOrigen === 'TODAS' ? '#0F172A' : '#64748B' }}
-              >
-                Todas
-              </button>
-              <button
-                onClick={() => setFiltroOrigen('WEB')}
-                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.875rem', fontWeight: '500', background: filtroOrigen === 'WEB' ? 'white' : 'transparent', boxShadow: filtroOrigen === 'WEB' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', color: filtroOrigen === 'WEB' ? '#0F172A' : '#64748B' }}
-              >
-                Web 🌐
-              </button>
-              <button
-                onClick={() => setFiltroOrigen('PRESENCIAL')}
-                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.875rem', fontWeight: '500', background: filtroOrigen === 'PRESENCIAL' ? 'white' : 'transparent', boxShadow: filtroOrigen === 'PRESENCIAL' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', color: filtroOrigen === 'PRESENCIAL' ? '#0F172A' : '#64748B' }}
-              >
-                Presencial 🏢
-              </button>
-            </div>
+            <select
+              value={filtroOrigen}
+              onChange={(e) => setFiltroOrigen(e.target.value)}
+              className="form-input"
+              style={{ background: 'white', borderColor: 'var(--border-color)', color: 'var(--text-main)', fontWeight: '500', padding: '0.5rem 2rem 0.5rem 1rem' }}
+            >
+              <option value="TODAS">Origen: Todas</option>
+              <option value="WEB">Origen: Web 🌐</option>
+              <option value="PRESENCIAL">Origen: Presencial 🏢</option>
+            </select>
 
             <div style={{ position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />

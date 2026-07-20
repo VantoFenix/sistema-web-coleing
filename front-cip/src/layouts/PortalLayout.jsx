@@ -19,6 +19,9 @@ export default function PortalLayout() {
     navigate('/');
   };
 
+  if (!localStorage.getItem('colToken')) {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <div className="app-container">

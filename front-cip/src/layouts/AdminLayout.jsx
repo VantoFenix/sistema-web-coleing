@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, Navigate } from 'react-router-dom';
 import { LayoutDashboard, FileText, UserPlus, LogOut, Wallet, ShieldCheck, MapPin, BookOpen, Users, AlertTriangle } from 'lucide-react';
 
 export default function AdminLayout() {
@@ -28,6 +28,10 @@ export default function AdminLayout() {
       <span>{label}</span>
     </NavLink>
   );
+
+  if (!localStorage.getItem('adminToken')) {
+    return <Navigate to="/admin/login" replace />;
+  }
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-main)' }}>
