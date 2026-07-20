@@ -16,4 +16,3 @@ reportlab>=4.0.0
 PyPDF2>=3.0.0
 cloudinary>=1.36.0
 django-cloudinary-storage>=0.3.0
-django-anymail[brevo]>=10.0

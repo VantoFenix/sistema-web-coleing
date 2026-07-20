@@ -42,7 +42,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
-    'anymail',
     'cloudinary_storage',
     'cloudinary',
     
@@ -256,38 +255,19 @@ SIMPLE_JWT = {
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ==============================================================================
-# CONFIGURACIÓN DE CORREO ELECTRÓNICO
+# CONFIGURACIÓN DE CORREO ELECTRÓNICO - Gmail SMTP
 # ==============================================================================
-# Si BREVO_API_KEY está definido en .env, usa Anymail (HTTP API port 443)
-# de lo contrario, si EMAIL_HOST está, usa SMTP tradicional.
-if os.getenv('BREVO_API_KEY'):
-    EMAIL_BACKEND = 'anymail.backends.brevo.EmailBackend'
-    ANYMAIL = {
-        'BREVO_API_KEY': os.getenv('BREVO_API_KEY'),
-    }
-elif os.getenv('MAILTRAP_API_KEY') or os.getenv('MAILTRAP_API_TOKEN'):
-    EMAIL_BACKEND = 'anymail.backends.mailtrap.EmailBackend'
-    ANYMAIL = {
-        'MAILTRAP_API_TOKEN': os.getenv('MAILTRAP_API_TOKEN') or os.getenv('MAILTRAP_API_KEY'),
-    }
-    # Si el usuario quiere usar el buzón de pruebas (Sandbox), debe poner su Inbox ID.
-    sandbox_id = os.getenv('MAILTRAP_SANDBOX_ID')
-    if sandbox_id:
-        ANYMAIL['MAILTRAP_SANDBOX_ID'] = sandbox_id
-elif os.getenv('EMAIL_HOST'):
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = os.getenv('EMAIL_HOST')
-    EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-    EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
-    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-else:
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 EMAIL_TIMEOUT = 10
 
-DEFAULT_FROM_EMAIL_ENV = os.getenv('DEFAULT_FROM_EMAIL') or os.getenv('EMAIL_HOST_USER') or 'noreply@cip.org.pe'
-DEFAULT_FROM_EMAIL = f"Colegio de Ingenieros del Perú <{DEFAULT_FROM_EMAIL_ENV}>"
+# Remitente fijo — debe coincidir con EMAIL_HOST_USER para pasar las
+# verificaciones SPF/DKIM de Gmail y evitar rechazos.
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@cip.org.pe')
 
 # ==============================================================================
 # MERCADOPAGO
