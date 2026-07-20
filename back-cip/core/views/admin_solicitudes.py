@@ -111,7 +111,7 @@ class AdminResolverSolicitudView(APIView):
                         row = cursor.fetchone()
                         siguiente_nro = str((row[0] or 0) + 1).zfill(5)
 
-                    Colegiado.objects.create(
+                    colegiado = Colegiado.objects.create(
                         dni=solicitud.dni,
                         nombres=solicitud.nombres,
                         foto_url=solicitud.foto_url,
@@ -122,6 +122,32 @@ class AdminResolverSolicitudView(APIView):
                         correo=solicitud.correo,
                         celular=solicitud.celular,
                         colegiado_desde=datetime.utcnow().date()
+                    )
+
+                    # Auto-crear registro de Pago de Incorporación
+                    metodo_pago = None
+                    canal_pago = 'PORTAL'
+                    if solicitud.numero_operacion:
+                        prefix = solicitud.numero_operacion.split('-')[0]
+                        if prefix in ['MIXTO', 'YAPE_PLIN', 'EFECTIVO', 'CAJA']:
+                            canal_pago = 'CAJA'
+                            metodo_pago = prefix if prefix != 'CAJA' else 'EFECTIVO'
+                    
+                    # Para Web (PORTAL), usualmente es TRANSFERENCIA o YAPE, pero no tenemos el metodo exacto
+                    # a menos que lo guardemos. Lo dejaremos como nulo si no es presencial.
+
+                    # Para web, si no hay fecha_pago, usamos la fecha de hoy
+                    f_pago = solicitud.fecha_pago if solicitud.fecha_pago else datetime.utcnow().date()
+
+                    Pago.objects.create(
+                        colegiado=colegiado,
+                        tipo='INCORPORACION',
+                        periodo=f_pago.replace(day=1), # Usamos el mes de la inscripción
+                        monto=5.00,
+                        canal=canal_pago,
+                        metodo=metodo_pago,
+                        nro_operacion=solicitud.numero_operacion,
+                        fecha_pago=f_pago
                     )
 
             except IntegrityError as e:
