@@ -40,7 +40,9 @@ INSTALLED_APPS = [
     
     # --- THIRD PARTY APPS ---
     'rest_framework',
+    'rest_framework_simplejwt',
     'corsheaders',
+    'anymail',
     'cloudinary_storage',
     'cloudinary',
     
@@ -256,8 +258,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ==============================================================================
 # CONFIGURACIÓN DE CORREO ELECTRÓNICO
 # ==============================================================================
-# Si EMAIL_HOST está definido en .env, usa SMTP, de lo contrario, imprime correos en la consola del servidor.
-if os.getenv('EMAIL_HOST'):
+# Si BREVO_API_KEY está definido en .env, usa Anymail (HTTP API port 443)
+# de lo contrario, si EMAIL_HOST está, usa SMTP tradicional.
+if os.getenv('BREVO_API_KEY'):
+    EMAIL_BACKEND = 'anymail.backends.sendinblue.EmailBackend'
+    ANYMAIL = {
+        'SENDINBLUE_API_KEY': os.getenv('BREVO_API_KEY'),
+    }
+elif os.getenv('EMAIL_HOST'):
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = os.getenv('EMAIL_HOST')
     EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
