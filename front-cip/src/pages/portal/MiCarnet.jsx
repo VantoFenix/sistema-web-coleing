@@ -6,10 +6,6 @@ export default function MiCarnet() {
   const [cargando, setCargando] = useState(true);
   const [fotoError, setFotoError] = useState(false);
 
-  useEffect(() => {
-    fetchPerfil();
-  }, []);
-
   const fetchPerfil = async () => {
     try {
       const token = localStorage.getItem('colToken');
@@ -27,6 +23,12 @@ export default function MiCarnet() {
     }
   };
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchPerfil();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (cargando) return (
     <div style={{ textAlign: 'center', padding: '5rem' }}>
       <Loader2 size={40} className="spin" style={{ color: 'var(--cip-red)', margin: '0 auto' }} />
@@ -36,9 +38,6 @@ export default function MiCarnet() {
   if (!colegiado) return <div style={{ textAlign: 'center', padding: '3rem' }}>Error al cargar datos.</div>;
 
   const habilitado = colegiado.habilitado;
-  const fechaEmision = colegiado.colegiado_desde
-    ? new Date(colegiado.colegiado_desde + 'T00:00:00').toLocaleDateString('es-PE', { year: 'numeric', month: '2-digit', day: '2-digit' })
-    : '—';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', padding: '1rem 0' }}>
@@ -71,35 +70,35 @@ export default function MiCarnet() {
           }}>
             {/* Watermark Logo (Simulated faint background) */}
             <div style={{
-              position: 'absolute', top: '50%', left: '50%',
-              transform: 'translate(-50%, -50%)',
-              opacity: 0.08, zIndex: 0
+              position: 'absolute', top: '50%', right: '-15%',
+              transform: 'translateY(-50%)',
+              opacity: 0.35, zIndex: 0
             }}>
-              <img src="/webp-logo-cip.webp" alt="" style={{ width: '200px' }} />
+              <img src="/webp-logo-cip.webp" alt="" style={{ width: '380px' }} />
             </div>
 
             {/* Header: Logo + institución */}
             <div style={{
-              position: 'absolute', top: '16px', left: '16px', right: '16px',
-              display: 'flex', alignItems: 'center', gap: '0.7rem', zIndex: 1
+              position: 'absolute', top: '20px', left: '20px', right: '20px',
+              display: 'flex', alignItems: 'center', gap: '0.8rem', zIndex: 1
             }}>
-              <img src="/webp-logo-cip.webp" alt="CIP" style={{ height: '44px', width: 'auto', flexShrink: 0 }} />
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ color: '#333', fontWeight: '800', fontSize: '1.1rem', letterSpacing: '0.5px', lineHeight: 1.1 }}>
-                  COLEGIO DE INGENIEROS<br/>DEL PERÚ
+              <img src="/webp-logo-cip.webp" alt="CIP" style={{ height: '70px', width: 'auto', flexShrink: 0 }} />
+              <div style={{ flex: 1, textAlign: 'center', paddingTop: '4px' }}>
+                <div style={{ color: '#000', fontWeight: '800', fontSize: '1.45rem', letterSpacing: '0.5px', lineHeight: 1.1 }}>
+                  COLEGIO DE INGENIEROS<br/>DEL PERU
                 </div>
               </div>
             </div>
 
             {/* Cuerpo del carnet */}
             <div style={{
-              position: 'absolute', top: '77px', left: '16px', right: '16px', bottom: '16px',
-              display: 'flex', gap: '1.1rem', alignItems: 'flex-start', zIndex: 1
+              position: 'absolute', top: '105px', left: '20px', right: '20px', bottom: '16px',
+              display: 'flex', gap: '1.5rem', alignItems: 'flex-start', zIndex: 1
             }}>
               {/* Foto */}
               <div style={{
-                width: '105px', height: '138px', flexShrink: 0,
-                borderRadius: '5px', overflow: 'hidden',
+                width: '120px', height: '156px', flexShrink: 0,
+                borderRadius: '6px', overflow: 'hidden',
                 background: '#eee',
                 display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}>
@@ -118,23 +117,38 @@ export default function MiCarnet() {
               </div>
 
               {/* Datos */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', paddingTop: '5px' }}>
                 {/* Dividir Nombres y Apellidos */}
-                <div style={{ color: '#222', fontWeight: '800', fontSize: '1rem', lineHeight: 1.2, marginBottom: '0.25rem' }}>
-                  {colegiado.nombres}
+                <div style={{ color: '#000', fontWeight: '900', fontSize: '1.3rem', lineHeight: 1.35, marginBottom: '0.5rem' }}>
+                  {(() => {
+                    const parts = (colegiado.nombres || '').toUpperCase().trim().split(/\s+/);
+                    let p = '', m = '', n = '';
+                    if (parts.length === 1) p = parts[0];
+                    else if (parts.length === 2) { p = parts[0]; n = parts[1]; }
+                    else if (parts.length === 3) { p = parts[0]; m = parts[1]; n = parts[2]; }
+                    else if (parts.length >= 4) { p = parts[0]; m = parts[1]; n = parts.slice(2).join(' '); }
+                    
+                    return (
+                      <>
+                        {p}<br/>
+                        {m}{m && <br/>}
+                        {n}
+                      </>
+                    );
+                  })()}
                 </div>
 
-                <div style={{ color: '#444', fontWeight: '600', fontSize: '1rem', marginTop: '0.9rem', lineHeight: 1.2 }}>
+                <div style={{ color: '#000', fontWeight: '600', fontSize: '1.05rem', marginTop: '0.5rem', lineHeight: 1.2 }}>
                   Ing. {colegiado.carrera?.nombre?.toUpperCase()}
                 </div>
 
-                <div style={{ color: '#444', fontWeight: '600', fontSize: '1rem', marginTop: '0.55rem' }}>
-                  DNI: <span style={{ fontWeight: '400' }}>{colegiado.dni}</span>
+                <div style={{ color: '#000', fontWeight: '600', fontSize: '1.05rem', marginTop: '0.2rem' }}>
+                  DNI: {colegiado.dni}
                 </div>
 
                 <div style={{ marginTop: 'auto', textAlign: 'right' }}>
-                  <div style={{ color: '#222', fontWeight: '800', fontSize: '1.32rem', letterSpacing: '1px' }}>
-                    CIP {colegiado.nro_colegiado}
+                  <div style={{ color: '#000', fontWeight: '800', fontSize: '1.4rem', letterSpacing: '0.5px' }}>
+                    Nº Reg. CIP: {colegiado.nro_colegiado}
                   </div>
                 </div>
               </div>
