@@ -349,6 +349,10 @@ export default function AdminPresencial() {
       setErrorMsg("Complete todos los campos requeridos y adjunte los documentos (incluyendo DNI).");
       return;
     }
+    if (celular.length !== 9 || !celular.startsWith('9')) {
+      setErrorMsg("El celular debe tener 9 dígitos y empezar con 9 (número de Perú).");
+      return;
+    }
     if (dni.length !== 8) {
       setErrorMsg("El DNI debe tener 8 dígitos.");
       return;
@@ -614,7 +618,7 @@ export default function AdminPresencial() {
               <label className="form-label">Teléfono / Celular</label>
               <input type="text" className="form-input" value={celular}
                 onChange={(e) => setCelular(e.target.value.replace(/\D/g, ''))}
-                maxLength={15}
+                maxLength={9}
                 placeholder="Ej. 999888777" />
             </div>
           </div>

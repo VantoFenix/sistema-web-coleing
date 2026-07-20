@@ -165,6 +165,10 @@ export default function Postular() {
       setSubmitError("Debe ingresar un correo electrónico y celular de contacto.");
       return;
     }
+    if (celular.length !== 9 || !celular.startsWith('9')) {
+      setSubmitError("El celular debe tener 9 dígitos y empezar con 9 (número de Perú).");
+      return;
+    }
     if (!foto || !titulo || !recibo || !dniAnverso || !dniReverso) {
       setSubmitError("Debe adjuntar todos los documentos requeridos: Foto, Título Profesional, Recibo de Pago y DNI (Anverso y Reverso).");
       return;
@@ -507,7 +511,7 @@ export default function Postular() {
                     type="text"
                     className="form-input"
                     placeholder="Ej. 999888777"
-                    maxLength={15}
+                    maxLength={9}
                     value={celular}
                     onChange={(e) => setCelular(e.target.value.replace(/\D/g, ''))}
                   />
