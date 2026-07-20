@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wallet, Clock, ArrowRight, Loader2 } from 'lucide-react';
+import { Wallet, Clock, ArrowRight, Loader2, Mail, Send } from 'lucide-react';
 
 export default function AdminDeudores() {
   const [colegiados, setColegiados] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [errorFetch, setErrorFetch] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('TODOS');
+  const [notificandoId, setNotificandoId] = useState(null);
+  const [notificandoAll, setNotificandoAll] = useState(false);
+  const [avisoNotif, setAvisoNotif] = useState(null); // {tipo:'ok'|'err', texto}
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,9 +37,46 @@ export default function AdminDeudores() {
     }
   };
 
+  const notificar = async ({ ids = [], masivo = false }) => {
+    setAvisoNotif(null);
+    if (masivo) setNotificandoAll(true);
+    else setNotificandoId(ids[0]);
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch('/api/admin/deudores/notificar/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ids })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const partes = [];
+        if (data.enviados) partes.push(`${data.enviados} enviados`);
+        if (data.sin_correo) partes.push(`${data.sin_correo} sin correo`);
+        if (data.fallidos) partes.push(`${data.fallidos} fallidos`);
+        setAvisoNotif({
+          tipo: data.fallidos ? 'err' : 'ok',
+          texto: partes.join(' · ') || 'Proceso completado'
+        });
+      } else {
+        setAvisoNotif({ tipo: 'err', texto: data.error || 'Error al notificar' });
+      }
+    } catch (e) {
+      setAvisoNotif({ tipo: 'err', texto: `Sin conexión: ${e.message}` });
+    } finally {
+      setNotificandoId(null);
+      setNotificandoAll(false);
+    }
+  };
+
   const colegiadosFiltrados = colegiados.filter(c => 
     filtroEstado === 'TODOS' || c.estado === filtroEstado
   );
+
+  const deudores = colegiados.filter(c => c.estado === 'INHABILITADO');
 
   return (
     <div style={{ maxWidth: '100%', margin: '0 auto', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
@@ -57,20 +97,52 @@ export default function AdminDeudores() {
           </div>
         </div>
         
-        <button
-          onClick={fetchColegiados}
-          disabled={cargando}
-          style={{ 
-            display: 'flex', alignItems: 'center', gap: '8px', 
-            padding: '10px 16px', background: '#FFFFFF', color: '#334155',
-            border: '1px solid #E2E8F0', borderRadius: '8px', cursor: cargando ? 'not-allowed' : 'pointer',
-            fontSize: '14px', fontWeight: '500', outline: 'none'
-          }}
-        >
-          {cargando ? <Loader2 size={18} className="spin" /> : <Clock size={18} />} 
-          Actualizar
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {/* Botón Notificar a todos */}
+          <button
+            onClick={() => notificar({ ids: [], masivo: true })}
+            disabled={notificandoAll || cargando || deudores.length === 0}
+            style={{ 
+              display: 'flex', alignItems: 'center', gap: '8px', 
+              padding: '10px 16px', background: '#DC2626', color: '#FFFFFF',
+              border: 'none', borderRadius: '8px', 
+              cursor: (notificandoAll || deudores.length === 0) ? 'not-allowed' : 'pointer',
+              fontSize: '14px', fontWeight: '500', outline: 'none',
+              opacity: (notificandoAll || deudores.length === 0) ? 0.6 : 1
+            }}
+          >
+            {notificandoAll ? <Loader2 size={18} className="spin" /> : <Send size={18} />} 
+            Notificar a todos
+          </button>
+
+          {/* Botón Actualizar */}
+          <button
+            onClick={fetchColegiados}
+            disabled={cargando}
+            style={{ 
+              display: 'flex', alignItems: 'center', gap: '8px', 
+              padding: '10px 16px', background: '#FFFFFF', color: '#334155',
+              border: '1px solid #E2E8F0', borderRadius: '8px', cursor: cargando ? 'not-allowed' : 'pointer',
+              fontSize: '14px', fontWeight: '500', outline: 'none'
+            }}
+          >
+            {cargando ? <Loader2 size={18} className="spin" /> : <Clock size={18} />} 
+            Actualizar
+          </button>
+        </div>
       </div>
+
+      {/* Aviso de notificación */}
+      {avisoNotif && (
+        <div style={{ 
+          padding: '12px 16px', borderRadius: '8px', fontSize: '14px', marginBottom: '16px',
+          background: avisoNotif.tipo === 'ok' ? '#ECFDF5' : '#FEF2F2',
+          color: avisoNotif.tipo === 'ok' ? '#059669' : '#DC2626',
+          border: `1px solid ${avisoNotif.tipo === 'ok' ? '#10B981' : '#FECACA'}`
+        }}>
+          {avisoNotif.texto}
+        </div>
+      )}
 
       {errorFetch && (
         <div style={{ padding: '12px 16px', background: '#FEF2F2', color: '#DC2626', borderRadius: '8px', fontSize: '14px', marginBottom: '16px', border: '1px solid #FECACA' }}>
@@ -164,25 +236,54 @@ export default function AdminDeudores() {
                       )}
                     </td>
                     <td style={{ padding: '16px 24px' }}>
-                      <button 
-                        onClick={() => navigate('/admin/pagos-presencial', { state: { dni: colegiado.dni } })}
-                        style={{ 
-                          background: '#0F172A', 
-                          color: '#FFFFFF', 
-                          padding: '8px 16px', 
-                          borderRadius: '6px', 
-                          fontSize: '13px', 
-                          fontWeight: '500',
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: '6px', 
-                          cursor: 'pointer', 
-                          border: 'none',
-                          outline: 'none'
-                        }}
-                      >
-                        {colegiado.estado === 'ACTIVO' ? 'Adelantar Pago' : 'Cobrar Deuda'} <ArrowRight size={16} />
-                      </button>
+                      <div style={{ display: 'inline-flex', gap: '8px' }}>
+                        {/* Botón Notificar individual (solo para inhabilitados con correo) */}
+                        {colegiado.estado === 'INHABILITADO' && (
+                          <button
+                            onClick={() => notificar({ ids: [colegiado.id] })}
+                            disabled={notificandoId === colegiado.id || notificandoAll || !colegiado.correo}
+                            title={colegiado.correo ? `Enviar recordatorio a ${colegiado.correo}` : 'Colegiado sin correo registrado'}
+                            style={{
+                              background: '#FFFFFF',
+                              color: '#DC2626',
+                              padding: '8px 12px',
+                              borderRadius: '6px',
+                              fontSize: '13px',
+                              fontWeight: '500',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              cursor: colegiado.correo ? 'pointer' : 'not-allowed',
+                              border: '1px solid #FECACA',
+                              outline: 'none',
+                              opacity: colegiado.correo ? 1 : 0.4
+                            }}
+                          >
+                            {notificandoId === colegiado.id ? <Loader2 size={14} className="spin" /> : <Mail size={14} />} Notificar
+                          </button>
+                        )}
+
+                        {/* Botón Cobrar/Adelantar */}
+                        <button 
+                          onClick={() => navigate('/admin/pagos-presencial', { state: { dni: colegiado.dni } })}
+                          style={{ 
+                            background: '#0F172A', 
+                            color: '#FFFFFF', 
+                            padding: '8px 16px', 
+                            borderRadius: '6px', 
+                            fontSize: '13px', 
+                            fontWeight: '500',
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '6px', 
+                            cursor: 'pointer', 
+                            border: 'none',
+                            outline: 'none'
+                          }}
+                        >
+                          {colegiado.estado === 'ACTIVO' ? 'Adelantar Pago' : 'Cobrar Deuda'} <ArrowRight size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -193,10 +294,9 @@ export default function AdminDeudores() {
       </div>
       
       <style>{`
-        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes spin { 100% { transform: rotate(360deg); }  }
         .spin { animation: spin 1s linear infinite; }
       `}</style>
     </div>
   );
 }
-

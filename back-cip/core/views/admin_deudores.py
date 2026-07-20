@@ -79,7 +79,7 @@ class AdminNotificarDeudoresView(APIView):
         if getattr(admin, 'rol', None) != 'CAJERO':
             return Response({'error': 'Solo el cajero puede enviar recordatorios'}, status=403)
 
-        from .emails import enviar_recordatorio_deuda
+        from ..emails import enviar_recordatorio_deuda
 
         ids = request.data.get('ids') or []
         sede_id = admin.sede_id if getattr(admin, 'sede_id', None) else None
