@@ -329,6 +329,11 @@ export default function AdminPagoPresencial() {
       if (metodo1 === metodo2) {
         setErrForm('Seleccione métodos diferentes para el pago mixto.'); return;
       }
+      if ((metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagadoMixto) {
+        if (metodo1 === 'YAPE_PLIN') generarQrMixto(monto1);
+        else if (metodo2 === 'YAPE_PLIN') generarQrMixto(monto2);
+        return;
+      }
       payload.metodo = 'MIXTO';
       payload.pagos_parciales = [
         { metodo: metodo1, monto: parseFloat(monto1) },
@@ -1220,18 +1225,18 @@ export default function AdminPagoPresencial() {
 
               <button
                 onClick={() => handleRegistrar(false)}
-                disabled={enviando || periodosSeleccionados.size === 0 || (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagadoMixto)}
+                disabled={enviando || periodosSeleccionados.size === 0}
                 className="btn btn-block"
                 style={{
                   padding: '0.9rem', fontSize: '0.95rem',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                  background: (enviando || periodosSeleccionados.size === 0 || (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagadoMixto)) ? '#94A3B8' : '#10B981',
+                  background: (enviando || periodosSeleccionados.size === 0) ? '#94A3B8' : '#10B981',
                   border: 'none', borderRadius: '10px', color: 'white',
-                  fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0 || (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagadoMixto)) ? 'not-allowed' : 'pointer',
+                  fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0) ? 'not-allowed' : 'pointer',
                   transition: 'all 0.15s',
                 }}
-                onMouseEnter={e => { if (!enviando && periodosSeleccionados.size > 0 && !(esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagadoMixto)) e.currentTarget.style.background = '#059669'; }}
-                onMouseLeave={e => { if (!enviando && periodosSeleccionados.size > 0 && !(esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagadoMixto)) e.currentTarget.style.background = '#10B981'; }}
+                onMouseEnter={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#059669'; }}
+                onMouseLeave={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#10B981'; }}
               >
                 {enviando
                   ? <><Loader2 size={18} className="spin" /> Registrando…</>
