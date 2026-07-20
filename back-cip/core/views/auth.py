@@ -118,6 +118,7 @@ Atención: Tiene 10 minutos para confirmar este enlace, de lo contrario su solic
             except Exception as e:
                 import sys
                 print(f"[EMAIL ERROR] {e}", file=sys.stderr)
+                return Response({'error': f"Error al enviar correo: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             return Response({'success': 'Si el correo existe, se enviará un enlace de recuperación.'})
         else:
