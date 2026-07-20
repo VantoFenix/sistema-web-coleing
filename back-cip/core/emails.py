@@ -5,7 +5,26 @@ del servidor gracias al backend `console` configurado en settings.py.
 En producción se envían por SMTP.
 """
 from django.conf import settings
-from django.core.mail import EmailMultiAlternatives
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
+
+def _send_via_sendgrid(subject, html_content, to_email, plain_text_content=None):
+    from django.conf import settings
+    message = Mail(
+        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'vantofortnite@gmail.com'),
+        to_emails=to_email,
+        subject=subject,
+        plain_text_content=plain_text_content or 'Por favor, habilite HTML para ver este correo.',
+        html_content=html_content
+    )
+    try:
+        sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+        sg.send(message)
+    except Exception as e:
+        import sys
+        print(f'[EMAIL ERROR] {e}', file=sys.stderr)
+        if hasattr(e, 'body'):
+            print(f'[EMAIL ERROR BODY] {e.body}', file=sys.stderr)
 
 
 def enviar_recordatorio_deuda(*, correo, nombres, nro_colegiado,
@@ -53,14 +72,7 @@ def enviar_recordatorio_deuda(*, correo, nombres, nro_colegiado,
     </div>
     """
 
-    msg = EmailMultiAlternatives(
-        subject=asunto,
-        body=texto,
-        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
-        to=[correo],
-    )
-    msg.attach_alternative(html, "text/html")
-    msg.send(fail_silently=False)
+    _send_via_sendgrid(subject=asunto, plain_text_content=texto, to_email=correo, html_content=html)
 
 
 def enviar_aviso_preventivo(*, correo, nombres, nro_colegiado, dias_restantes):
@@ -104,14 +116,7 @@ def enviar_aviso_preventivo(*, correo, nombres, nro_colegiado, dias_restantes):
     </div>
     """
 
-    msg = EmailMultiAlternatives(
-        subject=asunto,
-        body=texto,
-        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
-        to=[correo],
-    )
-    msg.attach_alternative(html, "text/html")
-    msg.send(fail_silently=False)
+    _send_via_sendgrid(subject=asunto, plain_text_content=texto, to_email=correo, html_content=html)
 
 
 def enviar_aviso_inicio_deuda(*, correo, nombres, nro_colegiado, monto):
@@ -143,14 +148,7 @@ def enviar_aviso_inicio_deuda(*, correo, nombres, nro_colegiado, monto):
     </div>
     """
 
-    msg = EmailMultiAlternatives(
-        subject=asunto,
-        body=texto,
-        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
-        to=[correo],
-    )
-    msg.attach_alternative(html, "text/html")
-    msg.send(fail_silently=False)
+    _send_via_sendgrid(subject=asunto, plain_text_content=texto, to_email=correo, html_content=html)
 
 
 def enviar_aviso_inhabilitacion(*, correo, nombres, nro_colegiado):
@@ -182,14 +180,7 @@ def enviar_aviso_inhabilitacion(*, correo, nombres, nro_colegiado):
     </div>
     """
 
-    msg = EmailMultiAlternatives(
-        subject=asunto,
-        body=texto,
-        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
-        to=[correo],
-    )
-    msg.attach_alternative(html, "text/html")
-    msg.send(fail_silently=False)
+    _send_via_sendgrid(subject=asunto, plain_text_content=texto, to_email=correo, html_content=html)
 
 
 def enviar_confirmacion_pago(*, correo, nombres, nro_colegiado, monto_total, periodos_pagados, nro_operacion):
@@ -226,11 +217,4 @@ def enviar_confirmacion_pago(*, correo, nombres, nro_colegiado, monto_total, per
     </div>
     """
 
-    msg = EmailMultiAlternatives(
-        subject=asunto,
-        body=texto,
-        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
-        to=[correo],
-    )
-    msg.attach_alternative(html, "text/html")
-    msg.send(fail_silently=False)
+    _send_via_sendgrid(subject=asunto, plain_text_content=texto, to_email=correo, html_content=html)
