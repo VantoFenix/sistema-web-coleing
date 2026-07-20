@@ -70,11 +70,11 @@ export default function MiCarnet() {
           }}>
             {/* Watermark Logo (Simulated faint background) */}
             <div style={{
-              position: 'absolute', top: '50%', right: '-15%',
-              transform: 'translateY(-50%)',
+              position: 'absolute', top: '50%', left: '50%',
+              transform: 'translate(-50%, -50%)',
               opacity: 0.35, zIndex: 0
             }}>
-              <img src="/webp-logo-cip.webp" alt="" style={{ width: '380px' }} />
+              <img src="/webp-logo-cip.webp" alt="" style={{ width: '250px' }} />
             </div>
 
             {/* Header: Logo + institución */}
@@ -148,7 +148,7 @@ export default function MiCarnet() {
 
                 <div style={{ marginTop: 'auto', textAlign: 'right' }}>
                   <div style={{ color: '#000', fontWeight: '800', fontSize: '1.4rem', letterSpacing: '0.5px' }}>
-                    Nº Reg. CIP: {colegiado.nro_colegiado}
+                    CIP {colegiado.nro_colegiado}
                   </div>
                 </div>
               </div>
