@@ -129,7 +129,8 @@ class PagoVoucherPendiente(models.Model):
     periodos_json  = models.TextField()
     monto          = models.DecimalField(max_digits=8, decimal_places=2)
     metodo         = models.CharField(max_length=20, choices=METODO_CHOICES)
-    voucher        = models.FileField(upload_to='vouchers/')
+    from utils.storage import select_raw_storage
+    voucher        = models.FileField(upload_to='vouchers/', storage=select_raw_storage)
     estado         = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='PENDIENTE')
     nro_referencia = models.CharField(max_length=40, blank=True)
     observacion    = models.TextField(blank=True)
