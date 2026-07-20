@@ -66,6 +66,7 @@ class Solicitud(models.Model):
     celular         = models.CharField(max_length=15, null=True, blank=True)
     creado_en       = models.DateTimeField(default=timezone.now)
     resuelto_en     = models.DateTimeField(null=True, blank=True)
+    origen          = models.CharField(max_length=20, default='WEB')
 
     class Meta:
         db_table = 'solicitud'
