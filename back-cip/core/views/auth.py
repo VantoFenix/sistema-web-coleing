@@ -111,19 +111,48 @@ class PasswordResetRequestView(APIView):
             print(f"==================================================\n")
             
             try:
-                send_mail(
-                    'Restablecer o Configurar Contraseña',
-                    f'''Haga clic en el siguiente enlace para configurar su contraseña:
-{link}
+                from sendgrid import SendGridAPIClient
+                from sendgrid.helpers.mail import Mail
 
-Atención: Tiene 10 minutos para confirmar este enlace, de lo contrario su solicitud expirará y será eliminada del sistema.''',
-                    settings.DEFAULT_FROM_EMAIL or 'admin@cip.com',
-                    [correo],
-                    fail_silently=False,
+                plain_text = f"Haga clic en el siguiente enlace para configurar su contraseña: {link}\n\nAtención: Tiene 10 minutos para confirmar este enlace."
+                html_text = f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h2 style="color: #2c3e50;">Colegio de Ingenieros del Perú</h2>
+                    </div>
+                    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px;">
+                        <h3 style="color: #34495e; margin-top: 0;">Recuperación de Contraseña</h3>
+                        <p style="color: #555; line-height: 1.5;">Hemos recibido una solicitud para restablecer o configurar la contraseña de su cuenta.</p>
+                        <p style="color: #555; line-height: 1.5;">Haga clic en el siguiente botón para continuar:</p>
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="{link}" style="background-color: #b32821; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Configurar Contraseña</a>
+                        </div>
+                        <p style="color: #555; line-height: 1.5; font-size: 14px;">O copie y pegue este enlace en su navegador:</p>
+                        <p style="color: #3498db; word-break: break-all; font-size: 13px;">{link}</p>
+                    </div>
+                    <div style="margin-top: 20px; font-size: 12px; color: #7f8c8d; text-align: center;">
+                        <p><strong>Atención:</strong> Tiene 10 minutos para confirmar este enlace, de lo contrario su solicitud expirará.</p>
+                        <p>Si usted no solicitó este cambio, ignore este correo.</p>
+                    </div>
+                </div>
+                """
+
+                message = Mail(
+                    from_email=settings.DEFAULT_FROM_EMAIL or 'vantofortnite@gmail.com',
+                    to_emails=correo,
+                    subject='Restablecer o Configurar Contraseña - CIP',
+                    plain_text_content=plain_text,
+                    html_content=html_text
                 )
+                
+                sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+                response = sg.send(message)
+                print(f"[EMAIL SUCCESS] SendGrid StatusCode: {response.status_code}")
             except Exception as e:
                 import sys
                 print(f"[EMAIL ERROR] {e}", file=sys.stderr)
+                if hasattr(e, 'body'):
+                    print(f"[EMAIL ERROR BODY] {e.body}", file=sys.stderr)
                 return Response({'error': f"Error al enviar correo: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             return Response({'success': 'Si el correo existe, se enviará un enlace de recuperación.'})

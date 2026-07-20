@@ -255,20 +255,12 @@ SIMPLE_JWT = {
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ==============================================================================
-# CONFIGURACIÓN DE CORREO ELECTRÓNICO - Gmail SMTP
+# CONFIGURACIÓN DE CORREO ELECTRÓNICO - SendGrid HTTP API
 # ==============================================================================
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False') == 'True'
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-EMAIL_TIMEOUT = 10
+SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY', '')
 
-# Remitente fijo — debe coincidir con EMAIL_HOST_USER para pasar las
-# verificaciones SPF/DKIM de Gmail y evitar rechazos.
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@cip.org.pe')
+# Remitente fijo — debe coincidir con el correo verificado en SendGrid (vantofortnite@gmail.com)
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'vantofortnite@gmail.com')
 
 # ==============================================================================
 # MERCADOPAGO
