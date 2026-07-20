@@ -17,8 +17,10 @@ import uuid
 from datetime import datetime, date
 from django.conf import settings
 
+# pyrefly: ignore [missing-import]
 from ..models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago, PagoVoucherPendiente, Configuracion
 from rest_framework.parsers import MultiPartParser, FormParser
+# pyrefly: ignore [missing-import]
 from ..serializers import AdministradorSerializer, AdministradorCRUDSerializer, ColegiadoSerializer, SolicitudSerializer, CarreraSerializer, SedeSerializer
 # pyrefly: ignore [missing-import]
 from apps.tramites.services import BancoNacionMockService
