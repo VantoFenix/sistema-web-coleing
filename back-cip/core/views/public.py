@@ -172,17 +172,26 @@ class PublicPostulacionView(APIView):
         foto = request.FILES.get('foto')
         titulo = request.FILES.get('titulo')
         recibo = request.FILES.get('recibo')
+        dni_anverso = request.FILES.get('dni_anverso')
+        dni_reverso = request.FILES.get('dni_reverso')
 
-        if not all([dni, nombres, carrera_nombre, sede_nombre, foto, titulo, recibo, numero_operacion, fecha_pago, correo, celular]):
+        if not all([dni, nombres, carrera_nombre, sede_nombre, foto, titulo, dni_anverso, dni_reverso, numero_operacion, fecha_pago, correo, celular]):
             return Response({'error': 'Faltan campos o documentos requeridos'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if banco != 'CAJA' and not recibo:
+            return Response({'error': 'El voucher de pago es requerido para pagos online.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validacion de formatos de archivo
         if not foto.content_type.startswith('image/'):
             return Response({'error': 'La foto debe ser un archivo de imagen válido (JPG, PNG).'}, status=status.HTTP_400_BAD_REQUEST)
         if titulo.content_type != 'application/pdf':
             return Response({'error': 'El Título Profesional debe ser un archivo PDF.'}, status=status.HTTP_400_BAD_REQUEST)
-        if not (recibo.content_type.startswith('image/') or recibo.content_type == 'application/pdf'):
+        if recibo and not (recibo.content_type.startswith('image/') or recibo.content_type == 'application/pdf'):
             return Response({'error': 'El Recibo de Caja debe ser un PDF o una imagen.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not (dni_anverso.content_type.startswith('image/') or dni_anverso.content_type == 'application/pdf'):
+            return Response({'error': 'El DNI Anverso debe ser un PDF o una imagen.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not (dni_reverso.content_type.startswith('image/') or dni_reverso.content_type == 'application/pdf'):
+            return Response({'error': 'El DNI Reverso debe ser un PDF o una imagen.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validar el comprobante con el Mock del Banco de la Nación
         if banco == 'BN':
@@ -221,12 +230,22 @@ class PublicPostulacionView(APIView):
         base_path = 'postulaciones/'
         foto_name = f"{base_path}{uuid.uuid4()}_{foto.name}"
         titulo_name = f"{base_path}{uuid.uuid4()}_{titulo.name}"
-        recibo_name = f"{base_path}{uuid.uuid4()}_{recibo.name}"
+        recibo_name = f"{base_path}{uuid.uuid4()}_{recibo.name}" if recibo else None
+        dni_anverso_name = f"{base_path}{uuid.uuid4()}_{dni_anverso.name}"
+        dni_reverso_name = f"{base_path}{uuid.uuid4()}_{dni_reverso.name}"
 
         try:
-            default_storage.save(foto_name, foto)
-            default_storage.save(titulo_name, titulo)
-            default_storage.save(recibo_name, recibo)
+            import sys
+            # Add to import block at the top if necessary, but we can do it here for now
+            sys.path.append(os.path.join(settings.BASE_DIR, '..')) # Just in case
+            from utils.storage import select_raw_storage
+            raw_storage = select_raw_storage()
+            
+            raw_storage.save(foto_name, foto)
+            raw_storage.save(titulo_name, titulo)
+            if recibo: raw_storage.save(recibo_name, recibo)
+            raw_storage.save(dni_anverso_name, dni_anverso)
+            raw_storage.save(dni_reverso_name, dni_reverso)
         except Exception as e:
             import sys
             print(f"[ERROR] Fallo al guardar archivos: {e}", file=sys.stderr)
@@ -240,7 +259,9 @@ class PublicPostulacionView(APIView):
                 sede=sede,
                 foto_url=f"/media/{foto_name}",
                 titulo_pdf_url=f"/media/{titulo_name}",
-                recibo_pago_url=f"/media/{recibo_name}",
+                recibo_pago_url=f"/media/{recibo_name}" if recibo else None,
+                dni_anverso_url=f"/media/{dni_anverso_name}",
+                dni_reverso_url=f"/media/{dni_reverso_name}",
                 numero_operacion=numero_operacion,
                 fecha_pago=fecha_pago,
                 correo=correo,

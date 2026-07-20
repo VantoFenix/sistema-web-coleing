@@ -7,6 +7,8 @@ export default function AdminPresencial() {
   const [nombres, setNombres] = useState('');
   const [carrera, setCarrera] = useState('');
   const [sede, setSede] = useState('');
+  const [correo, setCorreo] = useState('');
+  const [celular, setCelular] = useState('');
   
   const [carrerasOptions, setCarrerasOptions] = useState([]);
   const [sedesOptions, setSedesOptions] = useState([]);
@@ -14,6 +16,8 @@ export default function AdminPresencial() {
   const [foto, setFoto] = useState(null);
   const [fotoInfo, setFotoInfo] = useState('');
   const [titulo, setTitulo] = useState(null);
+  const [dniAnverso, setDniAnverso] = useState(null);
+  const [dniReverso, setDniReverso] = useState(null);
   const [metodoPago, setMetodoPago] = useState(''); // '' | 'CAJA' | 'YAPE_PLIN'
   const [montoEfectivo, setMontoEfectivo] = useState('');
   const [qrUrl, setQrUrl] = useState(null);
@@ -48,6 +52,7 @@ export default function AdminPresencial() {
       }
     } catch (err) {
       setQrError('Error de conexión al generar el QR.');
+      console.error(err);
     } finally {
       setCargandoQr(false);
     }
@@ -62,7 +67,10 @@ export default function AdminPresencial() {
           setCarrerasOptions(data.carreras || []);
           setSedesOptions(data.sedes || []);
         }
-      } catch (err) {}
+      } catch (err) {
+        // Ignorar error si no hay catálogos
+        console.error(err);
+      }
     };
     fetchCatalogos();
   }, []);
@@ -88,9 +96,10 @@ export default function AdminPresencial() {
         setErrorMsg("DNI no encontrado en RENIEC. Puede ingresar el nombre manualmente.");
         setDniValidado(false);
       }
-    } catch (error) {
+    } catch (err) {
       setErrorMsg("Error conectando con RENIEC. Ingrese el nombre manualmente.");
       setDniValidado(false);
+      console.error(err);
     } finally {
       setIsValidando(false);
     }
@@ -112,16 +121,16 @@ export default function AdminPresencial() {
       const procesada = await procesarFotoCarnet(file);
       setFoto(procesada);
       setFotoInfo(`✓ 413 × 531 px · ${(procesada.size / 1024).toFixed(0)} KB`);
-    } catch (err) {
+    } catch (error) {
       setFotoInfo('');
-      setErrorMsg(typeof err === 'string' ? err : 'Error al procesar la imagen.');
+      setErrorMsg(typeof error === 'string' ? error : 'Error al procesar la imagen.');
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!nombres || !carrera || !sede || !foto || !titulo || !recibo) {
-      setErrorMsg("Complete todos los campos y adjunte los documentos.");
+    if (!nombres || !carrera || !sede || !correo || !celular || !foto || !titulo || !dniAnverso || !dniReverso) {
+      setErrorMsg("Complete todos los campos de datos, de contacto, y adjunte los documentos requeridos (incluyendo DNI).");
       return;
     }
     if (dni.length !== 8) {
@@ -138,8 +147,12 @@ export default function AdminPresencial() {
       setErrorMsg("El Título Profesional debe ser un archivo PDF.");
       return;
     }
-    if (!recibo.type.startsWith('image/') && recibo.type !== 'application/pdf') {
-      setErrorMsg("El Recibo de Caja debe ser un PDF o una imagen.");
+    if (dniAnverso && !dniAnverso.type.startsWith('image/') && dniAnverso.type !== 'application/pdf') {
+      setErrorMsg("El DNI Anverso debe ser un PDF o una imagen.");
+      return;
+    }
+    if (dniReverso && !dniReverso.type.startsWith('image/') && dniReverso.type !== 'application/pdf') {
+      setErrorMsg("El DNI Reverso debe ser un PDF o una imagen.");
       return;
     }
     setErrorMsg('');
@@ -152,9 +165,15 @@ export default function AdminPresencial() {
       formData.append('nombres', nombres);
       formData.append('carrera', carrera);
       formData.append('sede', sede);
+      formData.append('correo', correo);
+      formData.append('celular', celular);
+      formData.append('numero_operacion', `CAJA-${Date.now()}`); // Dummy flag for presencial
+      formData.append('fecha_pago', new Date().toISOString().split('T')[0]); // Today's date
+      formData.append('banco', 'CAJA');
       formData.append('foto', foto);
       formData.append('titulo', titulo);
-      formData.append('recibo', recibo);
+      formData.append('dni_anverso', dniAnverso);
+      formData.append('dni_reverso', dniReverso);
 
       const resPost = await fetch('/api/postulaciones/', { method: 'POST', body: formData });
       if (!resPost.ok) {
@@ -184,6 +203,7 @@ export default function AdminPresencial() {
       }
     } catch (err) {
       setErrorMsg("Error de conexión con el servidor.");
+      console.error(err);
     } finally {
       setEnviando(false);
     }
@@ -191,7 +211,8 @@ export default function AdminPresencial() {
 
   const resetForm = () => {
     setSuccess(false); setDni(''); setNombres(''); setCarrera(''); setSede('');
-    setFoto(null); setFotoInfo(''); setTitulo(null); setRecibo(null);
+    setFoto(null); setFotoInfo(''); setTitulo(null); setDniAnverso(null); setDniReverso(null);
+    setCorreo(''); setCelular('');
     setDniValidado(false); setErrorMsg('');
   };
 
@@ -263,6 +284,19 @@ export default function AdminPresencial() {
                 ))}
               </select>
             </div>
+            <div className="form-group">
+              <label className="form-label">Correo Electrónico</label>
+              <input type="email" className="form-input" value={correo}
+                onChange={(e) => setCorreo(e.target.value)}
+                placeholder="ejemplo@correo.com" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Teléfono / Celular</label>
+              <input type="text" className="form-input" value={celular}
+                onChange={(e) => setCelular(e.target.value.replace(/\D/g, ''))}
+                maxLength={15}
+                placeholder="Ej. 999888777" />
+            </div>
           </div>
 
           <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Documentación Física Verificada</h3>
@@ -301,6 +335,26 @@ export default function AdminPresencial() {
                 <input type="file" accept=".pdf" onChange={(e) => handleFileChange(e, setTitulo)} style={{ opacity: 0, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', cursor: 'pointer' }} />
                 <UploadCloud size={24} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
                 <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px', margin: '0 auto' }}>{titulo ? titulo.name : 'Subir archivo'}</p>
+              </div>
+            </div>
+
+            {/* ── DNI Anverso ── */}
+            <div className="form-group">
+              <label className="form-label">DNI Anverso</label>
+              <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1rem', textAlign: 'center', background: '#f8fafc', cursor: 'pointer', position: 'relative' }}>
+                <input type="file" accept=".pdf,image/*" onChange={(e) => handleFileChange(e, setDniAnverso)} style={{ opacity: 0, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', cursor: 'pointer' }} />
+                <UploadCloud size={24} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
+                <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px', margin: '0 auto' }}>{dniAnverso ? dniAnverso.name : 'Subir Anverso'}</p>
+              </div>
+            </div>
+
+            {/* ── DNI Reverso ── */}
+            <div className="form-group">
+              <label className="form-label">DNI Reverso</label>
+              <div style={{ border: '2px dashed var(--border-color)', borderRadius: '8px', padding: '1rem', textAlign: 'center', background: '#f8fafc', cursor: 'pointer', position: 'relative' }}>
+                <input type="file" accept=".pdf,image/*" onChange={(e) => handleFileChange(e, setDniReverso)} style={{ opacity: 0, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', cursor: 'pointer' }} />
+                <UploadCloud size={24} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
+                <p style={{ fontSize: '0.875rem', color: 'var(--cip-blue)', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px', margin: '0 auto' }}>{dniReverso ? dniReverso.name : 'Subir Reverso'}</p>
               </div>
             </div>
 

@@ -107,6 +107,22 @@ class TramiteInscripcion(models.Model):
         null=True,
         blank=True
     )
+    dni_anverso = models.FileField(
+        upload_to='tramites/dni/%Y/%m/%d/',
+        storage=select_raw_storage,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])],
+        help_text='Anverso del DNI (PDF/JPG/PNG)',
+        null=True,
+        blank=True
+    )
+    dni_reverso = models.FileField(
+        upload_to='tramites/dni/%Y/%m/%d/',
+        storage=select_raw_storage,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])],
+        help_text='Reverso del DNI (PDF/JPG/PNG)',
+        null=True,
+        blank=True
+    )
     numero_operacion = models.CharField(
         max_length=50,
         blank=True,

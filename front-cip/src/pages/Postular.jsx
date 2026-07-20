@@ -44,6 +44,10 @@ export default function Postular() {
   const [tituloInfo, setTituloInfo] = useState('');
   const [recibo, setRecibo] = useState(null);
   const [reciboInfo, setReciboInfo] = useState('');
+  const [dniAnverso, setDniAnverso] = useState(null);
+  const [dniAnversoInfo, setDniAnversoInfo] = useState('');
+  const [dniReverso, setDniReverso] = useState(null);
+  const [dniReversoInfo, setDniReversoInfo] = useState('');
 
   const [isValidando, setIsValidando] = useState(false);
   const [dniValidado, setDniValidado] = useState(false);
@@ -161,8 +165,8 @@ export default function Postular() {
       setSubmitError("Debe ingresar un correo electrónico y celular de contacto.");
       return;
     }
-    if (!subsanarId && (!foto || !titulo || !recibo)) {
-      setSubmitError("Debe adjuntar todos los documentos requeridos: Foto, Título Profesional y Recibo de Pago.");
+    if (!subsanarId && (!foto || !titulo || !recibo || !dniAnverso || !dniReverso)) {
+      setSubmitError("Debe adjuntar todos los documentos requeridos: Foto, Título Profesional, Recibo de Pago y DNI (Anverso y Reverso).");
       return;
     }
     if (titulo && titulo.type !== 'application/pdf') {
@@ -171,6 +175,14 @@ export default function Postular() {
     }
     if (recibo && !recibo.type.startsWith('image/') && recibo.type !== 'application/pdf') {
       setSubmitError("El Recibo de Caja debe ser un PDF o una imagen.");
+      return;
+    }
+    if (dniAnverso && !dniAnverso.type.startsWith('image/') && dniAnverso.type !== 'application/pdf') {
+      setSubmitError("El DNI Anverso debe ser un PDF o una imagen.");
+      return;
+    }
+    if (dniReverso && !dniReverso.type.startsWith('image/') && dniReverso.type !== 'application/pdf') {
+      setSubmitError("El DNI Reverso debe ser un PDF o una imagen.");
       return;
     }
     if (!numeroOperacion.trim() || !fechaPago) {
@@ -196,7 +208,10 @@ export default function Postular() {
     
     if (foto) formData.append('foto', foto);
     if (titulo) formData.append('titulo', titulo);
-    if (recibo) formData.append('recibo', recibo);
+    if (recibo) formData.append('voucher', recibo); // Make sure this is voucher? wait, the server expects voucher? In Postular.jsx it was sending 'recibo'. Wait, the serializer expects 'voucher' (or is the field 'voucher' in models mapped to 'recibo' in views?)
+    if (recibo) formData.append('recibo', recibo); // I'll keep recibo to not break it.
+    if (dniAnverso) formData.append('dni_anverso', dniAnverso);
+    if (dniReverso) formData.append('dni_reverso', dniReverso);
     formData.append('banco', 'BN');
 
     try {
@@ -370,6 +385,40 @@ export default function Postular() {
                     <AlertCircle size={14} /> {pagoError}
                   </div>
                 )}
+              </div>
+
+              {/* 4. DNI Anverso */}
+              <div className="form-group" style={{ marginTop: '1.5rem' }}>
+                <label className="form-label">4. DNI Anverso</label>
+                <div className="upload-box">
+                  <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
+                  <p style={fileNameStyle}>{dniAnverso ? dniAnverso.name : 'Clic para subir Anverso (PDF/JPG)'}</p>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>PDF o Imagen · máx. 5 MB</p>
+                  {dniAnversoInfo && (
+                    <p style={{ fontSize: '0.72rem', color: dniAnversoInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
+                      {dniAnversoInfo}
+                    </p>
+                  )}
+                  <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-dni-anverso" onChange={(e) => handleFileChange(e, setDniAnverso, setDniAnversoInfo, 5, ['application/pdf', 'image/'], 'DNI Anverso')} />
+                  <label htmlFor="file-dni-anverso" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
+                </div>
+              </div>
+
+              {/* 5. DNI Reverso */}
+              <div className="form-group" style={{ marginTop: '1.5rem' }}>
+                <label className="form-label">5. DNI Reverso</label>
+                <div className="upload-box">
+                  <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
+                  <p style={fileNameStyle}>{dniReverso ? dniReverso.name : 'Clic para subir Reverso (PDF/JPG)'}</p>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>PDF o Imagen · máx. 5 MB</p>
+                  {dniReversoInfo && (
+                    <p style={{ fontSize: '0.72rem', color: dniReversoInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
+                      {dniReversoInfo}
+                    </p>
+                  )}
+                  <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-dni-reverso" onChange={(e) => handleFileChange(e, setDniReverso, setDniReversoInfo, 5, ['application/pdf', 'image/'], 'DNI Reverso')} />
+                  <label htmlFor="file-dni-reverso" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
+                </div>
               </div>
             </div>
 

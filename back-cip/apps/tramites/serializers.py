@@ -23,7 +23,7 @@ class TramiteInscripcionSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'dni', 'nombre_completo', 'correo', 'celular',
             'carrera', 'carrera_nombre', 'sede', 'sede_nombre',
-            'foto', 'titulo_pdf', 'voucher',
+            'foto', 'titulo_pdf', 'voucher', 'dni_anverso', 'dni_reverso',
             'foto_url', 'titulo_pdf_url', 'voucher_url',
             'numero_operacion', 'banco', 'fecha_pago',
             'estado', 'estado_display', 'observacion',
@@ -60,6 +60,22 @@ class TramiteInscripcionSerializer(serializers.ModelSerializer):
         if value and value.size > 10 * 1024 * 1024:
             raise serializers.ValidationError(
                 "El archivo del voucher no debe exceder 10 MB."
+            )
+        return value
+
+    def validate_dni_anverso(self, value):
+        """Valida que el DNI anverso no exceda 10 MB"""
+        if value and value.size > 10 * 1024 * 1024:
+            raise serializers.ValidationError(
+                "El archivo del DNI anverso no debe exceder 10 MB."
+            )
+        return value
+
+    def validate_dni_reverso(self, value):
+        """Valida que el DNI reverso no exceda 10 MB"""
+        if value and value.size > 10 * 1024 * 1024:
+            raise serializers.ValidationError(
+                "El archivo del DNI reverso no debe exceder 10 MB."
             )
         return value
 

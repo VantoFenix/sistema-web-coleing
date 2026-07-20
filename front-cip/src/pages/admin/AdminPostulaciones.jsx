@@ -22,6 +22,8 @@ export default function AdminPostulaciones() {
   const [obsFoto, setObsFoto] = useState({ checked: false, text: '' });
   const [obsTitulo, setObsTitulo] = useState({ checked: false, text: '' });
   const [obsRecibo, setObsRecibo] = useState({ checked: false, text: '' });
+  const [obsDniAnverso, setObsDniAnverso] = useState({ checked: false, text: '' });
+  const [obsDniReverso, setObsDniReverso] = useState({ checked: false, text: '' });
   const [obsDatos, setObsDatos] = useState({ checked: false, text: '' });
 
   useEffect(() => {
@@ -57,6 +59,8 @@ export default function AdminPostulaciones() {
     setObsFoto({ checked: false, text: '' });
     setObsTitulo({ checked: false, text: '' });
     setObsRecibo({ checked: false, text: '' });
+    setObsDniAnverso({ checked: false, text: '' });
+    setObsDniReverso({ checked: false, text: '' });
     setObsDatos({ checked: false, text: '' });
   };
 
@@ -104,6 +108,8 @@ export default function AdminPostulaciones() {
       obsFoto.checked ? `Foto: ${obsFoto.text}` : '',
       obsTitulo.checked ? `Título: ${obsTitulo.text}` : '',
       obsRecibo.checked ? `Recibo: ${obsRecibo.text}` : '',
+      obsDniAnverso.checked ? `DNI Anverso: ${obsDniAnverso.text}` : '',
+      obsDniReverso.checked ? `DNI Reverso: ${obsDniReverso.text}` : '',
       obsDatos.checked ? `Datos: ${obsDatos.text}` : ''
     ].filter(Boolean).join(' | ');
 
@@ -299,6 +305,28 @@ export default function AdminPostulaciones() {
                 onVer={() => abrirArchivo(expediente.recibo_pago_url, 'Recibo de Pago — ' + expediente.nombres)}
               />
             </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem', marginTop: '1.5rem' }}>
+              {/* Box DNI Anverso */}
+              <DocBox
+                icono={<FileText size={32} color="var(--cip-blue)" />}
+                titulo="4. DNI Anverso"
+                url={expediente.dni_anverso_url}
+                btnLabel="Ver Anverso"
+                btnIcono={<FileText size={14} />}
+                onVer={() => abrirArchivo(expediente.dni_anverso_url, 'DNI Anverso — ' + expediente.nombres)}
+              />
+
+              {/* Box DNI Reverso */}
+              <DocBox
+                icono={<FileText size={32} color="var(--cip-blue)" />}
+                titulo="5. DNI Reverso"
+                url={expediente.dni_reverso_url}
+                btnLabel="Ver Reverso"
+                btnIcono={<FileText size={14} />}
+                onVer={() => abrirArchivo(expediente.dni_reverso_url, 'DNI Reverso — ' + expediente.nombres)}
+              />
+            </div>
           </div>
 
           {/* Botones de Acción */}
@@ -407,7 +435,29 @@ export default function AdminPostulaciones() {
                   )}
                 </div>
 
-                {/* ZONA 4: Datos Generales */}
+                {/* ZONA 4: DNI Anverso */}
+                <div style={{ marginBottom: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem', background: obsDniAnverso.checked ? '#EFF6FF' : 'white' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: '600', cursor: 'pointer', margin: 0 }}>
+                    <input type="checkbox" style={{ width: '20px', height: '20px' }} checked={obsDniAnverso.checked} onChange={(e) => setObsDniAnverso({...obsDniAnverso, checked: e.target.checked})} />
+                    4. DNI Anverso
+                  </label>
+                  {obsDniAnverso.checked && (
+                    <textarea className="form-input" placeholder="Especifique el error (Ej. Imagen borrosa, DNI caducado)..." style={{ marginTop: '1rem', minHeight: '80px', resize: 'vertical' }} value={obsDniAnverso.text} onChange={(e) => setObsDniAnverso({...obsDniAnverso, text: e.target.value})} />
+                  )}
+                </div>
+
+                {/* ZONA 5: DNI Reverso */}
+                <div style={{ marginBottom: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem', background: obsDniReverso.checked ? '#EFF6FF' : 'white' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: '600', cursor: 'pointer', margin: 0 }}>
+                    <input type="checkbox" style={{ width: '20px', height: '20px' }} checked={obsDniReverso.checked} onChange={(e) => setObsDniReverso({...obsDniReverso, checked: e.target.checked})} />
+                    5. DNI Reverso
+                  </label>
+                  {obsDniReverso.checked && (
+                    <textarea className="form-input" placeholder="Especifique el error (Ej. Falta constancia de votación, ilegible)..." style={{ marginTop: '1rem', minHeight: '80px', resize: 'vertical' }} value={obsDniReverso.text} onChange={(e) => setObsDniReverso({...obsDniReverso, text: e.target.value})} />
+                  )}
+                </div>
+
+                {/* ZONA 6: Datos Generales */}
                 <div style={{ marginBottom: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem', background: obsDatos.checked ? '#EFF6FF' : 'white' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: '600', cursor: 'pointer', margin: 0 }}>
                     <input type="checkbox" style={{ width: '20px', height: '20px' }} checked={obsDatos.checked} onChange={(e) => setObsDatos({...obsDatos, checked: e.target.checked})} />
@@ -425,7 +475,7 @@ export default function AdminPostulaciones() {
                   className="btn btn-primary btn-block" 
                   style={{ padding: '1rem', fontSize: '1.125rem', background: 'var(--cip-red)', borderColor: 'var(--cip-red)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                   onClick={handleConfirmarRechazo}
-                  disabled={!(obsFoto.checked || obsTitulo.checked || obsRecibo.checked || obsDatos.checked) || procesando}
+                  disabled={!(obsFoto.checked || obsTitulo.checked || obsRecibo.checked || obsDniAnverso.checked || obsDniReverso.checked || obsDatos.checked) || procesando}
                 >
                   {procesando ? <Loader2 className="spin" size={20} /> : <><XCircle size={20} /> Confirmar Rechazo y Notificar</>}
                 </button>
