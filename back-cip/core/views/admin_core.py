@@ -44,6 +44,48 @@ class AdministradorViewSet(ModelViewSet):
     permission_classes = [MasterAdminPermission]
     pagination_class = None
 
+    def perform_create(self, serializer):
+        user = serializer.save()
+        
+        # Enviar correo para que configuren su contraseña
+        try:
+            from .auth import _prepare_user_for_token
+            from django.contrib.auth.tokens import default_token_generator
+            from django.utils.http import urlsafe_base64_encode
+            from django.utils.encoding import force_bytes
+            from django.core.mail import send_mail
+            from django.conf import settings
+            
+            token_user = _prepare_user_for_token(user)
+            token = default_token_generator.make_token(token_user)
+            uid = urlsafe_base64_encode(force_bytes(user.id))
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173').rstrip('/')
+            link = f"{frontend_url}/reset-password/{uid}/{token}/"
+            
+            rol_display = dict(Administrador._meta.get_field('rol').choices).get(user.rol, user.rol)
+            
+            send_mail(
+                'Bienvenido al Sistema CIP - Configura tu contraseña',
+                f'''Hola {user.nombres},
+
+Se ha creado una cuenta interna para ti en el Sistema CIP con el rol de {rol_display}.
+Tu usuario de acceso es: {user.usuario} (o puedes usar tu correo).
+
+Por favor, haz clic en el siguiente enlace para configurar tu contraseña y activar tu cuenta:
+{link}
+
+Atención: Tienes 10 minutos para utilizar este enlace.
+
+Atentamente,
+Colegio de Ingenieros del Perú''',
+                settings.DEFAULT_FROM_EMAIL or 'admin@cip.com',
+                [user.correo],
+                fail_silently=True,
+            )
+        except Exception as e:
+            import sys
+            print(f"[EMAIL ERROR CREATING ADMIN] {e}", file=sys.stderr)
+
 class SedeViewSet(ModelViewSet):
     queryset = Sede.objects.all()
     serializer_class = SedeSerializer
