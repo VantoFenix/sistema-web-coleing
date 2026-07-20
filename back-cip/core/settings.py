@@ -241,8 +241,23 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ==============================================================================
 # CONFIGURACIÓN DE CORREO ELECTRÓNICO
 # ==============================================================================
-# Si EMAIL_HOST está definido en .env, usa SMTP, de lo contrario, imprime correos en la consola del servidor.
-if os.getenv('EMAIL_HOST'):
+# Si BREVO_API_KEY está definido en .env, usa Anymail (HTTP API port 443)
+# de lo contrario, si EMAIL_HOST está, usa SMTP tradicional.
+if os.getenv('BREVO_API_KEY'):
+    EMAIL_BACKEND = 'anymail.backends.brevo.EmailBackend'
+    ANYMAIL = {
+        'BREVO_API_KEY': os.getenv('BREVO_API_KEY'),
+    }
+elif os.getenv('MAILTRAP_API_KEY') or os.getenv('MAILTRAP_API_TOKEN'):
+    EMAIL_BACKEND = 'anymail.backends.mailtrap.EmailBackend'
+    ANYMAIL = {
+        'MAILTRAP_API_TOKEN': os.getenv('MAILTRAP_API_TOKEN') or os.getenv('MAILTRAP_API_KEY'),
+    }
+    # Si el usuario quiere usar el buzón de pruebas (Sandbox), debe poner su Inbox ID.
+    sandbox_id = os.getenv('MAILTRAP_SANDBOX_ID')
+    if sandbox_id:
+        ANYMAIL['MAILTRAP_SANDBOX_ID'] = sandbox_id
+elif os.getenv('EMAIL_HOST'):
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = os.getenv('EMAIL_HOST')
     EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))

@@ -2264,8 +2264,8 @@ class FlowGenerarQRView(APIView):
 
         # 2. Construir los parámetros del pago (todos como strings)
         email = request.data.get('email', '')
-        if not email:
-            email = 'vantofortnite@gmail.com'
+        if not email or 'no-reply' in email.lower() or 'noreply' in email.lower():
+            email = 'pagos@cip.org.pe'
             
         commerce_order = f'FICHA-{int(time.time())}'
 
