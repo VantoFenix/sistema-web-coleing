@@ -594,15 +594,17 @@ export default function AdminPresencial() {
                 padding: '1rem 2rem', 
                 fontSize: '1.1rem', 
                 width: '100%', 
-                background: (enviando || !dniValidado || (!esMixto && metodoPago === 'EFECTIVO' && parseFloat(montoEfectivo) !== 5) || (!esMixto && metodoPago === 'YAPE_PLIN' && !qrPagado) || (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagado)) ? '#94a3b8' : '#10B981',
+                background: (enviando || !dniValidado || (!esMixto && !metodoPago) || (!esMixto && metodoPago === 'EFECTIVO' && parseFloat(montoEfectivo) !== 5) || (!esMixto && metodoPago === 'YAPE_PLIN' && !qrPagado) || (esMixto && (!metodo1 || !metodo2 || !monto1 || !monto2)) || (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagado)) ? '#94a3b8' : '#10B981',
                 alignItems: 'center', 
                 gap: '0.5rem',
-                cursor: (enviando || !dniValidado || (!esMixto && metodoPago === 'EFECTIVO' && parseFloat(montoEfectivo) !== 5) || (!esMixto && metodoPago === 'YAPE_PLIN' && !qrPagado) || (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagado)) ? 'not-allowed' : 'pointer'
+                cursor: (enviando || !dniValidado || (!esMixto && !metodoPago) || (!esMixto && metodoPago === 'EFECTIVO' && parseFloat(montoEfectivo) !== 5) || (!esMixto && metodoPago === 'YAPE_PLIN' && !qrPagado) || (esMixto && (!metodo1 || !metodo2 || !monto1 || !monto2)) || (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagado)) ? 'not-allowed' : 'pointer'
               }}
               disabled={
                 enviando || !dniValidado ||
+                (!esMixto && !metodoPago) ||
                 (!esMixto && metodoPago === 'EFECTIVO' && parseFloat(montoEfectivo) !== 5) ||
                 (!esMixto && metodoPago === 'YAPE_PLIN' && !qrPagado) ||
+                (esMixto && (!metodo1 || !metodo2 || !monto1 || !monto2)) ||
                 (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagado)
               }
             >
