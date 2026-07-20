@@ -114,6 +114,45 @@ def enviar_aviso_preventivo(*, correo, nombres, nro_colegiado, dias_restantes):
     msg.send(fail_silently=False)
 
 
+def enviar_aviso_inicio_deuda(*, correo, nombres, nro_colegiado, monto):
+    """Envía un aviso el día que se genera una nueva deuda (meses_adeudados = 1)."""
+    asunto = f"Nueva Mensualidad Generada - Colegio de Ingenieros del Perú"
+    
+    texto = (
+        f"Estimado(a) {nombres},\n\n"
+        f"Le informamos que se ha generado la mensualidad correspondiente al mes en curso para su cuenta CIP {nro_colegiado}.\n\n"
+        f"El monto de su nueva mensualidad es de S/ {monto:.2f}.\n\n"
+        f"Le recordamos que al mantener deuda pendiente, su estado figura como INHABILITADO. Al regularizar su pago, su habilitación se restablecerá de forma automática.\n\n"
+        f"Puede pagar en línea desde el portal del colegiado o de forma presencial.\n\n"
+        f"Colegio de Ingenieros del Perú"
+    )
+
+    html = f"""
+    <div style="font-family: Arial, sans-serif; color: #1F2937; max-width: 560px;">
+      <h2 style="color: #2563EB; margin-bottom: 0.5rem;">Nueva Mensualidad Generada</h2>
+      <p>Estimado(a) <strong>{nombres}</strong>,</p>
+      <p>Le informamos que se ha generado la mensualidad correspondiente al mes en curso para su cuenta CIP <strong>{nro_colegiado}</strong>.</p>
+      <p>El monto de su nueva mensualidad es de <strong>S/ {monto:.2f}</strong>.</p>
+      <p style="background:#FEF2F2;border:1px solid #FCA5A5;padding:0.75rem 1rem;border-radius:6px;color:#991B1B;">
+         Le recordamos que al mantener deuda pendiente, su estado figura como <strong>INHABILITADO</strong>. 
+         Al regularizar el pago, su habilitación se restablecerá automáticamente.
+      </p>
+      <p>Puede pagar de manera rápida y segura en línea desde el portal del colegiado.</p>
+      <hr style="border:none;border-top:1px solid #E5E7EB;margin:1.5rem 0;">
+      <p style="color:#6B7280;font-size:0.85rem;">Colegio de Ingenieros del Perú</p>
+    </div>
+    """
+
+    msg = EmailMultiAlternatives(
+        subject=asunto,
+        body=texto,
+        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+        to=[correo],
+    )
+    msg.attach_alternative(html, "text/html")
+    msg.send(fail_silently=False)
+
+
 def enviar_aviso_inhabilitacion(*, correo, nombres, nro_colegiado):
     """Envía un aviso el día que el colegiado pasa a inhabilitado."""
     asunto = f"Aviso: Cuenta Inhabilitada - Colegio de Ingenieros del Perú"

@@ -3,7 +3,7 @@ import calendar
 from datetime import date, datetime
 from django.core.management.base import BaseCommand
 from django.db import connection
-from core.emails import enviar_aviso_preventivo, enviar_aviso_inhabilitacion, enviar_recordatorio_deuda
+from core.emails import enviar_aviso_preventivo, enviar_aviso_inicio_deuda, enviar_recordatorio_deuda
 
 class Command(BaseCommand):
     help = 'Envía notificaciones automáticas (preventivas 7/3 días e inhabilitación día 1) a los colegiados'
@@ -33,12 +33,12 @@ class Command(BaseCommand):
         else:
             self.stdout.write(f'No hay avisos preventivos hoy (faltan {dias_para_fin_de_mes} días para fin de mes).')
 
-        # 2. NOTIFICACIONES DE INHABILITACIÓN Y RECORDATORIOS (Día 1 del mes)
+        # 2. NOTIFICACIONES DE INICIO DE DEUDA Y RECORDATORIOS (Día 1 del mes)
         if hoy.day == 1:
-            self.stdout.write(self.style.SUCCESS('Detectado inicio de mes (Día 1). Enviando avisos de inhabilitación y recordatorios de deuda.'))
+            self.stdout.write(self.style.SUCCESS('Detectado inicio de mes (Día 1). Enviando avisos de inicio de deuda y recordatorios.'))
             self._enviar_inhabilitaciones_y_recordatorios()
         else:
-            self.stdout.write('No es el día 1 del mes, omitiendo avisos de inhabilitación y recordatorios.')
+            self.stdout.write('No es el día 1 del mes, omitiendo avisos de inicio de deuda y recordatorios.')
 
     def _enviar_preventivos(self, dias_restantes):
         sql = """
@@ -69,13 +69,18 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f'Enviados {enviados} avisos preventivos.'))
 
     def _enviar_inhabilitaciones_y_recordatorios(self):
-        # 1. Nuevos inhabilitados (meses_adeudados = 1)
+        # 1. Nuevos inhabilitados / Inicio de deuda (meses_adeudados = 1)
         sql_inhabilitados = """
             SELECT c.id, c.nombres, c.nro_colegiado, c.correo
             FROM v_estado_colegiado v
             JOIN colegiado c ON c.id = v.colegiado_id
             WHERE v.meses_adeudados = 1 AND c.correo IS NOT NULL AND c.correo != ''
         """
+        
+        # Obtenemos la mensualidad de la configuracion (MVP)
+        from core.models import Configuracion
+        conf = Configuracion.objects.first()
+        mensualidad = conf.monto_mensualidad if conf else 20.00
         
         with connection.cursor() as cursor:
             cursor.execute(sql_inhabilitados)
@@ -85,16 +90,17 @@ class Command(BaseCommand):
         for r in rows_inh:
             col_id, nombres, nro_col, correo = r
             try:
-                enviar_aviso_inhabilitacion(
+                enviar_aviso_inicio_deuda(
                     correo=correo,
                     nombres=nombres,
-                    nro_colegiado=nro_col
+                    nro_colegiado=nro_col,
+                    monto=float(mensualidad)
                 )
                 enviados_inh += 1
             except Exception as e:
-                self.stdout.write(self.style.ERROR(f'Error al enviar inhabilitacion a {correo}: {e}'))
+                self.stdout.write(self.style.ERROR(f'Error al enviar inicio de deuda a {correo}: {e}'))
                 
-        self.stdout.write(self.style.SUCCESS(f'Enviados {enviados_inh} avisos de inhabilitación nueva.'))
+        self.stdout.write(self.style.SUCCESS(f'Enviados {enviados_inh} avisos de inicio de deuda.'))
 
         # 2. Recordatorios de deuda (meses_adeudados > 1)
         sql_recordatorios = """
