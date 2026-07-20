@@ -300,7 +300,7 @@ export default function Postular() {
         <ArrowLeft size={18} /> Volver
       </button>
 
-      <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'center', marginBottom: '2.5rem' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', textAlign: 'center', marginBottom: '2.5rem' }}>
         <h1 style={{ color: 'var(--cip-blue)', fontSize: '2.25rem', fontWeight: '800' }}>
           Formulario de Colegiatura
         </h1>
@@ -309,10 +309,10 @@ export default function Postular() {
         </p>
       </div>
 
-      <div className="card" style={{ maxWidth: '1000px', margin: '0 auto' }}>
+      <div className="card" style={{ maxWidth: '1200px', margin: '0 auto' }}>
         <form onSubmit={handleSubmit}>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem', alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2.5rem', alignItems: 'start' }}>
 
             {/* COLUMNA IZQUIERDA: DOCS 1-3 */}
             <div style={{ ...shadedStyle, margin: '0' }}>
