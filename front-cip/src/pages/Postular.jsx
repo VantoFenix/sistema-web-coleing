@@ -106,7 +106,7 @@ export default function Postular() {
     }
   };
 
-  const handleFileChange = (e, setFile, setInfo, maxSizeMB, allowedTypes, fileDescription) => {
+  const handleFileChange = (e, setFile, setInfo, maxSizeMB = 5, allowedTypes = ['application/pdf', 'image/']) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setInfo('');
@@ -157,15 +157,15 @@ export default function Postular() {
       setSubmitError("Debe validar su DNI para obtener los nombres.");
       return;
     }
-    if (!subsanarId && (!carrera || !sede)) {
+    if (!carrera || !sede) {
       setSubmitError("Complete la sede y carrera académica.");
       return;
     }
-    if (!subsanarId && (!correo || !celular)) {
+    if (!correo || !celular) {
       setSubmitError("Debe ingresar un correo electrónico y celular de contacto.");
       return;
     }
-    if (!subsanarId && (!foto || !titulo || !recibo || !dniAnverso || !dniReverso)) {
+    if (!foto || !titulo || !recibo || !dniAnverso || !dniReverso) {
       setSubmitError("Debe adjuntar todos los documentos requeridos: Foto, Título Profesional, Recibo de Pago y DNI (Anverso y Reverso).");
       return;
     }
@@ -354,30 +354,34 @@ export default function Postular() {
                 </div>
               </div>
 
-              {/* 3. Recibo */}
+              {/* 3. Recibo y Datos de Pago */}
               <div className="form-group" style={{ marginTop: '1.5rem' }}>
                 <label className="form-label">3. Recibo de Pago (S/ 1500.00)</label>
-                <div className="upload-box" style={{ marginBottom: '1rem' }}>
-                  <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={fileNameStyle}>{recibo ? recibo.name : 'Clic para subir comprobante (PDF/JPG)'}</p>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>PDF o Imagen · máx. 5 MB</p>
-                  {reciboInfo && (
-                    <p style={{ fontSize: '0.72rem', color: reciboInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
-                      {reciboInfo}
-                    </p>
-                  )}
-                  <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-recibo" onChange={(e) => handleFileChange(e, setRecibo, setReciboInfo, 5, ['application/pdf', 'image/'], 'Recibo de Pago')} />
-                  <label htmlFor="file-recibo" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
-                </div>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'white', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                  <div>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>N° Operación</label>
-                    <input type="text" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem', borderColor: pagoError ? '#DC2626' : '' }} placeholder="Ej: 111111 o 2226AA4" maxLength={15} value={numeroOperacion} onChange={e => { setNumeroOperacion(e.target.value.toUpperCase()); setPagoError(''); }} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
+                  {/* Izquierda: Subir archivo */}
+                  <div className="upload-box" style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
+                    <p style={fileNameStyle}>{recibo ? recibo.name : 'Clic para subir comprobante'}</p>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>PDF o Imagen · máx. 5 MB</p>
+                    {reciboInfo && (
+                      <p style={{ fontSize: '0.72rem', color: reciboInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
+                        {reciboInfo}
+                      </p>
+                    )}
+                    <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-recibo" onChange={(e) => handleFileChange(e, setRecibo, setReciboInfo, 5, ['application/pdf', 'image/'], 'Recibo de Pago')} />
+                    <label htmlFor="file-recibo" className="btn btn-outline" style={{...btnFileStyle, marginTop: 'auto'}}>Seleccionar</label>
                   </div>
-                  <div>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Fecha de Pago</label>
-                    <input type="date" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem', borderColor: pagoError ? '#DC2626' : '' }} value={fechaPago} onChange={e => { setFechaPago(e.target.value); setPagoError(''); }} />
+                  
+                  {/* Derecha: Inputs N° Operación y Fecha */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'white', padding: '1.25rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', height: '100%', justifyContent: 'center' }}>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.8rem', marginBottom: '0.4rem' }}>N° Operación</label>
+                      <input type="text" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem', borderColor: pagoError ? '#DC2626' : '' }} placeholder="Ej: 111111 o 2226AA4" maxLength={15} value={numeroOperacion} onChange={e => { setNumeroOperacion(e.target.value.toUpperCase()); setPagoError(''); }} />
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.8rem', marginBottom: '0.4rem' }}>Fecha de Pago</label>
+                      <input type="date" className="form-input" style={{ padding: '0.4rem', fontSize: '0.9rem', borderColor: pagoError ? '#DC2626' : '' }} value={fechaPago} onChange={e => { setFechaPago(e.target.value); setPagoError(''); }} />
+                    </div>
                   </div>
                 </div>
                 {pagoError && (
@@ -387,37 +391,40 @@ export default function Postular() {
                 )}
               </div>
 
-              {/* 4. DNI Anverso */}
-              <div className="form-group" style={{ marginTop: '1.5rem' }}>
-                <label className="form-label">4. DNI Anverso</label>
-                <div className="upload-box">
-                  <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={fileNameStyle}>{dniAnverso ? dniAnverso.name : 'Clic para subir Anverso (PDF/JPG)'}</p>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>PDF o Imagen · máx. 5 MB</p>
-                  {dniAnversoInfo && (
-                    <p style={{ fontSize: '0.72rem', color: dniAnversoInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
-                      {dniAnversoInfo}
-                    </p>
-                  )}
-                  <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-dni-anverso" onChange={(e) => handleFileChange(e, setDniAnverso, setDniAnversoInfo, 5, ['application/pdf', 'image/'], 'DNI Anverso')} />
-                  <label htmlFor="file-dni-anverso" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
+              {/* 4 y 5. DNI */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginTop: '1.5rem' }}>
+                {/* 4. DNI Anverso */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">4. DNI Anverso</label>
+                  <div className="upload-box" style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
+                    <p style={fileNameStyle}>{dniAnverso ? dniAnverso.name : 'Subir Anverso'}</p>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>PDF o Imagen</p>
+                    {dniAnversoInfo && (
+                      <p style={{ fontSize: '0.72rem', color: dniAnversoInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
+                        {dniAnversoInfo}
+                      </p>
+                    )}
+                    <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-dni-anverso" onChange={(e) => handleFileChange(e, setDniAnverso, setDniAnversoInfo, 5, ['application/pdf', 'image/'], 'DNI Anverso')} />
+                    <label htmlFor="file-dni-anverso" className="btn btn-outline" style={{...btnFileStyle, marginTop: 'auto'}}>Examinar</label>
+                  </div>
                 </div>
-              </div>
 
-              {/* 5. DNI Reverso */}
-              <div className="form-group" style={{ marginTop: '1.5rem' }}>
-                <label className="form-label">5. DNI Reverso</label>
-                <div className="upload-box">
-                  <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={fileNameStyle}>{dniReverso ? dniReverso.name : 'Clic para subir Reverso (PDF/JPG)'}</p>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>PDF o Imagen · máx. 5 MB</p>
-                  {dniReversoInfo && (
-                    <p style={{ fontSize: '0.72rem', color: dniReversoInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
-                      {dniReversoInfo}
-                    </p>
-                  )}
-                  <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-dni-reverso" onChange={(e) => handleFileChange(e, setDniReverso, setDniReversoInfo, 5, ['application/pdf', 'image/'], 'DNI Reverso')} />
-                  <label htmlFor="file-dni-reverso" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
+                {/* 5. DNI Reverso */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">5. DNI Reverso</label>
+                  <div className="upload-box" style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
+                    <p style={fileNameStyle}>{dniReverso ? dniReverso.name : 'Subir Reverso'}</p>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>PDF o Imagen</p>
+                    {dniReversoInfo && (
+                      <p style={{ fontSize: '0.72rem', color: dniReversoInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
+                        {dniReversoInfo}
+                      </p>
+                    )}
+                    <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-dni-reverso" onChange={(e) => handleFileChange(e, setDniReverso, setDniReversoInfo, 5, ['application/pdf', 'image/'], 'DNI Reverso')} />
+                    <label htmlFor="file-dni-reverso" className="btn btn-outline" style={{...btnFileStyle, marginTop: 'auto'}}>Examinar</label>
+                  </div>
                 </div>
               </div>
             </div>
