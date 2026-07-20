@@ -703,20 +703,7 @@ export default function AdminPresencial() {
                   )}
                 </div>
               )}
-              {!esMixto && metodoPago === 'YAPE_PLIN' && !qrPagado && (
-                <div style={{ padding: '1.25rem', border: '2px dashed #a78bfa', borderRadius: '0.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '120px', background: '#faf5ff', gap: '0.75rem' }}>
-                  <button type="button" onClick={generarQrFlow} disabled={cargandoQr} style={{ padding: '0.4rem 1rem', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}>
-                    {cargandoQr ? 'Generando QR...' : 'Ver QR'}
-                  </button>
-                  {qrError && <p style={{ color: '#dc2626', fontWeight: '500', margin: 0, textAlign: 'center' }}>❌ {qrError}</p>}
-                </div>
-              )}
-              {!esMixto && metodoPago === 'YAPE_PLIN' && qrPagado && (
-                <div style={{ padding: '1.5rem', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: '0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-                  <CheckCircle2 size={32} color="#16A34A" />
-                  <p style={{ color: '#15803D', fontWeight: '700', fontSize: '1rem', margin: 0 }}>✅ QR Pagado</p>
-                </div>
-              )}
+
             </div>
           </div>
 
