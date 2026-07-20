@@ -154,56 +154,32 @@ export default function AdminPagoPresencial() {
     if (flowInitPoint && flowToken) {
       intervalId = setInterval(async () => {
         try {
-          if (flowModoMixto) {
-            const res = await fetch('/api/flow/confirmar-generico/', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}`
-              },
-              body: JSON.stringify({ token: flowToken })
-            });
-            const data = await res.json();
-            if (data.status === 2) {
-              setFlowInitPoint(null);
-              setFlowToken(null);
-              setFlowModoMixto(false);
-              // Registrar automáticamente
-              if (handleRegistrarRef.current) handleRegistrarRef.current();
-            } else if (data.error) {
-              setFlowInitPoint(null);
-              setFlowToken(null);
-              setFlowModoMixto(false);
-              setErrForm(data.error);
-            }
-          } else {
-            const res = await fetch('/api/pagos/flow/confirmar/', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}`
-              },
-              body: JSON.stringify({ token: flowToken })
-            });
-            const data = await res.json();
-            if (data.success) {
-              setFlowInitPoint(null);
-              setFlowToken(null);
-              setResultado({ ok: true, ...data });
-              sessionStorage.removeItem('admin_pago_periodos');
-            } else if (data.status === 'pending') {
-              // Sigue pendiente
-            } else if (data.error) {
-              setFlowInitPoint(null);
-              setFlowToken(null);
-              setErrForm(data.error);
-            }
+          const res = await fetch('/api/flow/confirmar-generico/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}`
+            },
+            body: JSON.stringify({ token: flowToken })
+          });
+          const data = await res.json();
+          if (data.status === 2) {
+            setFlowInitPoint(null);
+            setFlowToken(null);
+            setFlowModoMixto(false);
+            // Registrar automáticamente pasando flowSuccess = true
+            if (handleRegistrarRef.current) handleRegistrarRef.current(true);
+          } else if (data.error) {
+            setFlowInitPoint(null);
+            setFlowToken(null);
+            setFlowModoMixto(false);
+            setErrForm(data.error);
           }
         } catch (e) { }
       }, 3500);
     }
     return () => clearInterval(intervalId);
-  }, [flowInitPoint, flowToken, flowModoMixto]);
+  }, [flowInitPoint, flowToken]);
 
   // Auto-calcular monto
   useEffect(() => {
@@ -316,7 +292,7 @@ export default function AdminPagoPresencial() {
   const seleccionarSoloDeuda = () => setPeriodosSeleccionados(new Set(getPendientes()));
   const deseleccionarTodos = () => setPeriodosSeleccionados(new Set());
 
-  const handleRegistrar = async () => {
+  const handleRegistrar = async (flowSuccess = false) => {
     setErrForm('');
     if (periodosSeleccionados.size === 0) { setErrForm('Seleccione al menos un periodo.'); return; }
     
@@ -353,7 +329,7 @@ export default function AdminPagoPresencial() {
 
     setEnviando(true);
 
-    if (!esMixto && metodo === 'YAPE_PLIN') {
+    if (!esMixto && metodo === 'YAPE_PLIN' && !flowSuccess) {
       try {
         const token = localStorage.getItem('adminToken') || '';
         const res = await fetch('/api/pagos/flow/crear/', {
@@ -1225,7 +1201,7 @@ export default function AdminPagoPresencial() {
               )}
 
               <button
-                onClick={handleRegistrar}
+                onClick={() => handleRegistrar(false)}
                 disabled={enviando || periodosSeleccionados.size === 0}
                 className="btn btn-block"
                 style={{
