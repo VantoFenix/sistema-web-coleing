@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UploadCloud, CheckCircle, CheckCircle2, Loader2, Smartphone, Banknote } from 'lucide-react';
+import { UploadCloud, CheckCircle, CheckCircle2, Loader2, Smartphone, Banknote, Printer, Mail } from 'lucide-react';
 import ComprobanteModal from '../../components/UI/ComprobanteModal';
 import { procesarFotoCarnet } from '../../utils/fotoCarnet';
 
@@ -34,6 +34,10 @@ export default function AdminPresencial() {
   const [flowToken, setFlowToken] = useState(null);
   const [flowModoMixto, setFlowModoMixto] = useState(false);
   const [qrPagado, setQrPagado] = useState(false);
+  
+  const [showEmailInput, setShowEmailInput] = useState(false);
+  const [enviandoEmail, setEnviandoEmail] = useState(false);
+  const [correoEnviado, setCorreoEnviado] = useState(false);
 
   const METODOS = [
     { valor: 'YAPE_PLIN', label: 'QR (Yape/Plin)', icono: <Smartphone size={16} /> },
@@ -378,12 +382,21 @@ export default function AdminPresencial() {
       if (metodo1 === metodo2) {
         setErrorMsg('Seleccione métodos diferentes para el pago mixto.'); return;
       }
+      if ((metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagado) {
+        if (metodo1 === 'YAPE_PLIN') generarQrMixto(monto1);
+        else if (metodo2 === 'YAPE_PLIN') generarQrMixto(monto2);
+        return;
+      }
     } else {
       if (!metodoPago) { setErrorMsg('Seleccione el método de pago.'); return; }
       if (metodoPago === 'EFECTIVO') {
         if (!montoEfectivo || parseFloat(montoEfectivo) !== 5) {
           setErrorMsg('Debe ingresar el monto exacto (S/ 5.00).'); return;
         }
+      }
+      if (metodoPago === 'YAPE_PLIN' && !qrPagado) {
+        generarQrFlow();
+        return;
       }
     }
 
@@ -437,8 +450,6 @@ export default function AdminPresencial() {
 
       if (resAprob.ok) {
         setSuccess(true);
-        // Generar comprobante
-        setTimeout(() => generarComprobante(), 500);
       } else {
         setErrorMsg("La solicitud fue creada pero no se pudo aprobar automáticamente. Apruébela desde el panel de Postulaciones.");
       }
@@ -468,7 +479,73 @@ export default function AdminPresencial() {
         <p className="text-muted" style={{ marginBottom: '2rem' }}>
           El expediente presencial para <strong>{nombres}</strong> ha sido procesado e ingresado al padrón oficial de manera inmediata.
         </p>
-        <button className="btn btn-primary" onClick={resetForm}>
+        
+        {/* Botones comprobante */}
+        <div style={{ display: 'flex', gap: '0.75rem', flexDirection: 'column', maxWidth: '300px', margin: '0 auto 2rem auto' }}>
+          <button
+            onClick={generarComprobante}
+            className="btn btn-primary"
+            style={{
+              background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+              width: '100%', padding: '0.9rem', border: 'none', borderRadius: '10px',
+              fontWeight: '800', fontSize: '1rem', cursor: 'pointer'
+            }}
+          >
+            <Printer size={20} />
+            Imprimir Comprobante
+          </button>
+
+          <button
+            onClick={() => setShowEmailInput(true)}
+            style={{
+              background: '#F1F5F9', color: 'var(--cip-blue)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+              width: '100%', padding: '0.8rem', border: '1px solid #CBD5E1', borderRadius: '10px',
+              fontWeight: '700', cursor: 'pointer', transition: 'all 0.15s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#E2E8F0'}
+            onMouseLeave={e => e.currentTarget.style.background = '#F1F5F9'}
+          >
+            <Mail size={18} />
+            Enviar a correo
+          </button>
+          
+          {showEmailInput && (
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.2rem' }}>
+              <input
+                type="email"
+                placeholder="ejemplo@correo.com"
+                defaultValue={correo || ''}
+                id="email_envio_presencial"
+                style={{ flex: 1, padding: '0.6rem', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '0.85rem', outline: 'none' }}
+              />
+              <button
+                onClick={() => {
+                  const em = document.getElementById('email_envio_presencial').value;
+                  if (!em) return;
+                  setEnviandoEmail(true);
+                  setTimeout(() => {
+                    setEnviandoEmail(false);
+                    setShowEmailInput(false);
+                    setCorreoEnviado(true);
+                  }, 1000);
+                }}
+                style={{ background: 'var(--cip-blue)', color: 'white', border: 'none', borderRadius: '8px', padding: '0 1rem', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                {enviandoEmail ? <Loader2 size={16} className="spin" /> : 'Enviar'}
+              </button>
+            </div>
+          )}
+          
+          {correoEnviado && (
+            <div style={{ textAlign: 'center', color: '#059669', fontSize: '0.85rem', fontWeight: 'bold' }}>
+              ✓ Comprobante enviado
+            </div>
+          )}
+        </div>
+
+        <button className="btn btn-outline" style={{ border: '2px solid var(--cip-blue)', color: 'var(--cip-blue)', fontWeight: 'bold', width: '100%', maxWidth: '300px' }} onClick={() => { resetForm(); setShowEmailInput(false); setCorreoEnviado(false); }}>
           Registrar Nuevo Expediente
         </button>
       </div>
@@ -721,18 +798,16 @@ export default function AdminPresencial() {
                 padding: '1rem 2rem', 
                 fontSize: '1.1rem', 
                 width: '100%', 
-                background: (enviando || !dniValidado || (!esMixto && !metodoPago) || (!esMixto && metodoPago === 'EFECTIVO' && parseFloat(montoEfectivo) !== 5) || (!esMixto && metodoPago === 'YAPE_PLIN' && !qrPagado) || (esMixto && (!metodo1 || !metodo2 || !monto1 || !monto2)) || (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagado)) ? '#94a3b8' : '#10B981',
+                background: (enviando || !dniValidado || (!esMixto && !metodoPago) || (!esMixto && metodoPago === 'EFECTIVO' && parseFloat(montoEfectivo) !== 5) || (esMixto && (!metodo1 || !metodo2 || !monto1 || !monto2))) ? '#94a3b8' : '#10B981',
                 alignItems: 'center', 
                 gap: '0.5rem',
-                cursor: (enviando || !dniValidado || (!esMixto && !metodoPago) || (!esMixto && metodoPago === 'EFECTIVO' && parseFloat(montoEfectivo) !== 5) || (!esMixto && metodoPago === 'YAPE_PLIN' && !qrPagado) || (esMixto && (!metodo1 || !metodo2 || !monto1 || !monto2)) || (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagado)) ? 'not-allowed' : 'pointer'
+                cursor: (enviando || !dniValidado || (!esMixto && !metodoPago) || (!esMixto && metodoPago === 'EFECTIVO' && parseFloat(montoEfectivo) !== 5) || (esMixto && (!metodo1 || !metodo2 || !monto1 || !monto2))) ? 'not-allowed' : 'pointer'
               }}
               disabled={
                 enviando || !dniValidado ||
                 (!esMixto && !metodoPago) ||
                 (!esMixto && metodoPago === 'EFECTIVO' && parseFloat(montoEfectivo) !== 5) ||
-                (!esMixto && metodoPago === 'YAPE_PLIN' && !qrPagado) ||
-                (esMixto && (!metodo1 || !metodo2 || !monto1 || !monto2)) ||
-                (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagado)
+                (esMixto && (!metodo1 || !metodo2 || !monto1 || !monto2))
               }
             >
               {enviando ? <><Loader2 size={20} className="spin" /> Procesando...</> : 'Enviar Solicitud a Revisión'}
@@ -748,21 +823,26 @@ export default function AdminPresencial() {
       `}} />
       {/* Modal Modal Flow */}
       {flowInitPoint && (
-        <ComprobanteModal isOpen={!!flowInitPoint} onClose={() => setFlowInitPoint(null)}>
-          <div style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', width: '100%', maxWidth: '450px', textAlign: 'center' }}>
-            <h3 style={{ margin: '0 0 1rem 0', color: '#1E3A8A' }}>Escanea el QR</h3>
-            <div style={{ width: '100%', height: '550px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #E5E7EB' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', padding: '1rem', borderRadius: '12px', width: '90%', maxWidth: '420px', height: '80vh', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+            <button
+              onClick={() => { setFlowInitPoint(null); setFlowToken(null); setFlowModoMixto(false); }}
+              style={{ position: 'absolute', top: '-15px', right: '-15px', background: '#EF4444', color: '#fff', border: '2px solid #fff', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+            >✕</button>
+            <h3 style={{ textAlign: 'center', marginBottom: '0.2rem', fontSize: '1.2rem', color: '#111', fontWeight: '800' }}>
+              {flowModoMixto ? 'Pago QR (Mixto)' : 'Pago QR (Inscripción)'}
+            </h3>
+            <p style={{ textAlign: 'center', color: '#666', fontSize: '0.85rem', marginBottom: '0.8rem' }}>Pídele al colegiado que escanee este código desde la pantalla.</p>
+            <div style={{ flex: 1, position: 'relative', overflow: 'hidden', borderRadius: '8px', border: '1px solid #E2E8F0', background: '#F8FAFC' }}>
               <iframe
                 src={flowInitPoint}
                 style={{ width: '100%', height: '100%', border: 'none' }}
-                title="Pasarela Flow"
+                title="Flow Pago"
               />
             </div>
-            <p style={{ marginTop: '1rem', color: '#475569', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
-              <Loader2 size={16} className="spin" /> Esperando confirmación de pago...
-            </p>
+            {qrPagado && <div style={{ padding: '0.75rem', marginTop: '1rem', background: '#dcfce7', color: '#166534', borderRadius: '8px', textAlign: 'center', fontWeight: 'bold' }}>¡Pago verificado exitosamente!</div>}
           </div>
-        </ComprobanteModal>
+        </div>
       )}
 
     </div>

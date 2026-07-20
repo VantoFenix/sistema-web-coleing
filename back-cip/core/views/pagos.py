@@ -81,7 +81,7 @@ class PagoFlowCrearView(APIView):
             url_confirmation = "https://sistema-web-coleing.onrender.com/api/pagos/flow/confirmar/"
 
         subject = f"CIP - {len(periodos)} cuota(s) mensual(es)"
-        email = getattr(colegiado, 'correo', None) or "usuario.cip.peru@gmail.com"
+        email = getattr(colegiado, 'correo', None) or "vantofortnite@gmail.com"
 
         try:
             from django.conf import settings
