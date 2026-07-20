@@ -495,19 +495,41 @@ export default function AdminPresencial() {
               </div>
 
               {!esMixto ? (
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                  {METODOS.map(m => (
-                    <button 
-                      key={m.valor}
-                      type="button"
-                      className={`btn ${metodoPago === m.valor ? 'btn-primary' : 'btn-outline-dark'}`}
-                      onClick={() => { setMetodoPago(m.valor); if (m.valor === 'YAPE_PLIN') generarQrFlow(); }}
-                      style={{ flex: 1, padding: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
-                    >
-                      <CheckCircle2 size={18} style={{ opacity: metodoPago === m.valor ? 1 : 0 }} />
-                      {m.label}
-                    </button>
-                  ))}
+                <div style={{ marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', gap: '1rem' }}>
+                    {METODOS.map(m => (
+                      <button 
+                        key={m.valor}
+                        type="button"
+                        className={`btn ${metodoPago === m.valor ? 'btn-primary' : 'btn-outline-dark'}`}
+                        onClick={() => setMetodoPago(m.valor)}
+                        style={{ flex: 1, padding: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
+                      >
+                        <CheckCircle2 size={18} style={{ opacity: metodoPago === m.valor ? 1 : 0 }} />
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  {metodoPago === 'YAPE_PLIN' && !qrPagado && (
+                    <div style={{ marginTop: '1rem' }}>
+                      <button
+                        type="button"
+                        onClick={generarQrFlow}
+                        disabled={cargandoQr}
+                        className="btn btn-primary"
+                        style={{ width: '100%', padding: '0.75rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', fontWeight: 'bold' }}
+                      >
+                        {cargandoQr ? <><Loader2 size={20} className="spin" /> Generando QR...</> : <><Smartphone size={20} /> Generar QR de Yape/Plin</>}
+                      </button>
+                      {qrError && <div style={{ color: '#EF4444', marginTop: '0.5rem', fontSize: '0.875rem', textAlign: 'center' }}>{qrError}</div>}
+                    </div>
+                  )}
+                  {metodoPago === 'YAPE_PLIN' && qrPagado && (
+                    <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#D1FAE5', border: '1px solid #10B981', borderRadius: '0.5rem', color: '#065F46', textAlign: 'center', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                      <CheckCircle2 size={20} />
+                      QR Pagado Correctamente
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div style={{ background: '#F8FAFF', padding: '1rem', borderRadius: '8px', border: '1px solid #BFDBFE', marginBottom: '1.1rem' }}>
