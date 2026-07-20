@@ -62,6 +62,7 @@ urlpatterns = [
 
     # Flow — QR Yape / Plin
     path('api/flow/generar-qr/', views.FlowGenerarQRView.as_view(), name='flow-generar-qr'),
+    path('api/flow/confirmar-generico/', views.FlowConfirmarGenericoView.as_view(), name='flow-confirmar-generico'),
     path('api/flow/webhook/',    views.FlowWebhookView.as_view(),   name='flow-webhook'),
 
     # Finanzas

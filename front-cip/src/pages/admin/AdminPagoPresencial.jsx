@@ -72,7 +72,9 @@ export default function AdminPagoPresencial() {
       });
       const data = await res.json();
       if (res.ok && data.url) {
-        window.open(`${data.url}?token=${data.token}`, '_blank', 'width=500,height=700');
+        setFlowInitPoint(`${data.url}?token=${data.token}`);
+        setFlowToken(data.token);
+        setFlowModoMixto(true);
       } else {
         setQrError(data.error || 'Error al generar QR');
       }
@@ -106,6 +108,9 @@ export default function AdminPagoPresencial() {
 
   const [flowInitPoint, setFlowInitPoint] = useState(null);
   const [flowToken, setFlowToken] = useState(null);
+  const [flowModoMixto, setFlowModoMixto] = useState(false);
+
+  const handleRegistrarRef = useRef();
 
   const hoy = new Date();
   const [maxVisibleYear, setMaxVisibleYear] = useState(hoy.getFullYear());
@@ -138,39 +143,67 @@ export default function AdminPagoPresencial() {
     }
   }, [periodosSeleccionados, colegiado]);
 
+  // Guardar ref para el polling
+  useEffect(() => {
+    handleRegistrarRef.current = handleRegistrar;
+  });
+
   // Polling de Flow
   useEffect(() => {
-    let intervalId;
+    let intervalId = null;
     if (flowInitPoint && flowToken) {
       intervalId = setInterval(async () => {
         try {
-          const res = await fetch('/api/pagos/flow/confirmar/', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}`
-            },
-            body: JSON.stringify({ token: flowToken })
-          });
-          const data = await res.json();
-          if (data.success) {
-            setFlowInitPoint(null);
-            setFlowToken(null);
-            setResultado({ ok: true, ...data });
-            sessionStorage.removeItem('admin_pago_periodos');
-            // Nota: recargarDeuda() ya no es estrictamente necesario aquí si mostramos la pantalla de éxito.
-          } else if (data.status === 'pending') {
-            // Sigue pendiente
-          } else if (data.error) {
-            setFlowInitPoint(null);
-            setFlowToken(null);
-            setErrForm(data.error);
+          if (flowModoMixto) {
+            const res = await fetch('/api/flow/confirmar-generico/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}`
+              },
+              body: JSON.stringify({ token: flowToken })
+            });
+            const data = await res.json();
+            if (data.status === 2) {
+              setFlowInitPoint(null);
+              setFlowToken(null);
+              setFlowModoMixto(false);
+              // Registrar automáticamente
+              if (handleRegistrarRef.current) handleRegistrarRef.current();
+            } else if (data.error) {
+              setFlowInitPoint(null);
+              setFlowToken(null);
+              setFlowModoMixto(false);
+              setErrForm(data.error);
+            }
+          } else {
+            const res = await fetch('/api/pagos/flow/confirmar/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}`
+              },
+              body: JSON.stringify({ token: flowToken })
+            });
+            const data = await res.json();
+            if (data.success) {
+              setFlowInitPoint(null);
+              setFlowToken(null);
+              setResultado({ ok: true, ...data });
+              sessionStorage.removeItem('admin_pago_periodos');
+            } else if (data.status === 'pending') {
+              // Sigue pendiente
+            } else if (data.error) {
+              setFlowInitPoint(null);
+              setFlowToken(null);
+              setErrForm(data.error);
+            }
           }
         } catch (e) { }
       }, 3500);
     }
     return () => clearInterval(intervalId);
-  }, [flowInitPoint, flowToken]);
+  }, [flowInitPoint, flowToken, flowModoMixto]);
 
   // Auto-calcular monto
   useEffect(() => {
@@ -212,6 +245,9 @@ export default function AdminPagoPresencial() {
     setMetodo1(''); setMonto1(''); setMetodo2(''); setMonto2('');
     setMonto('');
     setErrForm('');
+    setFlowInitPoint(null);
+    setFlowToken(null);
+    setFlowModoMixto(false);
     setResultado(null);
     setCargandoDeuda(true);
     try {
@@ -1204,10 +1240,12 @@ export default function AdminPagoPresencial() {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#fff', padding: '1rem', borderRadius: '12px', width: '90%', maxWidth: '420px', height: '80vh', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
             <button
-              onClick={() => { setFlowInitPoint(null); setFlowToken(null); }}
+              onClick={() => { setFlowInitPoint(null); setFlowToken(null); setFlowModoMixto(false); }}
               style={{ position: 'absolute', top: '-15px', right: '-15px', background: '#EF4444', color: '#fff', border: '2px solid #fff', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
             >✕</button>
-            <h3 style={{ textAlign: 'center', marginBottom: '0.2rem', fontSize: '1.2rem', color: '#111', fontWeight: '800' }}>Pagar con Yape/Plin</h3>
+            <h3 style={{ textAlign: 'center', marginBottom: '0.2rem', fontSize: '1.2rem', color: '#111', fontWeight: '800' }}>
+              {flowModoMixto ? 'Pagar Mixto con Yape/Plin' : 'Pagar con Yape/Plin'}
+            </h3>
             <p style={{ textAlign: 'center', color: '#666', fontSize: '0.85rem', marginBottom: '0.8rem' }}>Pídele al colegiado que escanee este código desde la pantalla.</p>
             <div style={{ flex: 1, position: 'relative', overflow: 'hidden', borderRadius: '8px', border: '1px solid #E2E8F0', background: '#F8FAFC' }}>
               <iframe

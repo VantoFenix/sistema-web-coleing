@@ -243,6 +243,38 @@ class PagoFlowConfirmarView(APIView):
             'comprobante':      comprobante_data
         })
 
+class FlowConfirmarGenericoView(APIView):
+    """
+    Verifica el status de un pago en Flow sin registrar nada en la BD.
+    Útil para pagos Mixtos.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import sys
+        from core.flow_api import FlowAPI
+
+        token = request.data.get('token', '')
+        if not token:
+            return Response({'error': 'Token de Flow requerido.'}, status=400)
+
+        try:
+            flow_api = FlowAPI()
+            res = flow_api.get_payment_status(token)
+            
+            print("[FLOW GENERIC STATUS]", res, file=sys.stderr)
+
+            # status 2 = pagado (en Flow)
+            if res.get('status') == 2:
+                return Response({'status': 2})
+            elif res.get('status') == 1:
+                return Response({'status': 1, 'message': 'pending'}, status=202)
+            else:
+                return Response({'error': f"El pago no fue aprobado (estado Flow: {res.get('status')})."}, status=402)
+        except Exception as e:
+            print("[FLOW GENERIC VERIFY ERROR]", e, file=sys.stderr)
+            return Response({'error': 'Error al verificar token en Flow.'}, status=400)
+
 class PagoOnlineView(APIView):
     """
     Procesa pagos online via MercadoPago.
