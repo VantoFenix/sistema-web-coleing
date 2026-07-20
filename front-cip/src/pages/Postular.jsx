@@ -372,7 +372,7 @@ export default function Postular() {
                       </p>
                     )}
                     <input type="file" accept=".pdf,image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-recibo" onChange={(e) => handleFileChange(e, setRecibo, setReciboInfo, 5, ['application/pdf', 'image/'], 'Recibo de Pago')} />
-                    <label htmlFor="file-recibo" className="btn btn-outline" style={{...btnFileStyle, marginTop: 'auto'}}>Seleccionar</label>
+                    <label htmlFor="file-recibo" className="btn btn-outline" style={{...btnFileStyle, marginTop: 'auto'}}>Examinar</label>
                   </div>
                   
                   {/* Derecha: Inputs N° Operación y Fecha */}
@@ -433,10 +433,10 @@ export default function Postular() {
             </div>
 
             {/* COLUMNA DERECHA: DATOS PERSONALES */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+            <div style={{ ...shadedStyle, margin: '0', display: 'flex', flexDirection: 'column', gap: '0' }}>
 
               {/* Datos personales */}
-              <div style={{ padding: '2rem 0' }}>
+              <div>
                 <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Datos Personales y Académicos</h3>
 
                 <div className="form-group">
