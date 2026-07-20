@@ -76,18 +76,31 @@ def enviar_aviso_preventivo(*, correo, nombres, nro_colegiado, dias_restantes):
         f"Colegio de Ingenieros del Perú"
     )
 
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173').rstrip('/')
+    logo_url = f"{frontend_url}/webp-logo-cip.webp"
+    portal_url = f"{frontend_url}/portal/pagos"
+
     html = f"""
-    <div style="font-family: Arial, sans-serif; color: #1F2937; max-width: 560px;">
-      <h2 style="color: #D97706; margin-bottom: 0.5rem;">Aviso Preventivo</h2>
-      <p>Estimado(a) <strong>{nombres}</strong>,</p>
-      <p>Su cuenta como colegiado CIP <strong>{nro_colegiado}</strong> está a 
-         <strong>{dias_restantes} día(s)</strong> de quedar <strong>INHABILITADA</strong> por falta de pago.</p>
-      <p style="background:#FFFBEB;border:1px solid #FDE68A;padding:0.75rem 1rem;border-radius:6px;color:#92400E;">
-         Le sugerimos regularizar su mensualidad para mantener su estado activo y acceder a los beneficios del CIP.
+    <div style="font-family: Arial, sans-serif; color: #1F2937; max-width: 560px; border: 1px solid #E5E7EB; border-radius: 8px; padding: 2rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="text-align: center; margin-bottom: 1.5rem;">
+        <img src="{logo_url}" alt="Logo CIP" style="height: 64px; width: auto; margin-bottom: 1rem;" />
+        <h2 style="color: #D97706; margin: 0; font-size: 1.5rem;">Aviso Preventivo</h2>
+      </div>
+      <p style="font-size: 1.1rem; color: #374151;">Estimado(a) <strong>{nombres}</strong>,</p>
+      <p style="line-height: 1.6; color: #4B5563;">
+         Su cuenta como colegiado CIP <strong>{nro_colegiado}</strong> está a 
+         <strong>{dias_restantes} día(s)</strong> de quedar <strong>INHABILITADA</strong> por falta de pago de la mensualidad actual.
       </p>
-      <p>Puede pagar en línea desde el portal del colegiado o de forma presencial.</p>
-      <hr style="border:none;border-top:1px solid #E5E7EB;margin:1.5rem 0;">
-      <p style="color:#6B7280;font-size:0.85rem;">Colegio de Ingenieros del Perú</p>
+      <div style="background:#FFFBEB; border-left: 4px solid #F59E0B; padding: 1rem; border-radius: 4px; color: #92400E; margin: 1.5rem 0;">
+         <strong>Sugerencia:</strong> Le invitamos a regularizar su pago para mantener su estado activo y seguir disfrutando de los beneficios del CIP.
+      </div>
+      <div style="text-align: center; margin: 2rem 0;">
+        <a href="{portal_url}" style="background-color: #2563EB; color: white; padding: 0.75rem 1.5rem; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Pagar en línea ahora</a>
+      </div>
+      <hr style="border:none; border-top:1px solid #E5E7EB; margin: 1.5rem 0;">
+      <p style="color:#6B7280; font-size: 0.85rem; text-align: center; margin: 0;">
+         <em>Este es un mensaje automático generado por el Sistema CIP.</em>
+      </p>
     </div>
     """
 
