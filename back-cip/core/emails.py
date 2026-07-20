@@ -138,3 +138,47 @@ def enviar_aviso_inhabilitacion(*, correo, nombres, nro_colegiado):
     )
     msg.attach_alternative(html, "text/html")
     msg.send(fail_silently=False)
+
+
+def enviar_confirmacion_pago(*, correo, nombres, nro_colegiado, monto_total, periodos_pagados, nro_operacion):
+    """Envía confirmación de pago de cuotas."""
+    asunto = f"Confirmación de Pago - Colegio de Ingenieros del Perú"
+    periodos_str = ', '.join(periodos_pagados)
+    
+    texto = (
+        f"Estimado(a) {nombres},\n\n"
+        f"Hemos registrado exitosamente su pago por concepto de cuotas institucionales.\n\n"
+        f"Detalle del pago:\n"
+        f"- Colegiado CIP: {nro_colegiado}\n"
+        f"- Monto Total: S/ {monto_total:.2f}\n"
+        f"- Periodos Pagados: {periodos_str}\n"
+        f"- Nro. Operación: {nro_operacion}\n\n"
+        f"Gracias por mantenerse al día con sus obligaciones institucionales.\n\n"
+        f"Colegio de Ingenieros del Perú"
+    )
+
+    html = f"""
+    <div style="font-family: Arial, sans-serif; color: #1F2937; max-width: 560px;">
+      <h2 style="color: #059669; margin-bottom: 0.5rem;">Confirmación de Pago Exitoso</h2>
+      <p>Estimado(a) <strong>{nombres}</strong>,</p>
+      <p>Hemos registrado exitosamente su pago por concepto de cuotas institucionales.</p>
+      <div style="background:#F3F4F6;border-left:4px solid #10B981;padding:1rem;border-radius:4px;">
+         <p style="margin:0.25rem 0;"><strong>Colegiado CIP:</strong> {nro_colegiado}</p>
+         <p style="margin:0.25rem 0;"><strong>Monto Total:</strong> S/ {monto_total:.2f}</p>
+         <p style="margin:0.25rem 0;"><strong>Meses Pagados:</strong> {periodos_str}</p>
+         <p style="margin:0.25rem 0;"><strong>Nro. Operación:</strong> {nro_operacion}</p>
+      </div>
+      <p>Puede descargar o imprimir su boleta oficial desde el portal web.</p>
+      <hr style="border:none;border-top:1px solid #E5E7EB;margin:1.5rem 0;">
+      <p style="color:#6B7280;font-size:0.85rem;">Colegio de Ingenieros del Perú</p>
+    </div>
+    """
+
+    msg = EmailMultiAlternatives(
+        subject=asunto,
+        body=texto,
+        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+        to=[correo],
+    )
+    msg.attach_alternative(html, "text/html")
+    msg.send(fail_silently=False)

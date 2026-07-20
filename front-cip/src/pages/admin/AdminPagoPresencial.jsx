@@ -560,7 +560,7 @@ export default function AdminPagoPresencial() {
                 fontWeight: '800', fontSize: '1rem', cursor: 'pointer'
               }}
             >
-              📥 Imprimir Comprobante Oficial
+              📥 Imprimir en PDF
             </button>
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button onClick={handleNuevoPago} className="btn btn-primary" style={{ flex: 1 }}>

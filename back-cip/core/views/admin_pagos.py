@@ -132,6 +132,21 @@ class AdminRegistrarPagoPresencialView(APIView):
         from datetime import datetime as _dt
         emision = _dt.now().strftime('%d/%m/%Y, %I:%M %p')
 
+        if colegiado.correo:
+            try:
+                from core.emails import enviar_confirmacion_pago
+                enviar_confirmacion_pago(
+                    correo=colegiado.correo,
+                    nombres=colegiado.nombres,
+                    nro_colegiado=colegiado.nro_colegiado,
+                    monto_total=round(monto_total, 2),
+                    periodos_pagados=registrados,
+                    nro_operacion=boleta_numero
+                )
+            except Exception as e:
+                import sys
+                print(f"[EMAIL ERROR] {e}", file=sys.stderr)
+
         return Response({
             'success': True,
             # datos comprobante
@@ -248,6 +263,20 @@ class AdminPagoTarjetaView(APIView):
                 (registrados if created else ya_existian).append(periodo_str)
             except Exception as ex:
                 print(f"[ADMIN TARJETA] Error guardando {periodo_str}: {ex}", file=sys.stderr)
+
+        if registrados and colegiado.correo:
+            try:
+                from core.emails import enviar_confirmacion_pago
+                enviar_confirmacion_pago(
+                    correo=colegiado.correo,
+                    nombres=colegiado.nombres,
+                    nro_colegiado=colegiado.nro_colegiado,
+                    monto_total=round(monto_total, 2),
+                    periodos_pagados=registrados,
+                    nro_operacion=nro_op
+                )
+            except Exception as e:
+                print(f"[EMAIL ERROR] {e}", file=sys.stderr)
 
         return Response({
             'success':            True,

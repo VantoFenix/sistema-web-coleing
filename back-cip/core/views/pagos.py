@@ -214,6 +214,20 @@ class PagoFlowConfirmarView(APIView):
             except Exception as e:
                 print(f"[FLOW COMPROBANTE ERROR] {e}", file=sys.stderr)
 
+            if getattr(colegiado, 'correo', None):
+                try:
+                    from core.emails import enviar_confirmacion_pago
+                    enviar_confirmacion_pago(
+                        correo=colegiado.correo,
+                        nombres=colegiado.nombres,
+                        nro_colegiado=colegiado.nro_colegiado,
+                        monto_total=round(len(periodos) * _get_monto_mensualidad(), 2),
+                        periodos_pagados=registrados,
+                        nro_operacion=nro_operacion
+                    )
+                except Exception as e:
+                    print(f"[EMAIL ERROR] {e}", file=sys.stderr)
+
         return Response({
             'success':          True,
             'periodos_pagados': registrados,
@@ -334,6 +348,20 @@ class PagoOnlineView(APIView):
                     (registrados if created else ya_existian).append(periodo_str)
                 except Exception as ex:
                     print(f"[MP] Error guardando periodo {periodo_str}: {ex}", file=sys.stderr)
+
+            if registrados and getattr(colegiado, 'correo', None):
+                try:
+                    from core.emails import enviar_confirmacion_pago
+                    enviar_confirmacion_pago(
+                        correo=colegiado.correo,
+                        nombres=colegiado.nombres,
+                        nro_colegiado=colegiado.nro_colegiado,
+                        monto_total=monto_total,
+                        periodos_pagados=registrados,
+                        nro_operacion=str(response.get("id", ""))
+                    )
+                except Exception as e:
+                    print(f"[EMAIL ERROR] {e}", file=sys.stderr)
 
             return Response({
                 'success':          True,
@@ -688,6 +716,21 @@ class ConsultarEstadoQRView(APIView):
                 registrados.append(periodo_str)
                 
         print(f"[MP QR STATUS] Pago aprobado: {payment_id}, periodos registrados: {registrados}", file=sys.stderr)
+
+        if registrados and getattr(colegiado, 'correo', None):
+            try:
+                from core.emails import enviar_confirmacion_pago
+                enviar_confirmacion_pago(
+                    correo=colegiado.correo,
+                    nombres=colegiado.nombres,
+                    nro_colegiado=colegiado.nro_colegiado,
+                    monto_total=total_pagado,
+                    periodos_pagados=registrados,
+                    nro_operacion=str(payment_id)
+                )
+            except Exception as e:
+                print(f"[EMAIL ERROR] {e}", file=sys.stderr)
+
                 
         return Response({
             'pagado': True,
