@@ -36,11 +36,11 @@ from .utils import _get_habilitado, _meses_entre
 
 class AdminBuscarColegiadoView(APIView):
     """Busca colegiados por DNI, nombre o número de colegiado."""
-    authentication_classes = []
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         from django.db.models import Q
+        admin = request.user
         q = request.query_params.get('q', '').strip()
         if not q or len(q) < 2:
             return Response([])
@@ -50,7 +50,12 @@ class AdminBuscarColegiadoView(APIView):
             Q(nombres__icontains=q) |
             Q(nro_colegiado__icontains=q),
             activo=True
-        ).select_related('carrera', 'sede')[:10]
+        )
+
+        if getattr(admin, 'rol', None) in ('CAJERO', 'ADMIN') and getattr(admin, 'sede_id', None):
+            colegiados = colegiados.filter(sede_id=admin.sede_id)
+            
+        colegiados = colegiados.select_related('carrera', 'sede')[:10]
 
         resultados = []
         for col in colegiados:
@@ -71,14 +76,17 @@ class AdminDeudaColegiadoView(APIView):
     """Devuelve todos los periodos del año actual + deudas previas de un colegiado.
     Cada periodo tiene estado: PAGADO | PENDIENTE | ADELANTO.
     """
-    authentication_classes = []
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
         try:
-            col = Colegiado.objects.select_related('carrera', 'sede').get(pk=pk, activo=True)
+            admin = request.user
+            qs = Colegiado.objects.select_related('carrera', 'sede').filter(activo=True)
+            if getattr(admin, 'rol', None) in ('CAJERO', 'ADMIN') and getattr(admin, 'sede_id', None):
+                qs = qs.filter(sede_id=admin.sede_id)
+            col = qs.get(pk=pk)
         except Colegiado.DoesNotExist:
-            return Response({'error': 'Colegiado no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Colegiado no encontrado o no pertenece a su sede'}, status=status.HTTP_404_NOT_FOUND)
 
         # Periodos ya pagados — normalizados a date (Supabase puede devolver datetime)
         raw_pagados = Pago.objects.filter(colegiado=col, tipo='MENSUALIDAD').values_list('periodo', flat=True)

@@ -57,6 +57,7 @@ export default function AdminPagoPresencial() {
   const [buscando, setBuscando] = useState(false);
   const [resultados, setResultados] = useState(null);
   const [errBusqueda, setErrBusqueda] = useState('');
+  const [qrPagadoMixto, setQrPagadoMixto] = useState(false);
 
   const [cargandoQr, setCargandoQr] = useState(false);
   const [qrError, setQrError] = useState('');
@@ -166,9 +167,15 @@ export default function AdminPagoPresencial() {
           if (data.status === 2) {
             setFlowInitPoint(null);
             setFlowToken(null);
-            setFlowModoMixto(false);
-            // Registrar automáticamente pasando flowSuccess = true
-            if (handleRegistrarRef.current) handleRegistrarRef.current(true);
+            
+            if (flowModoMixto) {
+              setFlowModoMixto(false);
+              setQrPagadoMixto(true);
+            } else {
+              setFlowModoMixto(false);
+              // Registrar automáticamente pasando flowSuccess = true
+              if (handleRegistrarRef.current) handleRegistrarRef.current(true);
+            }
           } else if (data.error) {
             setFlowInitPoint(null);
             setFlowToken(null);
@@ -197,7 +204,9 @@ export default function AdminPagoPresencial() {
     setBuscando(true);
     setResultados(null);
     try {
-      const res = await fetch(`/api/admin/colegiados/buscar/?q=${encodeURIComponent(q)}`);
+      const res = await fetch(`/api/admin/colegiados/buscar/?q=${encodeURIComponent(q)}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` }
+      });
       const data = await res.json();
       setResultados(Array.isArray(data) ? data : []);
     } catch {
@@ -224,10 +233,13 @@ export default function AdminPagoPresencial() {
     setFlowInitPoint(null);
     setFlowToken(null);
     setFlowModoMixto(false);
+    setQrPagadoMixto(false);
     setResultado(null);
     setCargandoDeuda(true);
     try {
-      const res = await fetch(`/api/admin/colegiados/${col.id}/deuda/`);
+      const res = await fetch(`/api/admin/colegiados/${col.id}/deuda/`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` }
+      });
       const data = await res.json();
       setDeuda(data);
       const periodos = data.periodos || data.periodos_pendientes || [];
@@ -1115,27 +1127,33 @@ export default function AdminPagoPresencial() {
                 <div style={{ background: '#F8FAFF', padding: '1rem', borderRadius: '8px', border: '1px solid #BFDBFE', marginBottom: '1.1rem' }}>
                   <div style={{ marginBottom: '0.75rem' }}>
                     <label style={{ fontSize: '0.75rem', color: '#1E40AF', fontWeight: '600', marginBottom: '0.25rem', display: 'block' }}>Parte 1</label>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <select value={metodo1} onChange={e => setMetodo1(e.target.value)} style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <select value={metodo1} onChange={e => { setMetodo1(e.target.value); setQrPagadoMixto(false); }} style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }}>
                         <option value="">Seleccione...</option>
                         {METODOS.map(m => <option key={m.valor} value={m.valor}>{m.label}</option>)}
                       </select>
-                      <input type="number" step="0.01" min="0" placeholder="Monto S/" value={monto1} onChange={e => setMonto1(e.target.value)} style={{ width: '80px', padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }} />
-                      {metodo1 === 'YAPE_PLIN' && monto1 && parseFloat(monto1) > 0 && (
+                      <input type="number" step="0.01" min="0" placeholder="Monto S/" value={monto1} onChange={e => { setMonto1(e.target.value); setQrPagadoMixto(false); }} style={{ width: '80px', padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }} />
+                      {metodo1 === 'YAPE_PLIN' && monto1 && parseFloat(monto1) > 0 && !qrPagadoMixto && (
                         <button type="button" onClick={() => generarQrMixto(monto1)} disabled={cargandoQr} style={{ padding: '0.4rem 0.6rem', background: '#3B82F6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}>QR</button>
+                      )}
+                      {metodo1 === 'YAPE_PLIN' && qrPagadoMixto && (
+                        <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><CheckCircle2 size={14} /> Pagado</span>
                       )}
                     </div>
                   </div>
                   <div>
                     <label style={{ fontSize: '0.75rem', color: '#1E40AF', fontWeight: '600', marginBottom: '0.25rem', display: 'block' }}>Parte 2</label>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <select value={metodo2} onChange={e => setMetodo2(e.target.value)} style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <select value={metodo2} onChange={e => { setMetodo2(e.target.value); setQrPagadoMixto(false); }} style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }}>
                         <option value="">Seleccione...</option>
                         {METODOS.map(m => <option key={m.valor} value={m.valor}>{m.label}</option>)}
                       </select>
-                      <input type="number" step="0.01" min="0" placeholder="Monto S/" value={monto2} onChange={e => setMonto2(e.target.value)} style={{ width: '80px', padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }} />
-                      {metodo2 === 'YAPE_PLIN' && monto2 && parseFloat(monto2) > 0 && (
+                      <input type="number" step="0.01" min="0" placeholder="Monto S/" value={monto2} onChange={e => { setMonto2(e.target.value); setQrPagadoMixto(false); }} style={{ width: '80px', padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }} />
+                      {metodo2 === 'YAPE_PLIN' && monto2 && parseFloat(monto2) > 0 && !qrPagadoMixto && (
                         <button type="button" onClick={() => generarQrMixto(monto2)} disabled={cargandoQr} style={{ padding: '0.4rem 0.6rem', background: '#3B82F6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}>QR</button>
+                      )}
+                      {metodo2 === 'YAPE_PLIN' && qrPagadoMixto && (
+                        <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><CheckCircle2 size={14} /> Pagado</span>
                       )}
                     </div>
                   </div>
@@ -1202,18 +1220,18 @@ export default function AdminPagoPresencial() {
 
               <button
                 onClick={() => handleRegistrar(false)}
-                disabled={enviando || periodosSeleccionados.size === 0}
+                disabled={enviando || periodosSeleccionados.size === 0 || (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagadoMixto)}
                 className="btn btn-block"
                 style={{
                   padding: '0.9rem', fontSize: '0.95rem',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                  background: (enviando || periodosSeleccionados.size === 0) ? '#94A3B8' : '#10B981',
+                  background: (enviando || periodosSeleccionados.size === 0 || (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagadoMixto)) ? '#94A3B8' : '#10B981',
                   border: 'none', borderRadius: '10px', color: 'white',
-                  fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0) ? 'not-allowed' : 'pointer',
+                  fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0 || (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagadoMixto)) ? 'not-allowed' : 'pointer',
                   transition: 'all 0.15s',
                 }}
-                onMouseEnter={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#059669'; }}
-                onMouseLeave={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#10B981'; }}
+                onMouseEnter={e => { if (!enviando && periodosSeleccionados.size > 0 && !(esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagadoMixto)) e.currentTarget.style.background = '#059669'; }}
+                onMouseLeave={e => { if (!enviando && periodosSeleccionados.size > 0 && !(esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagadoMixto)) e.currentTarget.style.background = '#10B981'; }}
               >
                 {enviando
                   ? <><Loader2 size={18} className="spin" /> Registrando…</>

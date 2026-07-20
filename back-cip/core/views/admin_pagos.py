@@ -36,10 +36,10 @@ from .utils import _get_habilitado
 
 class AdminRegistrarPagoPresencialView(APIView):
     """Registra uno o varios pagos presenciales para un colegiado."""
-    authentication_classes = []
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        admin = request.user
         colegiado_id  = request.data.get('colegiado_id')
         periodos      = request.data.get('periodos', [])   # ["2025-01", "2025-02"]
         monto_total   = request.data.get('monto')
@@ -58,9 +58,12 @@ class AdminRegistrarPagoPresencialView(APIView):
             return Response({'error': 'Método de pago inválido'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            colegiado = Colegiado.objects.select_related('carrera').get(pk=colegiado_id, activo=True)
+            qs = Colegiado.objects.select_related('carrera').filter(activo=True)
+            if getattr(admin, 'rol', None) in ('CAJERO', 'ADMIN') and getattr(admin, 'sede_id', None):
+                qs = qs.filter(sede_id=admin.sede_id)
+            colegiado = qs.get(pk=colegiado_id)
         except Colegiado.DoesNotExist:
-            return Response({'error': 'Colegiado no encontrado o inactivo'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Colegiado no encontrado, inactivo o no pertenece a su sede'}, status=status.HTTP_404_NOT_FOUND)
 
         try:
             monto_total = float(monto_total)
