@@ -20,6 +20,7 @@ from django.conf import settings
 # pyrefly: ignore [missing-import]
 from ..models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago, PagoVoucherPendiente, Configuracion
 from rest_framework.parsers import MultiPartParser, FormParser
+from ..authentication import CustomJWTAuthentication
 # pyrefly: ignore [missing-import]
 from ..serializers import AdministradorSerializer, AdministradorCRUDSerializer, ColegiadoSerializer, SolicitudSerializer, CarreraSerializer, SedeSerializer
 # pyrefly: ignore [missing-import]
@@ -32,17 +33,22 @@ from django.core.mail import send_mail
 
 
 class AdminPostulacionesView(APIView):
-    # En producción idealmente IsAuthenticated, lo dejamos AllowAny para MVP rápido
-    authentication_classes = []
-    permission_classes = [AllowAny]
+    authentication_classes = [CustomJWTAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        solicitudes = Solicitud.objects.filter(estado='EN_REVISION').order_by('creado_en')
+        admin = request.user
+        solicitudes = Solicitud.objects.filter(estado='EN_REVISION')
+        
+        if getattr(admin, 'rol', None) != 'MASTER_ADMIN' and getattr(admin, 'sede', None):
+            solicitudes = solicitudes.filter(sede=admin.sede)
+            
+        solicitudes = solicitudes.order_by('creado_en')
         return Response(SolicitudSerializer(solicitudes, many=True).data)
 
 class AdminResolverSolicitudView(APIView):
-    authentication_classes = []
-    permission_classes = [AllowAny]
+    authentication_classes = [CustomJWTAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
         accion = request.data.get('accion') # 'APROBAR' o 'RECHAZAR'
@@ -52,6 +58,11 @@ class AdminResolverSolicitudView(APIView):
             solicitud = Solicitud.objects.get(pk=pk, estado='EN_REVISION')
         except Solicitud.DoesNotExist:
             return Response({'error': 'Solicitud no encontrada o ya resuelta'}, status=status.HTTP_404_NOT_FOUND)
+
+        admin = request.user
+        if getattr(admin, 'rol', None) != 'MASTER_ADMIN' and getattr(admin, 'sede', None):
+            if solicitud.sede != admin.sede:
+                return Response({'error': 'No tiene permisos para procesar expedientes de esta sede.'}, status=status.HTTP_403_FORBIDDEN)
 
         if accion == 'RECHAZAR':
             solicitud.estado = 'RECHAZADA'
