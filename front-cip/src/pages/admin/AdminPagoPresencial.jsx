@@ -545,25 +545,23 @@ export default function AdminPagoPresencial() {
 
           {/* Botones comprobante */}
           <div style={{ display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
-            {resultado.comprobante && (
-              <button
-                onClick={() => setComprobanteParaMostrar(resultado.comprobante)}
-                className="btn btn-primary"
-                style={{
-                  background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  width: '100%',
-                  padding: '0.9rem',
-                  border: 'none', borderRadius: '10px',
-                  fontWeight: '800', fontSize: '1rem', cursor: 'pointer'
-                }}
-              >
-                📥 Descargar Comprobante
-              </button>
-            )}
+            <button
+              onClick={generarComprobante}
+              className="btn btn-primary"
+              style={{
+                background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                width: '100%',
+                padding: '0.9rem',
+                border: 'none', borderRadius: '10px',
+                fontWeight: '800', fontSize: '1rem', cursor: 'pointer'
+              }}
+            >
+              📥 Imprimir Comprobante Oficial
+            </button>
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button onClick={handleNuevoPago} className="btn btn-primary" style={{ flex: 1 }}>
                 Registrar otro pago
