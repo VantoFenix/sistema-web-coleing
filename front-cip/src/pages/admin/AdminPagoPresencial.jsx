@@ -68,6 +68,11 @@ export default function AdminPagoPresencial() {
   const [periodosSeleccionados, setPeriodosSeleccionados] = useState(new Set());
   const [metodo, setMetodo] = useState('');
   const [monto, setMonto] = useState('');
+  const [esMixto, setEsMixto] = useState(false);
+  const [metodo1, setMetodo1] = useState('');
+  const [monto1, setMonto1] = useState('');
+  const [metodo2, setMetodo2] = useState('');
+  const [monto2, setMonto2] = useState('');
   const [errForm, setErrForm] = useState('');
 
   const [enviando, setEnviando] = useState(false);
@@ -176,9 +181,10 @@ export default function AdminPagoPresencial() {
     }
 
     setResultados(null);
-    setQuery('');
     setPeriodosSeleccionados(new Set());
     setMetodo('');
+    setEsMixto(false);
+    setMetodo1(''); setMonto1(''); setMetodo2(''); setMonto2('');
     setMonto('');
     setErrForm('');
     setResultado(null);
@@ -252,13 +258,41 @@ export default function AdminPagoPresencial() {
   const handleRegistrar = async () => {
     setErrForm('');
     if (periodosSeleccionados.size === 0) { setErrForm('Seleccione al menos un periodo.'); return; }
-    if (!metodo) { setErrForm('Seleccione el método de pago.'); return; }
+    
     if (!monto || isNaN(parseFloat(monto)) || parseFloat(monto) <= 0) {
       setErrForm('Ingrese un monto válido mayor a 0.'); return;
     }
+
+    let payload = {
+      colegiado_id: colegiado.id,
+      periodos: [...periodosSeleccionados].sort(),
+      monto: parseFloat(monto),
+      fecha_pago: new Date().toISOString().slice(0, 10),
+    };
+
+    if (esMixto) {
+      if (!metodo1 || !monto1 || !metodo2 || !monto2) {
+        setErrForm('Debe completar ambos métodos y montos en el pago mixto.'); return;
+      }
+      if (Math.abs(parseFloat(monto1) + parseFloat(monto2) - parseFloat(monto)) > 0.01) {
+        setErrForm(`La suma de los montos (S/ ${(parseFloat(monto1) || 0) + (parseFloat(monto2) || 0)}) no coincide con el total (S/ ${parseFloat(monto).toFixed(2)}).`); return;
+      }
+      if (metodo1 === metodo2) {
+        setErrForm('Seleccione métodos diferentes para el pago mixto.'); return;
+      }
+      payload.metodo = 'MIXTO';
+      payload.pagos_parciales = [
+        { metodo: metodo1, monto: parseFloat(monto1) },
+        { metodo: metodo2, monto: parseFloat(monto2) }
+      ];
+    } else {
+      if (!metodo) { setErrForm('Seleccione el método de pago.'); return; }
+      payload.metodo = metodo;
+    }
+
     setEnviando(true);
 
-    if (metodo === 'YAPE_PLIN') {
+    if (!esMixto && metodo === 'YAPE_PLIN') {
       try {
         const token = localStorage.getItem('adminToken') || '';
         const res = await fetch('/api/pagos/flow/crear/', {
@@ -292,13 +326,7 @@ export default function AdminPagoPresencial() {
       const res = await fetch('/api/admin/pagos/presencial/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          colegiado_id: colegiado.id,
-          periodos: [...periodosSeleccionados].sort(),
-          monto: parseFloat(monto),
-          metodo,
-          fecha_pago: new Date().toISOString().slice(0, 10),
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (data.success) {
@@ -998,31 +1026,70 @@ export default function AdminPagoPresencial() {
                 </div>
               )}
 
-              {/* Método de pago */}
-              <div className="form-group" style={{ marginBottom: '1.1rem' }}>
-                <label className="form-label" style={{ fontSize: '0.8rem' }}>Método de Pago</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.4rem' }}>
-                  {METODOS.map(m => (
-                    <button
-                      key={m.valor}
-                      type="button"
-                      onClick={() => { setMetodo(m.valor); setErrForm(''); }}
-                      style={{
-                        padding: '0.55rem 0.3rem', borderRadius: '8px', cursor: 'pointer',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.22rem',
-                        border: `2px solid ${metodo === m.valor ? 'var(--cip-blue)' : 'var(--border-color)'}`,
-                        background: metodo === m.valor ? '#EFF6FF' : 'white',
-                        color: metodo === m.valor ? 'var(--cip-blue)' : 'var(--text-main)',
-                        fontWeight: metodo === m.valor ? '700' : '400',
-                        fontSize: '0.72rem', transition: 'all 0.15s',
-                      }}
-                    >
-                      {m.icono}
-                      {m.label}
-                    </button>
-                  ))}
+              {/* Tipo de Pago (Normal o Mixto) */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--cip-blue)' }}>Modo de Pago</label>
+                <div style={{ display: 'flex', gap: '0.5rem', background: '#F8FAFC', padding: '0.2rem', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                  <button onClick={() => setEsMixto(false)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', fontWeight: '600', borderRadius: '6px', border: 'none', background: !esMixto ? '#10B981' : 'transparent', color: !esMixto ? 'white' : '#64748B', cursor: 'pointer' }}>Único</button>
+                  <button onClick={() => setEsMixto(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', fontWeight: '600', borderRadius: '6px', border: 'none', background: esMixto ? '#3B82F6' : 'transparent', color: esMixto ? 'white' : '#64748B', cursor: 'pointer' }}>Mixto</button>
                 </div>
               </div>
+
+              {/* Método de pago */}
+              {!esMixto ? (
+                <div className="form-group" style={{ marginBottom: '1.1rem' }}>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>Método de Pago</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.4rem' }}>
+                    {METODOS.map(m => (
+                      <button
+                        key={m.valor}
+                        type="button"
+                        onClick={() => { setMetodo(m.valor); setErrForm(''); }}
+                        style={{
+                          padding: '0.55rem 0.3rem', borderRadius: '8px', cursor: 'pointer',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.22rem',
+                          border: `2px solid ${metodo === m.valor ? 'var(--cip-blue)' : 'var(--border-color)'}`,
+                          background: metodo === m.valor ? '#EFF6FF' : 'white',
+                          color: metodo === m.valor ? 'var(--cip-blue)' : 'var(--text-main)',
+                          fontWeight: metodo === m.valor ? '700' : '400',
+                          fontSize: '0.72rem', transition: 'all 0.15s',
+                        }}
+                      >
+                        {m.icono}
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ background: '#F8FAFF', padding: '1rem', borderRadius: '8px', border: '1px solid #BFDBFE', marginBottom: '1.1rem' }}>
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ fontSize: '0.75rem', color: '#1E40AF', fontWeight: '600', marginBottom: '0.25rem', display: 'block' }}>Parte 1</label>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <select value={metodo1} onChange={e => setMetodo1(e.target.value)} style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }}>
+                        <option value="">Seleccione...</option>
+                        {METODOS.map(m => <option key={m.valor} value={m.valor}>{m.label}</option>)}
+                      </select>
+                      <input type="number" step="0.01" min="0" placeholder="Monto S/" value={monto1} onChange={e => setMonto1(e.target.value)} style={{ width: '80px', padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: '#1E40AF', fontWeight: '600', marginBottom: '0.25rem', display: 'block' }}>Parte 2</label>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <select value={metodo2} onChange={e => setMetodo2(e.target.value)} style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }}>
+                        <option value="">Seleccione...</option>
+                        {METODOS.map(m => <option key={m.valor} value={m.valor}>{m.label}</option>)}
+                      </select>
+                      <input type="number" step="0.01" min="0" placeholder="Monto S/" value={monto2} onChange={e => setMonto2(e.target.value)} style={{ width: '80px', padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }} />
+                    </div>
+                  </div>
+                  {monto1 && monto2 && monto && (
+                    <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', textAlign: 'right', fontWeight: '600', color: Math.abs(parseFloat(monto1) + parseFloat(monto2) - parseFloat(monto)) < 0.01 ? '#059669' : '#DC2626' }}>
+                      Suma: S/ {(parseFloat(monto1) + parseFloat(monto2)).toFixed(2)} / S/ {parseFloat(monto).toFixed(2)}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Monto editable (solo si NO es tarjeta, que lo calcula MP) */}
               {metodo !== 'TARJETA' && (
@@ -1049,7 +1116,7 @@ export default function AdminPagoPresencial() {
               )}
 
               {/* Resumen rápido */}
-              {periodosSeleccionados.size > 0 && monto && metodo && (
+              {periodosSeleccionados.size > 0 && monto && (!esMixto ? metodo : (metodo1 && metodo2)) && (
                 <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.78rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', color: 'var(--text-muted)' }}>
                     <span>Periodos:</span>
@@ -1061,7 +1128,7 @@ export default function AdminPagoPresencial() {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
                     <span>Vía:</span>
-                    <strong style={{ color: 'var(--text-main)' }}>{METODOS.find(m => m.valor === metodo)?.label}</strong>
+                    <strong style={{ color: 'var(--text-main)' }}>{!esMixto ? METODOS.find(m => m.valor === metodo)?.label : 'MIXTO'}</strong>
                   </div>
                 </div>
               )}

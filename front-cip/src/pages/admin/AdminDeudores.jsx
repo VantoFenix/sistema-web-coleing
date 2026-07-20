@@ -1,183 +1,202 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Clock, ArrowRight, Loader2, XCircle, Mail, Send, CheckCircle2 } from 'lucide-react';
+import { Wallet, Clock, ArrowRight, Loader2 } from 'lucide-react';
 
 export default function AdminDeudores() {
-  const [deudores, setDeudores] = useState([]);
+  const [colegiados, setColegiados] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [errorFetch, setErrorFetch] = useState('');
-  const [notificandoId, setNotificandoId] = useState(null);
-  const [notificandoAll, setNotificandoAll] = useState(false);
-  const [avisoNotif, setAvisoNotif] = useState(null); // {tipo:'ok'|'err', texto}
+  const [filtroEstado, setFiltroEstado] = useState('TODOS');
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchDeudores();
+    fetchColegiados();
   }, []);
 
-  const fetchDeudores = async () => {
+  const fetchColegiados = async () => {
     setCargando(true);
     setErrorFetch('');
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch('/api/admin/deudores/detallado/', {
+      const res = await fetch('/api/admin/deudores/', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
-        setDeudores(data);
+        setColegiados(data.results || data);
       } else {
-        let txt = '';
-        try { txt = await res.text(); } catch (_) {}
-        setErrorFetch(`Error ${res.status}: ${txt.substring(0, 150)}`);
+        setErrorFetch(`Error al cargar datos`);
       }
     } catch (e) {
-      setErrorFetch(`Sin conexión al servidor: ${e.message}`);
+      setErrorFetch(`Sin conexión al servidor`);
     } finally {
       setCargando(false);
     }
   };
 
-  const notificar = async ({ ids = [], masivo = false }) => {
-    setAvisoNotif(null);
-    if (masivo) setNotificandoAll(true);
-    else setNotificandoId(ids[0]);
-    try {
-      const token = localStorage.getItem('adminToken');
-      const res = await fetch('/api/admin/deudores/notificar/', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ ids }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setAvisoNotif({ tipo: 'err', texto: data.error || `Error ${res.status}` });
-      } else {
-        const partes = [`Enviados: ${data.enviados}`];
-        if (data.sin_correo) partes.push(`sin correo: ${data.sin_correo}`);
-        if (data.fallidos)   partes.push(`fallidos: ${data.fallidos}`);
-        const hayProblemas = data.enviados === 0 || data.fallidos > 0 || data.sin_correo > 0;
-        setAvisoNotif({ tipo: hayProblemas ? 'err' : 'ok', texto: partes.join(' · ') });
-      }
-    } catch (e) {
-      setAvisoNotif({ tipo: 'err', texto: `Sin conexión: ${e.message}` });
-    } finally {
-      setNotificandoId(null);
-      setNotificandoAll(false);
-    }
-  };
+  const colegiadosFiltrados = colegiados.filter(c => 
+    filtroEstado === 'TODOS' || c.estado === filtroEstado
+  );
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', gap: '1rem', flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ fontSize: '1.875rem', fontWeight: '800', color: '#DC2626', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <AlertTriangle size={32} /> Panel de Deudores
-          </h1>
-          <p style={{ color: 'var(--text-muted)' }}>Colegiados con mensualidades vencidas. Desaparecen al pagar.</p>
+    <div style={{ maxWidth: '100%', margin: '0 auto', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      
+      {/* 1. Encabezado del Módulo (Header Section) */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+          <div style={{ marginTop: '2px' }}>
+            <Wallet size={28} color="#0F172A" strokeWidth={2} />
+          </div>
+          <div>
+            <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#0F172A', margin: '0 0 4px 0' }}>
+              Pagos Mensuales
+            </h2>
+            <p style={{ color: '#64748B', fontSize: '13px', margin: 0, fontWeight: 'normal' }}>
+              Gestión de colegiados e historial de pagos.
+            </p>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            onClick={() => notificar({ ids: [], masivo: true })}
-            disabled={notificandoAll || cargando || deudores.length === 0}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: '#DC2626', color: 'white', border: 'none', borderRadius: '8px', cursor: (notificandoAll || deudores.length === 0) ? 'not-allowed' : 'pointer', opacity: (notificandoAll || deudores.length === 0) ? 0.6 : 1 }}
-          >
-            {notificandoAll ? <Loader2 size={15} className="spin" /> : <Send size={15} />} Notificar a todos
-          </button>
-          <button
-            onClick={fetchDeudores}
-            disabled={cargando}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', background: 'white', border: '1px solid var(--border-color)', borderRadius: '8px', cursor: cargando ? 'not-allowed' : 'pointer' }}
-          >
-            <Clock size={15} className={cargando ? 'spin' : ''} /> Actualizar
-          </button>
-        </div>
+        
+        <button
+          onClick={fetchColegiados}
+          disabled={cargando}
+          style={{ 
+            display: 'flex', alignItems: 'center', gap: '8px', 
+            padding: '10px 16px', background: '#FFFFFF', color: '#334155',
+            border: '1px solid #E2E8F0', borderRadius: '8px', cursor: cargando ? 'not-allowed' : 'pointer',
+            fontSize: '14px', fontWeight: '500', outline: 'none'
+          }}
+        >
+          {cargando ? <Loader2 size={18} className="spin" /> : <Clock size={18} />} 
+          Actualizar
+        </button>
       </div>
 
       {errorFetch && (
-        <div style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem', color: '#B91C1C' }}>
-          <XCircle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
-          <p style={{ fontWeight: '600' }}>{errorFetch}</p>
+        <div style={{ padding: '12px 16px', background: '#FEF2F2', color: '#DC2626', borderRadius: '8px', fontSize: '14px', marginBottom: '16px', border: '1px solid #FECACA' }}>
+          {errorFetch}
         </div>
       )}
 
-      {avisoNotif && (
-        <div style={{
-          background: avisoNotif.tipo === 'ok' ? '#ECFDF5' : '#FEE2E2',
-          border: `1px solid ${avisoNotif.tipo === 'ok' ? '#6EE7B7' : '#FCA5A5'}`,
-          color: avisoNotif.tipo === 'ok' ? '#065F46' : '#B91C1C',
-          borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '1.5rem',
-          display: 'flex', alignItems: 'center', gap: '0.5rem',
-        }}>
-          {avisoNotif.tipo === 'ok' ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
-          <span style={{ fontWeight: '600' }}>{avisoNotif.texto}</span>
-        </div>
-      )}
+      {/* 2. Filtros / Pestañas (Tabs) */}
+      <div style={{ display: 'flex', gap: '16px', borderBottom: '1px solid #E2E8F0', paddingBottom: '16px', marginBottom: '24px' }}>
+        {['TODOS', 'ACTIVO', 'INHABILITADO'].map((estado) => {
+          const isActive = filtroEstado === estado;
+          const label = estado === 'TODOS' ? 'Todos' : estado === 'ACTIVO' ? 'Activos' : 'Inhabilitados';
+          
+          if (isActive) {
+            return (
+              <button
+                key={estado}
+                style={{
+                  background: '#0F172A',
+                  color: '#FFFFFF',
+                  padding: '6px 16px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  border: 'none',
+                  cursor: 'default'
+                }}
+              >
+                {label}
+              </button>
+            );
+          } else {
+            return (
+              <button
+                key={estado}
+                onClick={() => setFiltroEstado(estado)}
+                style={{
+                  background: 'transparent',
+                  color: '#64748B',
+                  padding: '6px 16px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                {label}
+              </button>
+            );
+          }
+        })}
+      </div>
 
-      <div className="card" style={{ padding: '0', overflow: 'hidden', border: '1px solid #FCA5A5', borderTop: '4px solid #DC2626' }}>
+      {/* 3. Tabla de Datos (Data Table) */}
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
-            <tr style={{ background: '#FEF2F2', borderBottom: '2px solid #FCA5A5' }}>
-              <th style={{ padding: '1rem 1.5rem', color: '#991B1B', fontWeight: '700' }}>DNI</th>
-              <th style={{ padding: '1rem 1.5rem', color: '#991B1B', fontWeight: '700' }}>Colegiado</th>
-              <th style={{ padding: '1rem 1.5rem', color: '#991B1B', fontWeight: '700', textAlign: 'center' }}>Meses</th>
-              <th style={{ padding: '1rem 1.5rem', color: '#991B1B', fontWeight: '700', textAlign: 'right' }}>Deuda</th>
-              <th style={{ padding: '1rem 1.5rem', color: '#991B1B', fontWeight: '700' }}>Estado</th>
-              <th style={{ padding: '1rem 1.5rem', color: '#991B1B', fontWeight: '700', textAlign: 'center' }}>Acciones</th>
+            <tr>
+              <th style={{ padding: '16px 24px', color: '#334155', fontSize: '13px', fontWeight: 'bold', background: '#FFFFFF', borderBottom: '1px solid #E2E8F0' }}>DNI</th>
+              <th style={{ padding: '16px 24px', color: '#334155', fontSize: '13px', fontWeight: 'bold', background: '#FFFFFF', borderBottom: '1px solid #E2E8F0' }}>Apellidos y Nombres</th>
+              <th style={{ padding: '16px 24px', color: '#334155', fontSize: '13px', fontWeight: 'bold', background: '#FFFFFF', borderBottom: '1px solid #E2E8F0' }}>Estado</th>
+              <th style={{ padding: '16px 24px', color: '#334155', fontSize: '13px', fontWeight: 'bold', background: '#FFFFFF', borderBottom: '1px solid #E2E8F0' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {cargando ? (
-              <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center' }}><Loader2 className="spin" style={{margin:'0 auto'}}/></td></tr>
-            ) : deudores.length === 0 ? (
-              <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: '#065F46' }}>
-                <CheckCircle2 size={20} style={{ verticalAlign: 'middle', marginRight: '0.5rem' }} />
-                No hay deudores. Todos los colegiados están al día.
-              </td></tr>
+              <tr><td colSpan="4" style={{ padding: '40px', textAlign: 'center' }}><Loader2 size={32} color="#94A3B8" className="spin" style={{margin:'0 auto'}}/></td></tr>
+            ) : colegiadosFiltrados.length === 0 ? (
+              <tr><td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>No hay registros disponibles.</td></tr>
             ) : (
-              deudores.map((d) => (
-                <tr key={d.id} style={{ borderBottom: '1px solid #FCA5A5', background: 'white' }}>
-                  <td style={{ padding: '1rem 1.5rem', fontWeight: '600' }}>{d.dni}</td>
-                  <td style={{ padding: '1rem 1.5rem' }}>
-                    <div style={{ fontWeight: '600' }}>{d.nombre}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      CIP {d.nro_colegiado} · {d.carrera}{d.sede ? ` · ${d.sede}` : ''}
-                    </div>
-                  </td>
-                  <td style={{ padding: '1rem 1.5rem', textAlign: 'center', fontWeight: '700', color: '#DC2626' }}>{d.meses_adeudados}</td>
-                  <td style={{ padding: '1rem 1.5rem', textAlign: 'right', fontWeight: '700' }}>S/ {d.deuda_total.toFixed(2)}</td>
-                  <td style={{ padding: '1rem 1.5rem' }}>
-                    <span style={{ background: '#FEF2F2', color: '#DC2626', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700', border: '1px solid #FCA5A5' }}>
-                      INHABILITADO
-                    </span>
-                  </td>
-                  <td style={{ padding: '1rem 1.5rem', textAlign: 'center' }}>
-                    <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
-                      <button
-                        onClick={() => notificar({ ids: [d.id] })}
-                        disabled={notificandoId === d.id || notificandoAll || !d.correo}
-                        title={d.correo ? `Enviar recordatorio a ${d.correo}` : 'Colegiado sin correo registrado'}
-                        style={{ background: 'white', color: '#DC2626', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', cursor: d.correo ? 'pointer' : 'not-allowed', border: '1px solid #FCA5A5', opacity: d.correo ? 1 : 0.4 }}
+              colegiadosFiltrados.map((colegiado, index) => {
+                const nombreCompleto = (colegiado.nombres || colegiado.nombre || '').toUpperCase();
+                return (
+                  <tr key={colegiado.dni} style={{ borderBottom: index === colegiadosFiltrados.length - 1 ? 'none' : '1px solid #F1F5F9' }}>
+                    <td style={{ padding: '16px 24px', fontSize: '14px', color: '#334155', fontFamily: 'sans-serif' }}>
+                      {colegiado.dni}
+                    </td>
+                    <td style={{ padding: '16px 24px', fontSize: '14px', color: '#334155', fontFamily: 'sans-serif' }}>
+                      {nombreCompleto}
+                    </td>
+                    <td style={{ padding: '16px 24px' }}>
+                      {colegiado.estado === 'ACTIVO' ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', background: '#ECFDF5', color: '#059669', padding: '4px 12px', borderRadius: '9999px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #10B981' }}>
+                          ACTIVO
+                        </span>
+                      ) : (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', background: '#FEF2F2', color: '#DC2626', padding: '4px 12px', borderRadius: '9999px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #EF4444' }}>
+                          INHABILITADO
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: '16px 24px' }}>
+                      <button 
+                        onClick={() => navigate('/admin/pagos-presencial', { state: { dni: colegiado.dni } })}
+                        style={{ 
+                          background: '#0F172A', 
+                          color: '#FFFFFF', 
+                          padding: '8px 16px', 
+                          borderRadius: '6px', 
+                          fontSize: '13px', 
+                          fontWeight: '500',
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '6px', 
+                          cursor: 'pointer', 
+                          border: 'none',
+                          outline: 'none'
+                        }}
                       >
-                        {notificandoId === d.id ? <Loader2 size={13} className="spin" /> : <Mail size={13} />} Notificar
+                        {colegiado.estado === 'ACTIVO' ? 'Adelantar Pago' : 'Cobrar Deuda'} <ArrowRight size={16} />
                       </button>
-                      <button
-                        style={{ background: '#DC2626', color: 'white', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', border: 'none' }}
-                        onClick={() => navigate('/admin/pagos-presencial', { state: { dni: d.dni } })}
-                      >
-                        Cobrar <ArrowRight size={13} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
+      
+      <style>{`
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .spin { animation: spin 1s linear infinite; }
+      `}</style>
     </div>
   );
 }
+

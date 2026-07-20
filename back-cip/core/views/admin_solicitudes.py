@@ -1,0 +1,121 @@
+from rest_framework.viewsets import ModelViewSet
+import jwt
+from datetime import datetime, timedelta
+from django.conf import settings
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework import viewsets
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from django.contrib.auth.hashers import check_password
+from django.db import connection, transaction, IntegrityError
+from django.http import HttpResponse
+from django.core.files.storage import default_storage
+import os
+import uuid
+from datetime import datetime, date
+from django.conf import settings
+
+from ..models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago, PagoVoucherPendiente, Configuracion
+from rest_framework.parsers import MultiPartParser, FormParser
+from ..serializers import AdministradorSerializer, AdministradorCRUDSerializer, ColegiadoSerializer, SolicitudSerializer, CarreraSerializer, SedeSerializer
+# pyrefly: ignore [missing-import]
+from apps.tramites.services import BancoNacionMockService
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
+from django.contrib.auth.hashers import check_password, make_password
+from django.core.mail import send_mail
+
+
+class AdminPostulacionesView(APIView):
+    # En producción idealmente IsAuthenticated, lo dejamos AllowAny para MVP rápido
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        solicitudes = Solicitud.objects.filter(estado='EN_REVISION').order_by('creado_en')
+        return Response(SolicitudSerializer(solicitudes, many=True).data)
+
+class AdminResolverSolicitudView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request, pk):
+        accion = request.data.get('accion') # 'APROBAR' o 'RECHAZAR'
+        comentarios = request.data.get('comentarios', '')
+
+        try:
+            solicitud = Solicitud.objects.get(pk=pk, estado='EN_REVISION')
+        except Solicitud.DoesNotExist:
+            return Response({'error': 'Solicitud no encontrada o ya resuelta'}, status=status.HTTP_404_NOT_FOUND)
+
+        if accion == 'RECHAZAR':
+            solicitud.estado = 'RECHAZADA'
+            solicitud.motivo_rechazo = comentarios
+            solicitud.resuelto_en = datetime.utcnow()
+            solicitud.save()
+            return Response({'success': True, 'estado': 'RECHAZADA'})
+
+        elif accion == 'APROBAR':
+            if solicitud.numero_operacion and Solicitud.objects.filter(numero_operacion=solicitud.numero_operacion, estado='APROBADA').exclude(pk=solicitud.pk).exists():
+                return Response({'error': 'El número de operación de este voucher ya fue validado en otra solicitud aprobada. Debe rechazar esta solicitud.'}, status=status.HTTP_409_CONFLICT)
+                
+            import sys
+
+            try:
+                with transaction.atomic():
+                    solicitud.estado = 'APROBADA'
+                    solicitud.resuelto_en = datetime.utcnow()
+                    solicitud.save()
+
+                    # Generar Nro Colegiado — único por CARRERA + SEDE
+                    with connection.cursor() as cursor:
+                        if solicitud.sede_id:
+                            cursor.execute(
+                                "SELECT MAX(CAST(nro_colegiado AS INTEGER)) "
+                                "FROM colegiado WHERE carrera_id = %s AND sede_id = %s",
+                                [solicitud.carrera_id, solicitud.sede_id]
+                            )
+                        else:
+                            cursor.execute(
+                                "SELECT MAX(CAST(nro_colegiado AS INTEGER)) "
+                                "FROM colegiado WHERE carrera_id = %s AND sede_id IS NULL",
+                                [solicitud.carrera_id]
+                            )
+                        row = cursor.fetchone()
+                        siguiente_nro = str((row[0] or 0) + 1).zfill(5)
+
+                    Colegiado.objects.create(
+                        dni=solicitud.dni,
+                        nombres=solicitud.nombres,
+                        foto_url=solicitud.foto_url,
+                        carrera=solicitud.carrera,
+                        sede=solicitud.sede,
+                        nro_colegiado=siguiente_nro,
+                        solicitud=solicitud,
+                        correo=solicitud.correo,
+                        celular=solicitud.celular,
+                        colegiado_desde=datetime.utcnow().date()
+                    )
+
+            except IntegrityError as e:
+                msg = str(e)
+                if 'dni' in msg:
+                    detalle = f"El DNI '{solicitud.dni}' ya pertenece a otro colegiado."
+                else:
+                    detalle = f"Conflicto de datos únicos: {msg}"
+                print(f"[APROBAR] IntegrityError solicitud_id={pk}: {e}", file=sys.stderr)
+                return Response({'error': detalle}, status=status.HTTP_409_CONFLICT)
+            except Exception as e:
+                print(f"[APROBAR] Error solicitud_id={pk}: {e}", file=sys.stderr)
+                return Response(
+                    {'error': f'Error al crear la cuenta: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+            return Response({'success': True, 'estado': 'APROBADA'})
+
+        return Response({'error': 'Acción inválida'}, status=status.HTTP_400_BAD_REQUEST)
+

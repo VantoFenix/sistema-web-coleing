@@ -48,6 +48,7 @@ export default function AdminLayout() {
               <NavItem to="/admin/sedes" icon={MapPin} label="Sedes" />
               <NavItem to="/admin/carreras" icon={BookOpen} label="Carreras" />
               <NavItem to="/admin/usuarios" icon={Users} label="Usuarios" />
+              <NavItem to="/admin/home" icon={LayoutDashboard} label="Configuración" />
             </>
           )}
 
@@ -56,7 +57,6 @@ export default function AdminLayout() {
             <>
               <NavItem to="/admin/postulaciones" icon={FileText} label="Postulaciones" />
               <NavItem to="/admin/vouchers" icon={ShieldCheck} label="Verificar Vouchers" />
-              <NavItem to="/admin/home" icon={LayoutDashboard} label="Configuración" />
             </>
           )}
 
