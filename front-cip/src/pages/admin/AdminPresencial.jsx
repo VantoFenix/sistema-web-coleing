@@ -218,10 +218,131 @@ export default function AdminPresencial() {
     }
   };
 
+  const generarComprobante = () => {
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Comprobante de Inscripción</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; background: #fff; width: 80mm; margin: 0 auto; padding: 5mm; }
+    .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
+    .org-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; line-height: 1.2; }
+    .org-detail { font-size: 11px; line-height: 1.3; }
+    .boleta-box { margin-top: 10px; }
+    .boleta-box .tipo { font-weight: bold; font-size: 13px; line-height: 1.2; }
+    .boleta-box .numero { font-weight: bold; font-size: 14px; margin-top: 2px; }
+    .section { margin-bottom: 10px; }
+    .adquirente-row { font-size: 11px; margin-bottom: 2px; }
+    .meta-row { font-size: 11px; margin-bottom: 10px; display: flex; justify-content: space-between; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    thead tr { border-bottom: 1px dashed #000; border-top: 1px dashed #000; }
+    thead th { padding: 4px 0; text-align: left; font-size: 11px; font-weight: bold; }
+    thead th:last-child { text-align: right; }
+    tbody tr { border-bottom: none; }
+    tbody td { padding: 4px 0; font-size: 11px; vertical-align: top; }
+    tbody td:last-child { text-align: right; }
+    .totales { border-top: 1px dashed #000; padding-top: 6px; margin-bottom: 15px; }
+    .totales-table { width: 100%; margin-bottom: 0; }
+    .totales-table tr td { padding: 2px 0; font-size: 11px; }
+    .totales-table tr td:last-child { text-align: right; }
+    .totales-table tr.total-final td { font-weight: bold; font-size: 14px; padding-top: 4px; }
+    .footer { font-size: 10px; text-align: center; margin-top: 15px; border-top: 1px dashed #000; padding-top: 10px; line-height: 1.4; }
+    @media print {
+      body { width: 80mm; padding: 0; margin: 0; }
+      @page { margin: 0; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="org-name">COLEGIO DE INGENIEROS DEL PERU<br/>CONSEJO NACIONAL</div>
+    <div class="org-detail">RUC 20138086438</div>
+    <div class="org-detail">AV. AREQUIPA 4947 MIRAFLORES - LIMA</div>
+    <div class="boleta-box">
+      <div class="tipo">BOLETA DE VENTA<br/>ELECTRONICA</div>
+      <div class="numero">B001-${Date.now().toString().slice(-8)}</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">DATOS DEL ADQUIRENTE</div>
+    <div class="adquirente-row">DNI: ${dni || ''}</div>
+    <div class="adquirente-row">Nombre: ${nombres || ''}</div>
+  </div>
+
+  <div class="meta-row">
+    <span>Emision: ${new Date().toISOString().split('T')[0]}</span>
+    <span>Moneda: PEN</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Cant.</th>
+        <th>Descripcion</th>
+        <th>P. Unit.</th>
+        <th>Importe</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>
+          <div style="margin-bottom:2px">Inscripción CIP</div>
+        </td>
+        <td>5.00</td>
+        <td>5.00</td>
+      </tr>
+    </tbody>
+  </table>
+
+  ${esMixto ? `
+  <div style="font-size:10px; margin-bottom:10px; border-top: 1px dashed #ccc; padding-top:5px;">
+    <strong>Pagos Parciales:</strong><br/>
+    - ${metodo1}: S/ ${(parseFloat(monto1)||0).toFixed(2)}<br/>
+    - ${metodo2}: S/ ${(parseFloat(monto2)||0).toFixed(2)}
+  </div>
+  ` : `
+  <div style="font-size:10px; margin-bottom:10px; border-top: 1px dashed #ccc; padding-top:5px;">
+    <strong>Método de Pago:</strong> ${metodoPago}
+  </div>
+  `}
+
+  <div class="totales">
+    <table class="totales-table">
+      <tr><td>Subtotal:</td><td>S/ 5.00</td></tr>
+      <tr><td>IGV (18%):</td><td>S/ 0.00</td></tr>
+      <tr class="total-final"><td>TOTAL:</td><td>S/ 5.00</td></tr>
+    </table>
+  </div>
+
+  <div class="footer">
+    ¡Gracias por colegiarse en el CIP!<br/>
+    Este documento es una representacion impresa de la Boleta de Venta Electronica.
+    <br/><br/>
+    <button class="no-print" onclick="window.print()" style="padding:10px 20px; font-weight:bold; cursor:pointer; background:#10B981; color:white; border:none; border-radius:5px;">IMPRIMIR BOLETA</button>
+  </div>
+  
+  <script>
+    setTimeout(() => { window.print(); }, 500);
+  </script>
+</body>
+</html>`;
+    const win = window.open('', '_blank', 'width=400,height=600');
+    if (win) {
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!nombres || !carrera || !sede || !correo || !celular || !foto || !titulo || !dniAnverso || !dniReverso) {
-      setErrorMsg("Complete todos los campos de datos, de contacto, y adjunte los documentos requeridos (incluyendo DNI).");
+    if (!nombres || !carrera || !sede || !celular || !foto || !titulo || !dniAnverso || !dniReverso) {
+      setErrorMsg("Complete todos los campos requeridos y adjunte los documentos (incluyendo DNI).");
       return;
     }
     if (dni.length !== 8) {
@@ -276,7 +397,7 @@ export default function AdminPresencial() {
       formData.append('nombres', nombres);
       formData.append('carrera', carrera);
       formData.append('sede', sede);
-      formData.append('correo', correo);
+      formData.append('correo', correo || `no-reply-${dni}@cip.org.pe`);
       formData.append('celular', celular);
       const metodoFinal = esMixto ? 'MIXTO' : metodoPago;
       formData.append('numero_operacion', `${metodoFinal}-${Date.now()}`); // Use prefix to pass method to backend
@@ -316,6 +437,8 @@ export default function AdminPresencial() {
 
       if (resAprob.ok) {
         setSuccess(true);
+        // Generar comprobante
+        setTimeout(() => generarComprobante(), 500);
       } else {
         setErrorMsg("La solicitud fue creada pero no se pudo aprobar automáticamente. Apruébela desde el panel de Postulaciones.");
       }
@@ -409,12 +532,7 @@ export default function AdminPresencial() {
                 ))}
               </select>
             </div>
-            <div className="form-group">
-              <label className="form-label">Correo Electrónico</label>
-              <input type="email" className="form-input" value={correo}
-                onChange={(e) => setCorreo(e.target.value)}
-                placeholder="ejemplo@correo.com" />
-            </div>
+
             <div className="form-group">
               <label className="form-label">Teléfono / Celular</label>
               <input type="text" className="form-input" value={celular}
