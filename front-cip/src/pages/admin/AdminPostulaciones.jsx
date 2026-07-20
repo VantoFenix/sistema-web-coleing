@@ -26,16 +26,20 @@ export default function AdminPostulaciones() {
   const [obsDniReverso, setObsDniReverso] = useState({ checked: false, text: '' });
   const [obsDatos, setObsDatos] = useState({ checked: false, text: '' });
 
+  const [filtroEstado, setFiltroEstado] = useState('EN_REVISION');
+  const [filtroOrigen, setFiltroOrigen] = useState('TODAS');
+  const [filtroBusqueda, setFiltroBusqueda] = useState('');
+
   useEffect(() => {
     fetchPostulaciones();
-  }, []);
+  }, [filtroEstado, filtroOrigen]);
 
   const fetchPostulaciones = async () => {
     setCargando(true);
     setErrorFetch('');
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch('/api/admin/postulaciones/', {
+      const res = await fetch(`/api/admin/postulaciones/?estado=${filtroEstado}&origen=${filtroOrigen}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -150,10 +154,43 @@ export default function AdminPostulaciones() {
             <h1 style={{ fontSize: '1.875rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.5rem' }}>Cola de Postulaciones</h1>
             <p style={{ color: 'var(--text-muted)' }}>Procese los expedientes en orden de llegada.</p>
           </div>
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <select
+              value={filtroEstado}
+              onChange={(e) => setFiltroEstado(e.target.value)}
+              className="form-input"
+              style={{ background: '#FEF2F2', borderColor: '#FECACA', color: '#991B1B', fontWeight: '600', padding: '0.5rem 2rem 0.5rem 1rem' }}
+            >
+              <option value="EN_REVISION">En Revisión</option>
+              <option value="APROBADA">Aprobadas</option>
+              <option value="RECHAZADA">Rechazadas</option>
+              <option value="TODAS">Todas</option>
+            </select>
+
+            <div style={{ display: 'flex', background: '#F1F5F9', borderRadius: '8px', padding: '0.25rem' }}>
+              <button
+                onClick={() => setFiltroOrigen('TODAS')}
+                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.875rem', fontWeight: '500', background: filtroOrigen === 'TODAS' ? 'white' : 'transparent', boxShadow: filtroOrigen === 'TODAS' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', color: filtroOrigen === 'TODAS' ? '#0F172A' : '#64748B' }}
+              >
+                Todas
+              </button>
+              <button
+                onClick={() => setFiltroOrigen('WEB')}
+                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.875rem', fontWeight: '500', background: filtroOrigen === 'WEB' ? 'white' : 'transparent', boxShadow: filtroOrigen === 'WEB' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', color: filtroOrigen === 'WEB' ? '#0F172A' : '#64748B' }}
+              >
+                Web 🌐
+              </button>
+              <button
+                onClick={() => setFiltroOrigen('PRESENCIAL')}
+                style={{ padding: '0.4rem 0.8rem', borderRadius: '6px', fontSize: '0.875rem', fontWeight: '500', background: filtroOrigen === 'PRESENCIAL' ? 'white' : 'transparent', boxShadow: filtroOrigen === 'PRESENCIAL' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', color: filtroOrigen === 'PRESENCIAL' ? '#0F172A' : '#64748B' }}
+              >
+                Presencial 🏢
+              </button>
+            </div>
+
             <div style={{ position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input type="text" className="form-input" placeholder="Buscar por DNI o ID..." style={{ paddingLeft: '2.5rem' }} />
+              <input type="text" className="form-input" placeholder="Buscar por DNI o ID..." style={{ paddingLeft: '2.5rem' }} value={filtroBusqueda} onChange={(e) => setFiltroBusqueda(e.target.value)} />
             </div>
             <button
               onClick={fetchPostulaciones}
@@ -197,7 +234,7 @@ export default function AdminPostulaciones() {
               ) : postulaciones.length === 0 ? (
                 <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay postulaciones pendientes.</td></tr>
               ) : (
-                postulaciones.map((p, index) => (
+                postulaciones.filter(p => p.dni.includes(filtroBusqueda) || p.id.toString().includes(filtroBusqueda) || p.nombres.toLowerCase().includes(filtroBusqueda.toLowerCase())).map((p, index) => (
                   <tr key={p.id} style={{ borderBottom: '1px solid var(--border-color)', background: index === 0 ? '#FEF2F2' : 'white', cursor: 'pointer', transition: 'background 0.2s' }} onClick={() => handleRevisar(p)} onMouseOver={(e) => e.currentTarget.style.background = '#EFF6FF'} onMouseOut={(e) => e.currentTarget.style.background = index === 0 ? '#FEF2F2' : 'white'}>
                     <td style={{ padding: '1rem 1.5rem', fontWeight: '600', color: 'var(--text-main)' }}>EXP-{p.id}</td>
                     <td style={{ padding: '1rem 1.5rem', color: 'var(--text-muted)' }}>

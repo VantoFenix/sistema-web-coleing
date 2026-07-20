@@ -38,7 +38,18 @@ class AdminPostulacionesView(APIView):
 
     def get(self, request):
         admin = request.user
-        solicitudes = Solicitud.objects.filter(estado='EN_REVISION')
+        estado = request.query_params.get('estado', 'EN_REVISION')
+        origen = request.query_params.get('origen', 'TODAS')
+
+        solicitudes = Solicitud.objects.all()
+
+        if estado and estado != 'TODAS':
+            solicitudes = solicitudes.filter(estado=estado)
+
+        if origen == 'WEB':
+            solicitudes = solicitudes.exclude(numero_operacion__startswith='CAJA-')
+        elif origen == 'PRESENCIAL':
+            solicitudes = solicitudes.filter(numero_operacion__startswith='CAJA-')
         
         if getattr(admin, 'rol', None) != 'MASTER_ADMIN' and getattr(admin, 'sede', None):
             solicitudes = solicitudes.filter(sede=admin.sede)
