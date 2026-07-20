@@ -29,6 +29,8 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.core.mail import send_mail
 
 
+from .utils import _get_monto_mensualidad, _get_habilitado
+
 class PagoFlowCrearView(APIView):
     """
     Crea un intento de pago en Flow.cl (QR Interoperable y otros métodos).
@@ -193,7 +195,9 @@ class PagoFlowConfirmarView(APIView):
         comprobante_data = None
         if registrados:
             try:
+                # pyrefly: ignore [missing-import]
                 from apps.finanzas.services import crear_comprobante_pago
+                # pyrefly: ignore [missing-import]
                 from apps.finanzas.serializers import ComprobanteSerializer
                 comp = crear_comprobante_pago(
                     colegiado=colegiado,

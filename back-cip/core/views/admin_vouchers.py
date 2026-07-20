@@ -29,6 +29,8 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.core.mail import send_mail
 
 
+from .utils import _get_habilitado
+
 class AdminVouchersListView(APIView):
     """Lista todos los vouchers pendientes de verificación (estado=PENDIENTE)."""
     authentication_classes = []

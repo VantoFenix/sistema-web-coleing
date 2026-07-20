@@ -29,6 +29,8 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.core.mail import send_mail
 
 
+from .utils import _get_monto_mensualidad
+
 class MasterAdminPermission(IsAuthenticated):
     def has_permission(self, request, view):
         return super().has_permission(request, view) and getattr(request.user, 'rol', None) == 'MASTER_ADMIN'

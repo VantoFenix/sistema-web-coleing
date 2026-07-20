@@ -29,6 +29,8 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.core.mail import send_mail
 
 
+from .utils import _get_habilitado, _meses_entre
+
 class AdminBuscarColegiadoView(APIView):
     """Busca colegiados por DNI, nombre o número de colegiado."""
     authentication_classes = []
