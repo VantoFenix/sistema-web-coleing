@@ -139,16 +139,19 @@ export default function AdminLogin() {
 
           <form onSubmit={handleLogin}>
             <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-              <label className="form-label" style={{ fontWeight: '600' }}>Nombre de Usuario</label>
+              <label className="form-label" style={{ fontWeight: '600' }}>Número de DNI</label>
               <div style={{ position: 'relative' }}>
                 <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
                   <User size={18} />
                 </div>
                 <input 
                   type="text" 
+                  maxLength="8"
+                  pattern="[0-9]{8}"
+                  title="El DNI debe tener 8 dígitos numéricos"
                   className="form-input" 
                   style={{ paddingLeft: '2.75rem', width: '100%' }}
-                  placeholder="admin.cip"
+                  placeholder="12345678"
                   value={usuario}
                   onChange={(e) => { setUsuario(e.target.value); setErrorMsg(''); }}
                 />
