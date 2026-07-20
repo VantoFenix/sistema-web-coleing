@@ -265,6 +265,13 @@ if os.getenv('BREVO_API_KEY'):
     ANYMAIL = {
         'BREVO_API_KEY': os.getenv('BREVO_API_KEY'),
     }
+elif os.getenv('MAILTRAP_API_KEY'):
+    EMAIL_BACKEND = 'anymail.backends.mailtrap.EmailBackend'
+    ANYMAIL = {
+        'MAILTRAP_API_KEY': os.getenv('MAILTRAP_API_KEY'),
+        # Cambiar a 'https://send.api.mailtrap.io' si se usa producción en Mailtrap
+        'MAILTRAP_API_URL': os.getenv('MAILTRAP_API_URL', 'https://sandbox.api.mailtrap.io'),
+    }
 elif os.getenv('EMAIL_HOST'):
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = os.getenv('EMAIL_HOST')
@@ -277,10 +284,8 @@ else:
 
 EMAIL_TIMEOUT = 10
 
-DEFAULT_FROM_EMAIL = os.getenv(
-    'DEFAULT_FROM_EMAIL',
-    os.getenv('EMAIL_HOST_USER') or 'Colegio de Ingenieros del Perú <noreply@cip.org.pe>'
-)
+DEFAULT_FROM_EMAIL_ENV = os.getenv('DEFAULT_FROM_EMAIL') or os.getenv('EMAIL_HOST_USER') or 'noreply@cip.org.pe'
+DEFAULT_FROM_EMAIL = f"Colegio de Ingenieros del Perú <{DEFAULT_FROM_EMAIL_ENV}>"
 
 # ==============================================================================
 # MERCADOPAGO
@@ -298,4 +303,4 @@ FLOW_API_URL    = os.getenv('FLOW_API_URL', 'https://www.flow.cl/api')  # produc
 FLOW_ENV        = os.getenv('FLOW_ENV', 'sandbox') # sandbox o live
 
 # URL del Frontend (para enlaces de correos, etc)
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://sistema-web-coleing.onrender.com' if not DEBUG else 'http://localhost:5173')

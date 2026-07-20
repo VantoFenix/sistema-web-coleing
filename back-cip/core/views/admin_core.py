@@ -64,6 +64,11 @@ class AdministradorViewSet(ModelViewSet):
             
             rol_display = dict(Administrador._meta.get_field('rol').choices).get(user.rol, user.rol)
             
+            print(f"\n==================================================")
+            print(f"ENLACE DE CONFIGURACION DE CUENTA ADMIN ({user.correo}):")
+            print(f"{link}")
+            print(f"==================================================\n")
+            
             send_mail(
                 'Bienvenido al Sistema CIP - Configura tu contraseña',
                 f'''Hola {user.nombres},

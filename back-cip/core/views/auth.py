@@ -98,14 +98,17 @@ class PasswordResetRequestView(APIView):
         
         user = Administrador.objects.filter(correo=correo).first()
         if user:
-            if settings.EMAIL_BACKEND != 'anymail.backends.brevo.EmailBackend':
-                return Response({'error': f'Configuración incorrecta. EMAIL_BACKEND actual es: {settings.EMAIL_BACKEND}. Verifica que BREVO_API_KEY esté bien configurada en Render.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                
+
             token_user = _prepare_user_for_token(user)
             token = default_token_generator.make_token(token_user)
             uid = urlsafe_base64_encode(force_bytes(user.id))
             frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173').rstrip('/')
             link = f"{frontend_url}/reset-password/{uid}/{token}/"
+            
+            print(f"\n==================================================")
+            print(f"ENLACE DE RECUPERACION DE CONTRASENA:")
+            print(f"{link}")
+            print(f"==================================================\n")
             
             try:
                 send_mail(
