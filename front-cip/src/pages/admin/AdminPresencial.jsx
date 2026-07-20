@@ -179,14 +179,31 @@ export default function AdminPresencial() {
     setIsValidando(true);
     try {
       const response = await fetch(`/api/public/reniec/?dni=${dni}`);
+      let data = {};
+      try { data = await response.json(); } catch (_) {}
 
       if (response.ok) {
-        const data = await response.json();
         setNombres(data.nombre_completo);
         setDniValidado(true);
+      } else if (response.status === 409) {
+        setErrorMsg(data.detalle || 'Este DNI ya está registrado en uso.');
+        setDniValidado(false);
+        setNombres('');
       } else if (response.status === 429) {
         setErrorMsg("El servicio de RENIEC ha superado su límite de consultas. Ingrese el nombre manualmente.");
         setDniValidado(false);
+      } else if (response.status === 500 && data.error === 'CONFIG_ERROR') {
+        setErrorMsg(`Error de configuración: ${data.detalle}`);
+        setDniValidado(false);
+        setNombres('');
+      } else if (response.status === 502 && data.error === 'TOKEN_INVALIDO') {
+        setErrorMsg(`${data.detalle}`);
+        setDniValidado(false);
+        setNombres('');
+      } else if (response.status === 503) {
+        setErrorMsg(`${data.detalle || 'No se pudo contactar RENIEC'}`);
+        setDniValidado(false);
+        setNombres('');
       } else {
         setErrorMsg("DNI no encontrado en RENIEC. Puede ingresar el nombre manualmente.");
         setDniValidado(false);
