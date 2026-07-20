@@ -318,39 +318,42 @@ export default function Postular() {
             <div style={{ ...shadedStyle, margin: '0' }}>
               <h3 style={{ color: 'var(--cip-blue)', marginBottom: '1.5rem', borderBottom: '2px solid var(--cip-red)', paddingBottom: '0.5rem', display: 'inline-block' }}>Documentos Adjuntos</h3>
 
-              {/* 1. Foto */}
-              <div className="form-group" style={{ marginTop: '0.5rem' }}>
-                <label className="form-label">1. Fotografía Tamaño Pasaporte</label>
-                <div className="upload-box">
-                  <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={fileNameStyle}>{foto ? foto.name : 'Seleccione su foto (máx. 2 MB)'}</p>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                    Imagen de identificación · máx. 2 MB
-                  </p>
-                  {fotoInfo && (
-                    <p style={{ fontSize: '0.72rem', color: fotoInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
-                      {fotoInfo}
+              {/* 1 y 2. Foto y Titulo */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginTop: '0.5rem' }}>
+                {/* 1. Foto */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">1. Fotografía Pasaporte</label>
+                  <div className="upload-box" style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
+                    <p style={fileNameStyle}>{foto ? foto.name : 'Seleccione su foto'}</p>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                      Imagen · máx. 2 MB
                     </p>
-                  )}
-                  <input type="file" accept="image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-foto" onChange={handleFotoChange} />
-                  <label htmlFor="file-foto" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
+                    {fotoInfo && (
+                      <p style={{ fontSize: '0.72rem', color: fotoInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
+                        {fotoInfo}
+                      </p>
+                    )}
+                    <input type="file" accept="image/*" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-foto" onChange={handleFotoChange} />
+                    <label htmlFor="file-foto" className="btn btn-outline" style={{...btnFileStyle, marginTop: 'auto'}}>Examinar</label>
+                  </div>
                 </div>
-              </div>
 
-              {/* 2. Título Profesional */}
-              <div className="form-group" style={{ marginTop: '1.5rem' }}>
-                <label className="form-label">2. Título Profesional</label>
-                <div className="upload-box">
-                  <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
-                  <p style={fileNameStyle}>{titulo ? titulo.name : 'Clic para subir documento (PDF)'}</p>
-                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Solo formato PDF · máx. 5 MB</p>
-                  {tituloInfo && (
-                    <p style={{ fontSize: '0.72rem', color: tituloInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
-                      {tituloInfo}
-                    </p>
-                  )}
-                  <input type="file" accept=".pdf" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-titulo" onChange={(e) => handleFileChange(e, setTitulo, setTituloInfo, 5, ['application/pdf'], 'Título Profesional')} />
-                  <label htmlFor="file-titulo" className="btn btn-outline" style={btnFileStyle}>Seleccionar archivo</label>
+                {/* 2. Título Profesional */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">2. Título Profesional</label>
+                  <div className="upload-box" style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <UploadCloud size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem auto' }} />
+                    <p style={fileNameStyle}>{titulo ? titulo.name : 'Subir documento'}</p>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Solo PDF · máx. 5 MB</p>
+                    {tituloInfo && (
+                      <p style={{ fontSize: '0.72rem', color: tituloInfo.startsWith('✓') ? '#059669' : '#DC2626', marginTop: '0.3rem', fontWeight: '600' }}>
+                        {tituloInfo}
+                      </p>
+                    )}
+                    <input type="file" accept=".pdf" style={{ opacity: 0, position: 'absolute', width: '0' }} id="file-titulo" onChange={(e) => handleFileChange(e, setTitulo, setTituloInfo, 5, ['application/pdf'], 'Título Profesional')} />
+                    <label htmlFor="file-titulo" className="btn btn-outline" style={{...btnFileStyle, marginTop: 'auto'}}>Examinar</label>
+                  </div>
                 </div>
               </div>
 
