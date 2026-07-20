@@ -40,7 +40,11 @@ INSTALLED_APPS = [
     
     # --- THIRD PARTY APPS ---
     'rest_framework',
+    'rest_framework_simplejwt',
     'corsheaders',
+    'anymail',
+    'cloudinary_storage',
+    'cloudinary',
     
     # --- NUESTRAS APPS ---
     'core.apps.CoreConfig',
@@ -144,6 +148,19 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # ==============================================================================
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+CLOUDINARY_CLOUD_NAME = os.getenv('CLOUDINARY_CLOUD_NAME', '')
+CLOUDINARY_API_KEY = os.getenv('CLOUDINARY_API_KEY', '')
+CLOUDINARY_API_SECRET = os.getenv('CLOUDINARY_API_SECRET', '')
+
+if CLOUDINARY_CLOUD_NAME:
+    CLOUDINARY_STORAGE = {
+        'CLOUD_NAME': CLOUDINARY_CLOUD_NAME,
+        'API_KEY': CLOUDINARY_API_KEY,
+        'API_SECRET': CLOUDINARY_API_SECRET,
+    }
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
 
 # ==============================================================================
 # CONFIGURACIÓN DE CORS (Cross-Origin Resource Sharing)
@@ -267,10 +284,10 @@ elif os.getenv('EMAIL_HOST'):
 else:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-DEFAULT_FROM_EMAIL = os.getenv(
-    'DEFAULT_FROM_EMAIL',
-    os.getenv('EMAIL_HOST_USER') or 'Colegio de Ingenieros del Perú <noreply@cip.org.pe>'
-)
+EMAIL_TIMEOUT = 10
+
+DEFAULT_FROM_EMAIL_ENV = os.getenv('DEFAULT_FROM_EMAIL') or os.getenv('EMAIL_HOST_USER') or 'noreply@cip.org.pe'
+DEFAULT_FROM_EMAIL = f"Colegio de Ingenieros del Perú <{DEFAULT_FROM_EMAIL_ENV}>"
 
 # ==============================================================================
 # MERCADOPAGO
@@ -288,4 +305,4 @@ FLOW_API_URL    = os.getenv('FLOW_API_URL', 'https://www.flow.cl/api')  # produc
 FLOW_ENV        = os.getenv('FLOW_ENV', 'sandbox') # sandbox o live
 
 # URL del Frontend (para enlaces de correos, etc)
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://sistema-web-coleing.onrender.com' if not DEBUG else 'http://localhost:5173')

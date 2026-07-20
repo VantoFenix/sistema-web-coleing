@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, Navigate } from 'react-router-dom';
 import { LayoutDashboard, FileText, UserPlus, LogOut, Wallet, ShieldCheck, MapPin, BookOpen, Users, AlertTriangle } from 'lucide-react';
 
 export default function AdminLayout() {
@@ -29,6 +29,10 @@ export default function AdminLayout() {
     </NavLink>
   );
 
+  if (!localStorage.getItem('adminToken')) {
+    return <Navigate to="/admin/login" replace />;
+  }
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-main)' }}>
       {/* SIDEBAR */}
@@ -48,6 +52,7 @@ export default function AdminLayout() {
               <NavItem to="/admin/sedes" icon={MapPin} label="Sedes" />
               <NavItem to="/admin/carreras" icon={BookOpen} label="Carreras" />
               <NavItem to="/admin/usuarios" icon={Users} label="Usuarios" />
+              <NavItem to="/admin/home" icon={LayoutDashboard} label="Configuración" />
             </>
           )}
 
@@ -55,8 +60,6 @@ export default function AdminLayout() {
           {adminRole === 'ADMIN' && (
             <>
               <NavItem to="/admin/postulaciones" icon={FileText} label="Postulaciones" />
-              <NavItem to="/admin/vouchers" icon={ShieldCheck} label="Verificar Vouchers" />
-              <NavItem to="/admin/home" icon={LayoutDashboard} label="Configuración" />
             </>
           )}
 

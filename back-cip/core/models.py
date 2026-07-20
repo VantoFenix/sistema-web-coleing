@@ -56,6 +56,8 @@ class Solicitud(models.Model):
     foto_url        = models.CharField(max_length=500)
     titulo_pdf_url  = models.CharField(max_length=500)
     recibo_pago_url = models.CharField(max_length=500)
+    dni_anverso_url = models.CharField(max_length=500, null=True, blank=True)
+    dni_reverso_url = models.CharField(max_length=500, null=True, blank=True)
     estado          = models.CharField(max_length=20, choices=ESTADOS, default='EN_REVISION')
     motivo_rechazo  = models.TextField(null=True, blank=True)
     numero_operacion= models.CharField(max_length=50, null=True, blank=True)
@@ -129,7 +131,8 @@ class PagoVoucherPendiente(models.Model):
     periodos_json  = models.TextField()
     monto          = models.DecimalField(max_digits=8, decimal_places=2)
     metodo         = models.CharField(max_length=20, choices=METODO_CHOICES)
-    voucher        = models.FileField(upload_to='vouchers/')
+    from utils.storage import select_raw_storage
+    voucher        = models.FileField(upload_to='vouchers/', storage=select_raw_storage)
     estado         = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='PENDIENTE')
     nro_referencia = models.CharField(max_length=40, blank=True)
     observacion    = models.TextField(blank=True)

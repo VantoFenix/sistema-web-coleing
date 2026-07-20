@@ -6,6 +6,7 @@ Plataforma integral para la gestión de colegiados, trámites de inscripción y 
 - **Frontend:** React.js (Vite) + CSS.
 - **Backend:** Python + Django REST Framework (DRF).
 - **Base de Datos:** PostgreSQL en la nube (vía Supabase).
+- **Pagos Online:** Integración con Flow.cl.
 - **Despliegue Local:** Docker Compose.
 
 ---
@@ -95,3 +96,22 @@ Si exploras dentro de una App (ej. `apps/finanzas/`), encontrarás estos 5 archi
 3. **`selectors.py`**: **Capa de Lectura.** Contiene las consultas (*queries*) complejas a la base de datos. Ejemplo: `calcular_deuda_total()`. Cualquier `Sum`, `Count` o `filter` complejo debe vivir aquí para poder reutilizarlo.
 4. **`serializers.py`**: Define cómo transformar los objetos de la base de datos a formato JSON (para enviarlo a React) y viceversa.
 5. **`views.py`**: **Capa de Entrega HTTP.** Su única responsabilidad es recibir la petición de internet, llamar a la función correspondiente de `services.py` o `selectors.py`, y devolver la respuesta JSON al cliente. **No debe tener lógica de negocio directa.**
+
+
+Tests:
+
+python tests/crear_usuario_preventivo.py
+
+
+cd back-cip
+python manage.py notificar_vencimientos --test-fecha 2026-07-24
+
+
+cd back-cip
+python manage.py notificar_vencimientos --test-fecha 2026-07-28
+
+cd ..
+python tests/crear_usuario_recordatorio.py
+
+cd back-cip
+python manage.py notificar_vencimientos --test-fecha 2026-07-01

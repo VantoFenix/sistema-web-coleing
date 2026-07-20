@@ -8,12 +8,12 @@ import ComprobanteModal from '../../components/UI/ComprobanteModal';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const MESES = [
-  'Enero','Febrero','Marzo','Abril','Mayo','Junio',
-  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 const MESES_CORTO = [
-  'ENE','FEB','MAR','ABR','MAY','JUN',
-  'JUL','AGO','SEP','OCT','NOV','DIC',
+  'ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN',
+  'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC',
 ];
 
 function fmtPeriodo(p) {
@@ -32,10 +32,8 @@ function fmtFecha(iso) {
 }
 
 const METODOS = [
-  { valor: 'YAPE',          label: 'Yape',          icono: <Smartphone size={16} /> },
-  { valor: 'PLIN',          label: 'Plin',          icono: <Smartphone size={16} /> },
-  { valor: 'EFECTIVO',      label: 'Efectivo',      icono: <Banknote size={16} /> },
-  { valor: 'TRANSFERENCIA', label: 'Transferencia', icono: <Building2 size={16} /> },
+  { valor: 'YAPE_PLIN', label: 'QR (Yape/Plin)', icono: <Smartphone size={16} /> },
+  { valor: 'EFECTIVO', label: 'Efectivo', icono: <Banknote size={16} /> },
 ];
 
 function BadgeHabilitado({ habilitado }) {
@@ -55,26 +53,68 @@ function BadgeHabilitado({ habilitado }) {
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function AdminPagoPresencial() {
-  const [query, setQuery]           = useState('');
-  const [buscando, setBuscando]     = useState(false);
+  const [query, setQuery] = useState('');
+  const [buscando, setBuscando] = useState(false);
   const [resultados, setResultados] = useState(null);
   const [errBusqueda, setErrBusqueda] = useState('');
+  const [qrPagadoMixto, setQrPagadoMixto] = useState(false);
+
+  const [cargandoQr, setCargandoQr] = useState(false);
+  const [qrError, setQrError] = useState('');
+
+  const generarQrMixto = async (montoQr) => {
+    setCargandoQr(true); setQrError('');
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch('/api/flow/generar-qr/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ amount: montoQr, subject: 'Pago Mixto - CIP' })
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setFlowInitPoint(`${data.url}?token=${data.token}`);
+        setFlowToken(data.token);
+        setFlowModoMixto(true);
+      } else {
+        setQrError(data.error || 'Error al generar QR');
+      }
+    } catch {
+      setQrError('Error de red al generar QR');
+    } finally {
+      setCargandoQr(false);
+    }
+  };
 
   const [comprobanteParaMostrar, setComprobanteParaMostrar] = useState(null);
   const [comprobanteDescargando, setComprobanteDescargando] = useState(false);
 
-  const [colegiado, setColegiado]   = useState(null);
-  const [deuda, setDeuda]           = useState(null);
+  const [colegiado, setColegiado] = useState(null);
+  const [deuda, setDeuda] = useState(null);
   const [cargandoDeuda, setCargandoDeuda] = useState(false);
 
   const [periodosSeleccionados, setPeriodosSeleccionados] = useState(new Set());
-  const [metodo, setMetodo]         = useState('');
-  const [monto, setMonto]           = useState('');
-  const [errForm, setErrForm]       = useState('');
+  const [metodo, setMetodo] = useState('');
+  const [monto, setMonto] = useState('');
+  const [esMixto, setEsMixto] = useState(false);
+  const [metodo1, setMetodo1] = useState('');
+  const [monto1, setMonto1] = useState('');
+  const [metodo2, setMetodo2] = useState('');
+  const [monto2, setMonto2] = useState('');
+  const [errForm, setErrForm] = useState('');
 
-  const [enviando, setEnviando]     = useState(false);
-  const [resultado, setResultado]   = useState(null);
+  const [enviando, setEnviando] = useState(false);
+  const [resultado, setResultado] = useState(null);
   const [montoMensual, setMontoMensual] = useState(20.00);
+
+  const [flowInitPoint, setFlowInitPoint] = useState(null);
+  const [flowToken, setFlowToken] = useState(null);
+  const [flowModoMixto, setFlowModoMixto] = useState(false);
+
+  const handleRegistrarRef = useRef();
+
+  const hoy = new Date();
+  const [maxVisibleYear, setMaxVisibleYear] = useState(hoy.getFullYear());
 
   const searchRef = useRef(null);
 
@@ -83,8 +123,70 @@ export default function AdminPagoPresencial() {
     fetch('/api/admin/configuracion/')
       .then(r => r.json())
       .then(d => { if (d.monto_mensualidad) setMontoMensual(parseFloat(d.monto_mensualidad)); })
-      .catch(() => {});
+      .catch(() => { });
+
+    // Restaurar sesión de admin pago si existe
+    const savedCol = sessionStorage.getItem('admin_pago_colegiado');
+    if (savedCol) {
+      try {
+        const colParsed = JSON.parse(savedCol);
+        handleSeleccionarColegiado(colParsed, true);
+      } catch (e) {
+        sessionStorage.removeItem('admin_pago_colegiado');
+      }
+    }
   }, []);
+
+  // Guardar periodos seleccionados en session storage
+  useEffect(() => {
+    if (colegiado) {
+      sessionStorage.setItem('admin_pago_periodos', JSON.stringify([...periodosSeleccionados]));
+    }
+  }, [periodosSeleccionados, colegiado]);
+
+  // Guardar ref para el polling
+  useEffect(() => {
+    handleRegistrarRef.current = handleRegistrar;
+  });
+
+  // Polling de Flow
+  useEffect(() => {
+    let intervalId = null;
+    if (flowInitPoint && flowToken) {
+      intervalId = setInterval(async () => {
+        try {
+          const res = await fetch('/api/flow/confirmar-generico/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}`
+            },
+            body: JSON.stringify({ token: flowToken })
+          });
+          const data = await res.json();
+          if (data.status === 2) {
+            setFlowInitPoint(null);
+            setFlowToken(null);
+            
+            if (flowModoMixto) {
+              setFlowModoMixto(false);
+              setQrPagadoMixto(true);
+            } else {
+              setFlowModoMixto(false);
+              // Registrar automáticamente pasando flowSuccess = true
+              if (handleRegistrarRef.current) handleRegistrarRef.current(true);
+            }
+          } else if (data.error) {
+            setFlowInitPoint(null);
+            setFlowToken(null);
+            setFlowModoMixto(false);
+            setErrForm(data.error);
+          }
+        } catch (e) { }
+      }, 3500);
+    }
+    return () => clearInterval(intervalId);
+  }, [flowInitPoint, flowToken]);
 
   // Auto-calcular monto
   useEffect(() => {
@@ -102,7 +204,9 @@ export default function AdminPagoPresencial() {
     setBuscando(true);
     setResultados(null);
     try {
-      const res = await fetch(`/api/admin/colegiados/buscar/?q=${encodeURIComponent(q)}`);
+      const res = await fetch(`/api/admin/colegiados/buscar/?q=${encodeURIComponent(q)}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` }
+      });
       const data = await res.json();
       setResultados(Array.isArray(data) ? data : []);
     } catch {
@@ -112,23 +216,50 @@ export default function AdminPagoPresencial() {
     }
   };
 
-  const handleSeleccionarColegiado = async (col) => {
+  const handleSeleccionarColegiado = async (col, isRestore = false) => {
     setColegiado(col);
+    if (!isRestore) {
+      sessionStorage.setItem('admin_pago_colegiado', JSON.stringify(col));
+      sessionStorage.removeItem('admin_pago_periodos');
+    }
+
     setResultados(null);
-    setQuery('');
     setPeriodosSeleccionados(new Set());
     setMetodo('');
+    setEsMixto(false);
+    setMetodo1(''); setMonto1(''); setMetodo2(''); setMonto2('');
     setMonto('');
     setErrForm('');
+    setFlowInitPoint(null);
+    setFlowToken(null);
+    setFlowModoMixto(false);
+    setQrPagadoMixto(false);
     setResultado(null);
     setCargandoDeuda(true);
     try {
-      const res = await fetch(`/api/admin/colegiados/${col.id}/deuda/`);
+      const res = await fetch(`/api/admin/colegiados/${col.id}/deuda/`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` }
+      });
       const data = await res.json();
       setDeuda(data);
       const periodos = data.periodos || data.periodos_pendientes || [];
-      const soloDeuda = periodos.filter(p => p.estado === 'PENDIENTE').map(p => p.periodo);
-      setPeriodosSeleccionados(new Set(soloDeuda));
+
+      let toSelect = [];
+      if (isRestore) {
+        const savedPer = sessionStorage.getItem('admin_pago_periodos');
+        if (savedPer) {
+          try {
+            toSelect = JSON.parse(savedPer);
+          } catch (e) { }
+        }
+      }
+
+      if (!isRestore || toSelect.length === 0) {
+        toSelect = periodos.filter(p => p.estado === 'PENDIENTE').map(p => p.periodo);
+      }
+
+      setPeriodosSeleccionados(new Set(toSelect));
+      setMaxVisibleYear(hoy.getFullYear());
     } catch {
       setDeuda({ periodos: [], periodos_pendientes: [], total_deuda: 0 });
     } finally {
@@ -136,12 +267,12 @@ export default function AdminPagoPresencial() {
     }
   };
 
-  const getPeriodos     = () => deuda?.periodos || [];
-  const getPendientes   = () => getPeriodos().filter(p => p.estado === 'PENDIENTE').map(p => p.periodo);
+  const getPeriodos = () => deuda?.periodos || [];
+  const getPendientes = () => getPeriodos().filter(p => p.estado === 'PENDIENTE').map(p => p.periodo);
   const hayDeudaSinPagar = () => getPendientes().some(p => !periodosSeleccionados.has(p));
 
   const togglePeriodo = (periodo, estado) => {
-    const pendientes  = getPendientes();
+    const pendientes = getPendientes();
     const allPeriodos = getPeriodos();
     setPeriodosSeleccionados(prev => {
       const s = new Set(prev);
@@ -151,7 +282,7 @@ export default function AdminPagoPresencial() {
         pendientes.forEach(p => s.add(p));
         return s;
       }
-      if (estado === 'MES_ACTUAL' || estado === 'ADELANTO') {
+      if (estado === 'ADELANTO') {
         if (s.has(periodo)) {
           const idx = allPeriodos.findIndex(p => p.periodo === periodo);
           allPeriodos.slice(idx).forEach(p => { if (p.estado !== 'PAGADO') s.delete(p.periodo); });
@@ -169,29 +300,82 @@ export default function AdminPagoPresencial() {
     });
   };
 
-  const seleccionarTodos     = () => setPeriodosSeleccionados(new Set(getPeriodos().filter(p => p.estado !== 'PAGADO').map(p => p.periodo)));
+  const seleccionarTodos = () => setPeriodosSeleccionados(new Set(getPeriodos().filter(p => p.estado !== 'PAGADO').map(p => p.periodo)));
   const seleccionarSoloDeuda = () => setPeriodosSeleccionados(new Set(getPendientes()));
-  const deseleccionarTodos   = () => setPeriodosSeleccionados(new Set());
+  const deseleccionarTodos = () => setPeriodosSeleccionados(new Set());
 
-  const handleRegistrar = async () => {
+  const handleRegistrar = async (flowSuccess = false) => {
     setErrForm('');
     if (periodosSeleccionados.size === 0) { setErrForm('Seleccione al menos un periodo.'); return; }
-    if (!metodo)  { setErrForm('Seleccione el método de pago.'); return; }
+    
     if (!monto || isNaN(parseFloat(monto)) || parseFloat(monto) <= 0) {
       setErrForm('Ingrese un monto válido mayor a 0.'); return;
     }
+
+    let payload = {
+      colegiado_id: colegiado.id,
+      periodos: [...periodosSeleccionados].sort(),
+      monto: parseFloat(monto),
+      fecha_pago: new Date().toISOString().slice(0, 10),
+    };
+
+    if (esMixto) {
+      if (!metodo1 || !monto1 || !metodo2 || !monto2) {
+        setErrForm('Debe completar ambos métodos y montos en el pago mixto.'); return;
+      }
+      if (Math.abs(parseFloat(monto1) + parseFloat(monto2) - parseFloat(monto)) > 0.01) {
+        setErrForm(`La suma de los montos (S/ ${(parseFloat(monto1) || 0) + (parseFloat(monto2) || 0)}) no coincide con el total (S/ ${parseFloat(monto).toFixed(2)}).`); return;
+      }
+      if (metodo1 === metodo2) {
+        setErrForm('Seleccione métodos diferentes para el pago mixto.'); return;
+      }
+      payload.metodo = 'MIXTO';
+      payload.pagos_parciales = [
+        { metodo: metodo1, monto: parseFloat(monto1) },
+        { metodo: metodo2, monto: parseFloat(monto2) }
+      ];
+    } else {
+      if (!metodo) { setErrForm('Seleccione el método de pago.'); return; }
+      payload.metodo = metodo;
+    }
+
     setEnviando(true);
+
+    if (!esMixto && metodo === 'YAPE_PLIN' && !flowSuccess) {
+      try {
+        const token = localStorage.getItem('adminToken') || '';
+        const res = await fetch('/api/pagos/flow/crear/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            colegiado_id: colegiado.id,
+            periodos: [...periodosSeleccionados].sort(),
+            monto: parseFloat(monto).toFixed(2)
+          })
+        });
+        const data = await res.json();
+        if (data.init_point) {
+          setFlowToken(data.token);
+          setFlowInitPoint(data.init_point);
+        } else {
+          setErrForm(data.error || 'Error al generar link de Flow.');
+        }
+      } catch {
+        setErrForm('Error de conexión con Flow.');
+      } finally {
+        setEnviando(false);
+      }
+      return;
+    }
+
     try {
       const res = await fetch('/api/admin/pagos/presencial/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          colegiado_id: colegiado.id,
-          periodos: [...periodosSeleccionados].sort(),
-          monto: parseFloat(monto),
-          metodo,
-          fecha_pago: new Date().toISOString().slice(0, 10),
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (data.success) {
@@ -219,43 +403,41 @@ export default function AdminPagoPresencial() {
   <title>Comprobante ${r.boleta_numero || ''}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #111; background: #fff; padding: 40px; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000; padding-bottom: 16px; margin-bottom: 20px; }
-    .org-name { font-weight: 800; font-size: 13px; max-width: 300px; line-height: 1.4; }
-    .org-detail { font-size: 12px; margin-top: 4px; color: #333; line-height: 1.5; }
-    .boleta-box { border: 2px solid #000; padding: 10px 18px; text-align: center; min-width: 200px; }
-    .boleta-box .tipo { font-weight: 800; font-size: 13px; line-height: 1.4; }
-    .boleta-box .numero { font-weight: 800; font-size: 14px; margin-top: 4px; }
-    .section { margin-bottom: 20px; }
-    .section-title { font-weight: 800; font-size: 13px; margin-bottom: 8px; }
-    .adquirente-row { font-size: 13px; margin-bottom: 4px; }
-    .meta-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 16px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-    thead tr { background: #B91C1C; color: white; }
-    thead th { padding: 8px 12px; text-align: left; font-size: 13px; font-weight: 700; }
-    thead th:last-child, thead th:nth-child(3) { text-align: right; }
-    tbody tr { border-bottom: 1px solid #e5e7eb; }
-    tbody td { padding: 12px; font-size: 13px; vertical-align: top; }
-    tbody td:last-child, tbody td:nth-child(3) { text-align: right; }
-    .totales { display: flex; justify-content: flex-end; margin-bottom: 24px; }
-    .totales-table { min-width: 260px; }
-    .totales-table tr td { padding: 4px 0; font-size: 13px; }
-    .totales-table tr td:last-child { text-align: right; font-weight: 600; }
-    .totales-table tr.total-final td { font-weight: 800; font-size: 14px; border-top: 1px solid #000; padding-top: 8px; }
-    .footer { font-size: 11px; color: #666; margin-top: 20px; }
+    body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; background: #fff; width: 80mm; margin: 0 auto; padding: 5mm; }
+    .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
+    .org-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; line-height: 1.2; }
+    .org-detail { font-size: 11px; line-height: 1.3; }
+    .boleta-box { margin-top: 10px; }
+    .boleta-box .tipo { font-weight: bold; font-size: 13px; line-height: 1.2; }
+    .boleta-box .numero { font-weight: bold; font-size: 14px; margin-top: 2px; }
+    .section { margin-bottom: 10px; }
+    .adquirente-row { font-size: 11px; margin-bottom: 2px; }
+    .meta-row { font-size: 11px; margin-bottom: 10px; display: flex; justify-content: space-between; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    thead tr { border-bottom: 1px dashed #000; border-top: 1px dashed #000; }
+    thead th { padding: 4px 0; text-align: left; font-size: 11px; font-weight: bold; }
+    thead th:last-child { text-align: right; }
+    tbody tr { border-bottom: none; }
+    tbody td { padding: 4px 0; font-size: 11px; vertical-align: top; }
+    tbody td:last-child { text-align: right; }
+    .totales { border-top: 1px dashed #000; padding-top: 6px; margin-bottom: 15px; }
+    .totales-table { width: 100%; margin-bottom: 0; }
+    .totales-table tr td { padding: 2px 0; font-size: 11px; }
+    .totales-table tr td:last-child { text-align: right; }
+    .totales-table tr.total-final td { font-weight: bold; font-size: 14px; padding-top: 4px; }
+    .footer { font-size: 10px; text-align: center; margin-top: 15px; border-top: 1px dashed #000; padding-top: 10px; line-height: 1.4; }
     @media print {
-      body { padding: 20px; }
+      body { width: 80mm; padding: 0; margin: 0; }
+      @page { margin: 0; }
       .no-print { display: none !important; }
     }
   </style>
 </head>
 <body>
   <div class="header">
-    <div>
-      <div class="org-name">COLEGIO DE INGENIEROS DEL PERU CONSEJO NACIONAL</div>
-      <div class="org-detail">RUC 20138086438</div>
-      <div class="org-detail">AV. AREQUIPA URB. MIRAFLORES 4947 MIRAFLORES - LIMA - LIMA</div>
-    </div>
+    <div class="org-name">COLEGIO DE INGENIEROS DEL PERU<br/>CONSEJO NACIONAL</div>
+    <div class="org-detail">RUC 20138086438</div>
+    <div class="org-detail">AV. AREQUIPA 4947 MIRAFLORES - LIMA</div>
     <div class="boleta-box">
       <div class="tipo">BOLETA DE VENTA<br/>ELECTRONICA</div>
       <div class="numero">${r.boleta_numero || 'B001-00000000'}</div>
@@ -285,12 +467,30 @@ export default function AdminPagoPresencial() {
     <tbody>
       <tr>
         <td>1</td>
-        <td>Pago de mensualidad CIP — ${r.periodos_label || ''} (${r.metodo || ''})</td>
+        <td>
+          <div style="margin-bottom:2px">Mensualidad CIP</div>
+          <div style="font-size:10px;color:#333;">${r.periodos_label || ''}</div>
+        </td>
         <td>${parseFloat(r.monto_total || 0).toFixed(2)}</td>
         <td>${parseFloat(r.monto_total || 0).toFixed(2)}</td>
       </tr>
     </tbody>
   </table>
+
+  ${r.pagos_parciales && r.pagos_parciales.length > 0 ? `
+  <div class="totales" style="border-top: none; padding-top: 0; margin-bottom: 10px;">
+    <div style="font-weight: bold; font-size: 11px; margin-bottom: 4px;">Detalle de Pago:</div>
+    <table class="totales-table">
+      ${r.pagos_parciales.map(p => `<tr><td>${p.metodo === 'YAPE_PLIN' ? 'Yape/Plin/Online' : p.metodo}</td><td>S/ ${parseFloat(p.monto).toFixed(2)}</td></tr>`).join('')}
+    </table>
+  </div>
+  ` : `
+  <div class="totales" style="border-top: none; padding-top: 0; margin-bottom: 10px;">
+    <table class="totales-table">
+      <tr><td>Forma de pago</td><td>${r.metodo}</td></tr>
+    </table>
+  </div>
+  `}
 
   <div class="totales">
     <table class="totales-table">
@@ -322,6 +522,8 @@ export default function AdminPagoPresencial() {
   const handleNuevoPago = () => {
     setColegiado(null); setDeuda(null); setResultado(null);
     setQuery(''); setResultados(null); setErrBusqueda(''); setErrForm('');
+    sessionStorage.removeItem('admin_pago_colegiado');
+    sessionStorage.removeItem('admin_pago_periodos');
     setTimeout(() => searchRef.current?.focus(), 100);
   };
 
@@ -407,25 +609,23 @@ export default function AdminPagoPresencial() {
 
           {/* Botones comprobante */}
           <div style={{ display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
-            {resultado.comprobante && (
-              <button 
-                onClick={() => setComprobanteParaMostrar(resultado.comprobante)}
-                className="btn btn-primary"
-                style={{ 
-                  background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  width: '100%',
-                  padding: '0.9rem',
-                  border: 'none', borderRadius: '10px',
-                  fontWeight: '800', fontSize: '1rem', cursor: 'pointer'
-                }}
-              >
-                📥 Descargar Comprobante
-              </button>
-            )}
+            <button
+              onClick={generarComprobante}
+              className="btn btn-primary"
+              style={{
+                background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                width: '100%',
+                padding: '0.9rem',
+                border: 'none', borderRadius: '10px',
+                fontWeight: '800', fontSize: '1rem', cursor: 'pointer'
+              }}
+            >
+              📥 Imprimir en PDF
+            </button>
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button onClick={handleNuevoPago} className="btn btn-primary" style={{ flex: 1 }}>
                 Registrar otro pago
@@ -436,7 +636,7 @@ export default function AdminPagoPresencial() {
             </div>
           </div>
         </div>
-        
+
         {/* NUEVO: MODAL DE COMPROBANTE */}
         {comprobanteParaMostrar && (
           <ComprobanteModal
@@ -615,7 +815,11 @@ export default function AdminPagoPresencial() {
             </div>
           )}
           <button
-            onClick={() => { setColegiado(null); setDeuda(null); setResultado(null); }}
+            onClick={() => {
+              setColegiado(null); setDeuda(null); setResultado(null);
+              sessionStorage.removeItem('admin_pago_colegiado');
+              sessionStorage.removeItem('admin_pago_periodos');
+            }}
             style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)', color: 'white', borderRadius: '8px', padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', transition: 'all 0.15s' }}
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.22)'}
             onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
@@ -700,9 +904,12 @@ export default function AdminPagoPresencial() {
                 });
               const años = Object.keys(porAño).sort();
 
+              const añosMostrados = años.filter(a => parseInt(a) <= maxVisibleYear);
+              const añosOcultos = años.filter(a => parseInt(a) > maxVisibleYear);
+
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {años.map(año => {
+                  {añosMostrados.map(año => {
                     const mesesDelAño = porAño[año];
 
                     return (
@@ -720,42 +927,36 @@ export default function AdminPagoPresencial() {
                         {/* Meses del año: 6 por fila */}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.4rem' }}>
                           {mesesDelAño.map(p => {
-                            const estado      = p.estado || 'PENDIENTE';
-                            const pagado      = estado === 'PAGADO';
+                            const estado = p.estado || 'PENDIENTE';
+                            const pagado = estado === 'PAGADO';
                             const esPendiente = estado === 'PENDIENTE';
-                            const esMesActual = estado === 'MES_ACTUAL';
-                            const esAdelanto  = estado === 'ADELANTO';
-                            const sel         = periodosSeleccionados.has(p.periodo);
-                            const bloqueado   = esAdelanto && hayDeudaSinPagar();
+                            const esAdelanto = estado === 'ADELANTO';
+                            const sel = periodosSeleccionados.has(p.periodo);
+                            const bloqueado = esAdelanto && hayDeudaSinPagar();
 
                             let paleta;
                             if (pagado) {
-                              paleta = { bg: '#F0FDF4', border: '#86EFAC', txt: '#15803D', accent: '#16A34A', tagBg: '#DCFCE7', tagTxt: '#15803D' };
+                              paleta = { bg: '#F0FDF4', border: '#86EFAC', txt: '#15803D', accent: '#16A34A', tagBg: '#DCFCE7', tagTxt: '#15803D', tag: 'PAGADO' };
                             } else if (esPendiente) {
                               paleta = sel
-                                ? { bg: '#FFF1F2', border: '#F87171', txt: '#991B1B', accent: '#DC2626', tagBg: '#FEE2E2', tagTxt: '#991B1B' }
-                                : { bg: '#FEF2F2', border: '#FCA5A5', txt: '#B91C1C', accent: '#DC2626', tagBg: '#FEE2E2', tagTxt: '#991B1B' };
-                            } else if (esMesActual) {
-                              paleta = sel
-                                ? { bg: '#FFFBEB', border: '#F59E0B', txt: '#78350F', accent: '#D97706', tagBg: '#FEF3C7', tagTxt: '#92400E' }
-                                : { bg: '#FFFDF5', border: '#FCD34D', txt: '#92400E', accent: '#D97706', tagBg: '#FEF3C7', tagTxt: '#92400E' };
+                                ? { bg: '#FFF1F2', border: '#F87171', txt: '#991B1B', accent: '#DC2626', tagBg: '#FEE2E2', tagTxt: '#991B1B', tag: 'DEUDA' }
+                                : { bg: '#FEF2F2', border: '#FCA5A5', txt: '#B91C1C', accent: '#DC2626', tagBg: '#FEE2E2', tagTxt: '#991B1B', tag: 'DEUDA' };
                             } else {
                               paleta = sel
-                                ? { bg: '#EFF6FF', border: '#3B82F6', txt: '#1E40AF', accent: '#2563EB', tagBg: '#DBEAFE', tagTxt: '#1D4ED8' }
-                                : { bg: '#F8FAFF', border: '#BFDBFE', txt: '#3B82F6', accent: '#2563EB', tagBg: '#DBEAFE', tagTxt: '#1D4ED8' };
+                                ? { bg: '#EFF6FF', border: '#3B82F6', txt: '#1E40AF', accent: '#2563EB', tagBg: '#DBEAFE', tagTxt: '#1D4ED8', tag: 'ADELANTO' }
+                                : { bg: '#F8FAFF', border: '#BFDBFE', txt: '#3B82F6', accent: '#2563EB', tagBg: '#DBEAFE', tagTxt: '#1D4ED8', tag: 'ADELANTO' };
                             }
 
                             return (
                               <div
                                 key={p.periodo}
                                 title={
-                                  pagado      ? 'Ya pagado' :
-                                  esPendiente ? 'Deuda — se paga en bloque con todos los meses adeudados' :
-                                  esMesActual ? 'Mes en curso — plazo hasta fin de mes para pagar' :
-                                  bloqueado   ? 'Primero paga las deudas atrasadas' :
-                                  'Pago anticipado'
+                                  pagado ? 'Ya pagado' :
+                                    esPendiente ? 'Deuda — se paga en bloque con todos los meses adeudados' :
+                                      bloqueado ? 'Primero paga las deudas atrasadas' :
+                                        'Pago anticipado'
                                 }
-                                onClick={() => { if (!pagado) togglePeriodo(p.periodo, estado); }}
+                                onClick={() => { if (!pagado && !bloqueado) togglePeriodo(p.periodo, estado); }}
                                 style={{
                                   background: paleta.bg,
                                   border: `2px solid ${sel && !pagado ? paleta.accent : paleta.border}`,
@@ -787,11 +988,11 @@ export default function AdminPagoPresencial() {
                                   />
                                 )}
                                 <span style={{
-                                  fontSize: '0.56rem', fontWeight: '700', padding: '0.08rem 0.3rem',
+                                  fontSize: '0.55rem', fontWeight: '800', padding: '0.15rem 0.3rem',
                                   borderRadius: '999px', background: paleta.tagBg, color: paleta.tagTxt,
                                   textTransform: 'uppercase', letterSpacing: '0.2px', whiteSpace: 'nowrap',
                                 }}>
-                                  {pagado ? 'pagado' : esPendiente ? 'deuda' : esMesActual ? 'pagar' : 'adelanto'}
+                                  {paleta.tag}
                                 </span>
                               </div>
                             );
@@ -800,6 +1001,57 @@ export default function AdminPagoPresencial() {
                       </div>
                     );
                   })}
+
+                  {(añosOcultos.length > 0 || maxVisibleYear > hoy.getFullYear()) && (
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.5rem', gap: '1rem' }}>
+                      {maxVisibleYear > hoy.getFullYear() && (
+                        <button
+                          onClick={() => setMaxVisibleYear(hoy.getFullYear())}
+                          style={{
+                            background: '#FFF1F2',
+                            border: '1.5px dashed #FDA4AF',
+                            color: '#BE123C',
+                            padding: '0.5rem 1.5rem',
+                            borderRadius: '8px',
+                            fontSize: '0.85rem',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            transition: 'all 0.2s',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#FFE4E6'; e.currentTarget.style.borderColor = '#FB7185'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = '#FFF1F2'; e.currentTarget.style.borderColor = '#FDA4AF'; }}
+                        >
+                          - Mostrar menos
+                        </button>
+                      )}
+                      {añosOcultos.length > 0 && (
+                        <button
+                          onClick={() => setMaxVisibleYear(prev => prev + 1)}
+                          style={{
+                            background: '#F8FAFC',
+                            border: '1.5px dashed #CBD5E1',
+                            color: '#475569',
+                            padding: '0.5rem 1.5rem',
+                            borderRadius: '8px',
+                            fontSize: '0.85rem',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            transition: 'all 0.2s',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#F1F5F9'; e.currentTarget.style.borderColor = '#94A3B8'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.borderColor = '#CBD5E1'; }}
+                        >
+                          + Mostrar año {Math.min(...añosOcultos.map(a => parseInt(a)))}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })()
@@ -836,31 +1088,85 @@ export default function AdminPagoPresencial() {
                 </div>
               )}
 
-              {/* Método de pago */}
-              <div className="form-group" style={{ marginBottom: '1.1rem' }}>
-                <label className="form-label" style={{ fontSize: '0.8rem' }}>Método de Pago</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.4rem' }}>
-                  {METODOS.map(m => (
-                    <button
-                      key={m.valor}
-                      type="button"
-                      onClick={() => { setMetodo(m.valor); setErrForm(''); }}
-                      style={{
-                        padding: '0.55rem 0.3rem', borderRadius: '8px', cursor: 'pointer',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.22rem',
-                        border: `2px solid ${metodo === m.valor ? 'var(--cip-blue)' : 'var(--border-color)'}`,
-                        background: metodo === m.valor ? '#EFF6FF' : 'white',
-                        color: metodo === m.valor ? 'var(--cip-blue)' : 'var(--text-main)',
-                        fontWeight: metodo === m.valor ? '700' : '400',
-                        fontSize: '0.72rem', transition: 'all 0.15s',
-                      }}
-                    >
-                      {m.icono}
-                      {m.label}
-                    </button>
-                  ))}
+              {/* Tipo de Pago (Normal o Mixto) */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--cip-blue)' }}>Modo de Pago</label>
+                <div style={{ display: 'flex', gap: '0.5rem', background: '#F8FAFC', padding: '0.2rem', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                  <button onClick={() => setEsMixto(false)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', fontWeight: '600', borderRadius: '6px', border: 'none', background: !esMixto ? '#10B981' : 'transparent', color: !esMixto ? 'white' : '#64748B', cursor: 'pointer' }}>Único</button>
+                  <button onClick={() => setEsMixto(true)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', fontWeight: '600', borderRadius: '6px', border: 'none', background: esMixto ? '#3B82F6' : 'transparent', color: esMixto ? 'white' : '#64748B', cursor: 'pointer' }}>Mixto</button>
                 </div>
               </div>
+
+              {/* Método de pago */}
+              {!esMixto ? (
+                <div className="form-group" style={{ marginBottom: '1.1rem' }}>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>Método de Pago</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.4rem' }}>
+                    {METODOS.map(m => (
+                      <button
+                        key={m.valor}
+                        type="button"
+                        onClick={() => { setMetodo(m.valor); setErrForm(''); }}
+                        style={{
+                          padding: '0.55rem 0.3rem', borderRadius: '8px', cursor: 'pointer',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.22rem',
+                          border: `2px solid ${metodo === m.valor ? 'var(--cip-blue)' : 'var(--border-color)'}`,
+                          background: metodo === m.valor ? '#EFF6FF' : 'white',
+                          color: metodo === m.valor ? 'var(--cip-blue)' : 'var(--text-main)',
+                          fontWeight: metodo === m.valor ? '700' : '400',
+                          fontSize: '0.72rem', transition: 'all 0.15s',
+                        }}
+                      >
+                        {m.icono}
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ background: '#F8FAFF', padding: '1rem', borderRadius: '8px', border: '1px solid #BFDBFE', marginBottom: '1.1rem' }}>
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ fontSize: '0.75rem', color: '#1E40AF', fontWeight: '600', marginBottom: '0.25rem', display: 'block' }}>Parte 1</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <select value={metodo1} onChange={e => { setMetodo1(e.target.value); setQrPagadoMixto(false); }} style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }}>
+                        <option value="">Seleccione...</option>
+                        {METODOS.map(m => <option key={m.valor} value={m.valor}>{m.label}</option>)}
+                      </select>
+                      <input type="number" step="0.01" min="0" placeholder="Monto S/" value={monto1} onChange={e => { setMonto1(e.target.value); setQrPagadoMixto(false); }} style={{ width: '80px', padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }} />
+                      {metodo1 === 'YAPE_PLIN' && monto1 && parseFloat(monto1) > 0 && !qrPagadoMixto && (
+                        <button type="button" onClick={() => generarQrMixto(monto1)} disabled={cargandoQr} style={{ padding: '0.4rem 0.6rem', background: '#3B82F6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}>QR</button>
+                      )}
+                      {metodo1 === 'YAPE_PLIN' && qrPagadoMixto && (
+                        <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><CheckCircle2 size={14} /> Pagado</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: '#1E40AF', fontWeight: '600', marginBottom: '0.25rem', display: 'block' }}>Parte 2</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <select value={metodo2} onChange={e => { setMetodo2(e.target.value); setQrPagadoMixto(false); }} style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }}>
+                        <option value="">Seleccione...</option>
+                        {METODOS.map(m => <option key={m.valor} value={m.valor}>{m.label}</option>)}
+                      </select>
+                      <input type="number" step="0.01" min="0" placeholder="Monto S/" value={monto2} onChange={e => { setMonto2(e.target.value); setQrPagadoMixto(false); }} style={{ width: '80px', padding: '0.5rem', borderRadius: '6px', border: '1px solid #93C5FD', fontSize: '0.8rem' }} />
+                      {metodo2 === 'YAPE_PLIN' && monto2 && parseFloat(monto2) > 0 && !qrPagadoMixto && (
+                        <button type="button" onClick={() => generarQrMixto(monto2)} disabled={cargandoQr} style={{ padding: '0.4rem 0.6rem', background: '#3B82F6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}>QR</button>
+                      )}
+                      {metodo2 === 'YAPE_PLIN' && qrPagadoMixto && (
+                        <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><CheckCircle2 size={14} /> Pagado</span>
+                      )}
+                    </div>
+                  </div>
+                  {qrError && (
+                    <div style={{ marginTop: '0.5rem', color: '#DC2626', fontSize: '0.75rem', fontWeight: '600' }}>{qrError}</div>
+                  )}
+                  {monto1 && monto2 && monto && (
+                    <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', textAlign: 'right', fontWeight: '600', color: Math.abs(parseFloat(monto1) + parseFloat(monto2) - parseFloat(monto)) < 0.01 ? '#059669' : '#DC2626' }}>
+                      Suma: S/ {(parseFloat(monto1) + parseFloat(monto2)).toFixed(2)} / S/ {parseFloat(monto).toFixed(2)}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Monto editable (solo si NO es tarjeta, que lo calcula MP) */}
               {metodo !== 'TARJETA' && (
@@ -882,12 +1188,12 @@ export default function AdminPagoPresencial() {
                       placeholder="0.00"
                     />
                   </div>
-                  <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Ajustable si es necesario</p>
+                  <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Ajustable para Pruebas</p>
                 </div>
               )}
 
               {/* Resumen rápido */}
-              {periodosSeleccionados.size > 0 && monto && metodo && (
+              {periodosSeleccionados.size > 0 && monto && (!esMixto ? metodo : (metodo1 && metodo2)) && (
                 <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.78rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', color: 'var(--text-muted)' }}>
                     <span>Periodos:</span>
@@ -899,7 +1205,7 @@ export default function AdminPagoPresencial() {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
                     <span>Vía:</span>
-                    <strong style={{ color: 'var(--text-main)' }}>{METODOS.find(m => m.valor === metodo)?.label}</strong>
+                    <strong style={{ color: 'var(--text-main)' }}>{!esMixto ? METODOS.find(m => m.valor === metodo)?.label : 'MIXTO'}</strong>
                   </div>
                 </div>
               )}
@@ -913,19 +1219,19 @@ export default function AdminPagoPresencial() {
               )}
 
               <button
-                onClick={handleRegistrar}
-                disabled={enviando || periodosSeleccionados.size === 0}
+                onClick={() => handleRegistrar(false)}
+                disabled={enviando || periodosSeleccionados.size === 0 || (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagadoMixto)}
                 className="btn btn-block"
                 style={{
                   padding: '0.9rem', fontSize: '0.95rem',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                  background: (enviando || periodosSeleccionados.size === 0) ? '#94A3B8' : '#10B981',
+                  background: (enviando || periodosSeleccionados.size === 0 || (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagadoMixto)) ? '#94A3B8' : '#10B981',
                   border: 'none', borderRadius: '10px', color: 'white',
-                  fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0) ? 'not-allowed' : 'pointer',
+                  fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0 || (esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagadoMixto)) ? 'not-allowed' : 'pointer',
                   transition: 'all 0.15s',
                 }}
-                onMouseEnter={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#059669'; }}
-                onMouseLeave={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#10B981'; }}
+                onMouseEnter={e => { if (!enviando && periodosSeleccionados.size > 0 && !(esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagadoMixto)) e.currentTarget.style.background = '#059669'; }}
+                onMouseLeave={e => { if (!enviando && periodosSeleccionados.size > 0 && !(esMixto && (metodo1 === 'YAPE_PLIN' || metodo2 === 'YAPE_PLIN') && !qrPagadoMixto)) e.currentTarget.style.background = '#10B981'; }}
               >
                 {enviando
                   ? <><Loader2 size={18} className="spin" /> Registrando…</>
@@ -937,6 +1243,30 @@ export default function AdminPagoPresencial() {
         </div>
 
       </div>{/* fin grid */}
+
+      {/* MODAL FLOW QR (Solo en la vista de cobro) */}
+      {flowInitPoint && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', padding: '1rem', borderRadius: '12px', width: '90%', maxWidth: '420px', height: '80vh', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+            <button
+              onClick={() => { setFlowInitPoint(null); setFlowToken(null); setFlowModoMixto(false); }}
+              style={{ position: 'absolute', top: '-15px', right: '-15px', background: '#EF4444', color: '#fff', border: '2px solid #fff', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+            >✕</button>
+            <h3 style={{ textAlign: 'center', marginBottom: '0.2rem', fontSize: '1.2rem', color: '#111', fontWeight: '800' }}>
+              {flowModoMixto ? 'Pagar Mixto con Yape/Plin' : 'Pagar con Yape/Plin'}
+            </h3>
+            <p style={{ textAlign: 'center', color: '#666', fontSize: '0.85rem', marginBottom: '0.8rem' }}>Pídele al colegiado que escanee este código desde la pantalla.</p>
+            <div style={{ flex: 1, position: 'relative', overflow: 'hidden', borderRadius: '8px', border: '1px solid #E2E8F0', background: '#F8FAFC' }}>
+              <iframe
+                src={flowInitPoint}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                title="Flow Pago"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

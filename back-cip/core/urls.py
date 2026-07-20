@@ -16,6 +16,9 @@ urlpatterns = [
     
     # Auth
     path('api/auth/login/', views.AuthLoginView.as_view(), name='auth-login'),
+    path('api/auth/password-reset/', views.PasswordResetRequestView.as_view(), name='password-reset-request'),
+    path('api/auth/password-reset/confirm/<str:uidb64>/<str:token>/', views.PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
+
     
     # Catalogos
     path('api/catalogos/', views.get_catalogos, name='catalogos'),
@@ -59,6 +62,7 @@ urlpatterns = [
 
     # Flow — QR Yape / Plin
     path('api/flow/generar-qr/', views.FlowGenerarQRView.as_view(), name='flow-generar-qr'),
+    path('api/flow/confirmar-generico/', views.FlowConfirmarGenericoView.as_view(), name='flow-confirmar-generico'),
     path('api/flow/webhook/',    views.FlowWebhookView.as_view(),   name='flow-webhook'),
 
     # Finanzas

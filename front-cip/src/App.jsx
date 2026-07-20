@@ -12,20 +12,11 @@ import AdminHome from './pages/admin/AdminHome';
 import AdminPostulaciones from './pages/admin/AdminPostulaciones';
 import AdminPresencial from './pages/admin/AdminPresencial';
 import AdminPagoPresencial from './pages/admin/AdminPagoPresencial';
-import AdminVouchers from './pages/admin/AdminVouchers';
 import AdminDeudores from './pages/admin/AdminDeudores';
 import AdminSedes from './pages/admin/AdminSedes';
 import AdminCarreras from './pages/admin/AdminCarreras';
 import AdminUsuarios from './pages/admin/AdminUsuarios';
-
-function AdminHomeRedirect() {
-  const rol = localStorage.getItem('adminRole') || 'ADMIN';
-  const destino =
-    rol === 'CAJERO'       ? 'deudores' :
-    rol === 'MASTER_ADMIN' ? 'sedes' :
-                             'postulaciones';
-  return <Navigate to={destino} replace />;
-}
+import AdminResetPassword from './pages/admin/AdminResetPassword';
 
 function App() {
   return (
@@ -45,13 +36,12 @@ function App() {
 
         {/* Rutas del Portal Administrativo */}
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/reset-password/:uidb64/:token/*" element={<AdminResetPassword />} />
         <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<AdminHomeRedirect />} />
           <Route path="home" element={<AdminHome />} />
           <Route path="postulaciones" element={<AdminPostulaciones />} />
           <Route path="pagos-presencial" element={<AdminPagoPresencial />} />
           <Route path="presencial" element={<AdminPresencial />} />
-          <Route path="vouchers" element={<AdminVouchers />} />
           <Route path="deudores" element={<AdminDeudores />} />
           <Route path="sedes" element={<AdminSedes />} />
           <Route path="carreras" element={<AdminCarreras />} />

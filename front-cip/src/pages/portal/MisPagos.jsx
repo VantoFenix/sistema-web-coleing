@@ -47,24 +47,14 @@ function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSol
     setGenerando(false);
   };
 
-  // Construir lista completa de periodos (pendientes + mes actual + adelantos)
-  const hoy           = new Date();
-  const periodoActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
-  const pagadosSet    = new Set((historial || []).map(h => h.periodo));
-  const pendientesSet = new Set(pendientes.map(p => p.periodo));
-
+  // Construir lista completa de periodos (pendientes + adelantos)
   const allPeriodos = [];
-  pendientes.forEach(p => allPeriodos.push({ periodo: p.periodo, estado: 'PENDIENTE' }));
-  if (!pendientesSet.has(periodoActual) && !pagadosSet.has(periodoActual)) {
-    allPeriodos.push({ periodo: periodoActual, estado: 'MES_ACTUAL' });
-  }
-  for (let i = 1; i <= 5; i++) {
-    const d = new Date(hoy.getFullYear(), hoy.getMonth() + i, 1);
-    const per = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    if (!pendientesSet.has(per) && !pagadosSet.has(per))
-      allPeriodos.push({ periodo: per, estado: 'ADELANTO' });
-  }
+  pendientes.forEach(p => {
+    allPeriodos.push({ periodo: p.periodo, estado: p.is_adelanto ? 'ADELANTO' : 'PENDIENTE' });
+  });
+
   allPeriodos.sort((a, b) => a.periodo.localeCompare(b.periodo));
+  const hasDeuda = allPeriodos.some(p => p.estado === 'PENDIENTE');
 
   // Lógica de selección en cascada (igual que admin)
   const handleToggle = (periodo, estado) => {
@@ -79,7 +69,7 @@ function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSol
         pendientes.forEach(p => s.add(p.periodo));
       }
     } else {
-      // MES_ACTUAL / ADELANTO: en cascada
+      // ADELANTO: en cascada
       if (s.has(periodo)) {
         // Deseleccionar: también quitar todos los meses posteriores
         const idx = allPeriodos.findIndex(p => p.periodo === periodo);
@@ -107,14 +97,23 @@ function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSol
     porAño[año].push(p);
   });
   const años = Object.keys(porAño).sort();
+  
+  const hoy = new Date();
+  const [maxVisibleYear, setMaxVisibleYear] = useState(hoy.getFullYear());
+  const añosMostrados = años.filter(a => parseInt(a) <= maxVisibleYear);
+  const añosOcultos = años.filter(a => parseInt(a) > maxVisibleYear);
 
   return (
     <div>
+      <h3 style={{ fontSize: '1.25rem', color: 'var(--cip-blue)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <Calendar size={22} /> Selecciona las mensualidades a pagar
+      </h3>
+
       {/* Cabecera con botones de selección rápida */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', gap: '0.5rem', flexWrap: 'wrap' }}>
         <div>
           <h3 style={{ fontSize: '0.92rem', fontWeight: '700', color: 'var(--cip-blue)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <Calendar size={15} /> Periodos del Año {hoy.getFullYear()}
+            <Calendar size={15} /> Periodos del Año
           </h3>
           {seleccionados.size > 0 && (
             <p style={{ fontSize: '0.73rem', color: '#059669', fontWeight: '600', margin: '0.2rem 0 0' }}>
@@ -139,7 +138,7 @@ function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSol
 
       {/* Grilla de meses agrupada por año */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', marginBottom: '1.25rem' }}>
-        {años.map(año => (
+        {añosMostrados.map(año => (
           <div key={año}>
             {/* Separador de año */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
@@ -159,9 +158,6 @@ function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSol
                   estado === 'PENDIENTE' ? {
                     bg: sel ? '#FFF1F2' : '#FEF2F2', border: sel ? '#DC2626' : '#FCA5A5',
                     txt: '#991B1B', accent: '#DC2626', tagBg: '#FEE2E2', tagTxt: '#991B1B', tag: 'PAGAR',
-                  } : estado === 'MES_ACTUAL' ? {
-                    bg: sel ? '#FFFBEB' : '#FFFDF5', border: sel ? '#F59E0B' : '#FCD34D',
-                    txt: '#78350F', accent: '#D97706', tagBg: '#FEF3C7', tagTxt: '#92400E', tag: 'MES ACT.',
                   } : {
                     bg: sel ? '#EFF6FF' : '#F8FAFF', border: sel ? '#3B82F6' : '#BFDBFE',
                     txt: '#1E40AF', accent: '#2563EB', tagBg: '#DBEAFE', tagTxt: '#1D4ED8', tag: 'ADELANTO',
@@ -199,6 +195,57 @@ function StepPeriodos({ pendientes, historial, seleccionados, onSelAll, onSelSol
             </div>
           </div>
         ))}
+        
+        {(añosOcultos.length > 0 || maxVisibleYear > hoy.getFullYear()) && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.5rem', gap: '1rem' }}>
+            {maxVisibleYear > hoy.getFullYear() && (
+              <button
+                onClick={() => setMaxVisibleYear(hoy.getFullYear())}
+                style={{
+                  background: '#FFF1F2',
+                  border: '1.5px dashed #FDA4AF',
+                  color: '#BE123C',
+                  padding: '0.5rem 1.5rem',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#FFE4E6'; e.currentTarget.style.borderColor = '#FB7185'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#FFF1F2'; e.currentTarget.style.borderColor = '#FDA4AF'; }}
+              >
+                - Mostrar menos
+              </button>
+            )}
+            {añosOcultos.length > 0 && (
+              <button
+                onClick={() => setMaxVisibleYear(prev => prev + 1)}
+                style={{
+                  background: '#F8FAFC',
+                  border: '1.5px dashed #CBD5E1',
+                  color: '#475569',
+                  padding: '0.5rem 1.5rem',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#F1F5F9'; e.currentTarget.style.borderColor = '#94A3B8'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.borderColor = '#CBD5E1'; }}
+              >
+                + Mostrar año {Math.min(...añosOcultos.map(a => parseInt(a)))}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Resumen monto */}
@@ -467,7 +514,7 @@ function StepExito({ resultado, onNuevoPago, onVerComprobante }) {
           className="btn btn-primary btn-block"
           style={{ padding: '0.8rem', marginBottom: '0.75rem', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', border: 'none' }}
         >
-          📥 Descargar Comprobante
+          📥 Descargar Comprobante en PDF
         </button>
       )}
       <button onClick={onNuevoPago} className="btn btn-primary btn-block" style={{ padding: '0.8rem' }}>
@@ -484,11 +531,14 @@ const ComprobantesAnteriores = ({ onVerComprobante }) => {
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    // El backend ahora soporta no enviar colegiado_id y usar el request.user
-    fetch('/api/finanzas/comprobantes/historial/')
+    const token = localStorage.getItem('colToken');
+    fetch('/api/finanzas/comprobantes/historial/', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
       .then(r => r.json())
       .then(data => {
-        setComprobantes(data.results || data);
+        const arr = data.results || data;
+        setComprobantes(Array.isArray(arr) ? arr : []);
         setCargando(false);
       })
       .catch(() => setCargando(false));
@@ -503,7 +553,7 @@ const ComprobantesAnteriores = ({ onVerComprobante }) => {
         Comprobantes Electrónicos
       </h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        {comprobantes.map(comp => (
+        {comprobantesFiltrados.map(comp => (
           <div
             key={comp.id}
             style={{
@@ -559,6 +609,7 @@ export default function MisPagos() {
   }, [seleccionados, montoBase]);
   
   const [initPoint, setInitPoint]         = useState(null);
+  const [flowToken, setFlowToken]         = useState(null);
   const [extRef, setExtRef]               = useState(null);
   const [resultadoPago, setResultadoPago] = useState(null);
 
@@ -572,8 +623,8 @@ export default function MisPagos() {
       });
       const data = await res.json();
       if (data.init_point) {
-        // Redirigir directamente a la pasarela de Flow
-        window.location.href = data.init_point;
+        setFlowToken(data.token);
+        setInitPoint(data.init_point);
       } else {
         setError(data.error || 'No se pudo crear el enlace de pago con Flow.');
       }
@@ -587,6 +638,38 @@ export default function MisPagos() {
   const [vouchersPendientes, setVouchersPendientes] = useState([]);
   const [habilitado, setHabilitado]       = useState(null);
   const [paso, setPaso]                   = useState('periodos');
+  // Polling de Flow
+  useEffect(() => {
+    let intervalId;
+    if (initPoint && flowToken) {
+      intervalId = setInterval(async () => {
+        try {
+          const res = await fetch('/api/pagos/flow/confirmar/', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('colToken')}`
+            },
+            body: JSON.stringify({ token: flowToken })
+          });
+          const data = await res.json();
+          if (data.success) {
+            setInitPoint(null);
+            setFlowToken(null);
+            setResultadoPago(data);
+            cargarDatos();
+          } else if (data.status === 'pending') {
+            // sigue pendiente
+          } else if (data.error) {
+            setInitPoint(null);
+            setFlowToken(null);
+            setErrPago(data.error);
+          }
+        } catch(e) {}
+      }, 3500);
+    }
+    return () => clearInterval(intervalId);
+  }, [initPoint, flowToken]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -648,7 +731,7 @@ export default function MisPagos() {
       setHabilitado(data.habilitado ?? null);
       setMontoUnit(data.monto_mensualidad || '20.00');
       setMontoBase(data.monto_mensualidad || '20.00');
-      setSeleccionados(new Set((data.periodos_pendientes || []).map(p => p.periodo)));
+      setSeleccionados(new Set());
     } catch (e) {
       setError(`No se pudo cargar la información de pagos: ${e.message}`);
     } finally {
@@ -673,7 +756,7 @@ export default function MisPagos() {
         setHabilitado(d.habilitado ?? null);
         setMontoUnit(d.monto_mensualidad || '20.00');
         setMontoBase(d.monto_mensualidad || '20.00');
-        setSeleccionados(new Set((d.periodos_pendientes || []).map(p => p.periodo)));
+        setSeleccionados(new Set());
       }
 
       if (mpStatus === 'approved') {
@@ -756,7 +839,7 @@ export default function MisPagos() {
           <div>
             <p style={{ fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '0.1rem' }}>Estado de cuenta</p>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              {pendientes.length > 0 ? `${pendientes.length} mes${pendientes.length !== 1 ? 'es' : ''} pendiente${pendientes.length !== 1 ? 's' : ''} de pago` : 'Pagos al día'}
+              {pendientes.filter(p => !p.is_adelanto).length > 0 ? `${pendientes.filter(p => !p.is_adelanto).length} mes${pendientes.filter(p => !p.is_adelanto).length !== 1 ? 'es' : ''} en mora (deuda)` : 'Pagos al día'}
             </p>
           </div>
         </div>
@@ -791,9 +874,9 @@ export default function MisPagos() {
               }}
             >
               {t.icon} {t.label}
-              {t.id === 'pagar' && pendientes.length > 0 && (
+              {t.id === 'pagar' && pendientes.filter(p => !p.is_adelanto).length > 0 && (
                 <span style={{ background: 'var(--cip-red)', color: 'white', borderRadius: '999px', fontSize: '0.65rem', padding: '0.1rem 0.45rem', fontWeight: '800' }}>
-                  {pendientes.length}
+                  {pendientes.filter(p => !p.is_adelanto).length}
                 </span>
               )}
             </button>
@@ -818,7 +901,7 @@ export default function MisPagos() {
                   historial={historial}
                   seleccionados={seleccionados}
                   onSelAll={(set) => setSeleccionados(set)}
-                  onSelSoloDeuda={() => setSeleccionados(new Set(pendientes.map(p => p.periodo)))}
+                  onSelSoloDeuda={() => setSeleccionados(new Set(pendientes.filter(p => !p.is_adelanto).map(p => p.periodo)))}
                   onDeselAll={() => setSeleccionados(new Set())}
                   montoUnit={montoUnit}
                   onError={(msg) => setErrPago(msg)}
@@ -955,6 +1038,27 @@ export default function MisPagos() {
             });
           }}
         />
+      )}
+
+      {/* MODAL FLOW QR */}
+      {initPoint && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', padding: '1rem', borderRadius: '12px', width: '90%', maxWidth: '420px', height: '80vh', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+            <button 
+              onClick={() => { setInitPoint(null); setFlowToken(null); }}
+              style={{ position: 'absolute', top: '-15px', right: '-15px', background: '#EF4444', color: '#fff', border: '2px solid #fff', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+            >✕</button>
+            <h3 style={{ textAlign: 'center', marginBottom: '0.2rem', fontSize: '1.2rem', color: '#111', fontWeight: '800' }}>Pagar con Yape/Plin</h3>
+            <p style={{ textAlign: 'center', color: '#666', fontSize: '0.85rem', marginBottom: '0.8rem' }}>Escanea este código para completar tu pago.</p>
+            <div style={{ flex: 1, position: 'relative', overflow: 'hidden', borderRadius: '8px', border: '1px solid #E2E8F0', background: '#F8FAFC' }}>
+              <iframe 
+                src={initPoint} 
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                title="Flow Pago"
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

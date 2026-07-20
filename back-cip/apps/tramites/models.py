@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.validators import RegexValidator, FileExtensionValidator
+from utils.storage import select_raw_storage
 
 
 # ==============================================================================
@@ -92,6 +93,7 @@ class TramiteInscripcion(models.Model):
     )
     titulo_pdf = models.FileField(
         upload_to='tramites/titulos/%Y/%m/%d/',
+        storage=select_raw_storage,
         validators=[FileExtensionValidator(allowed_extensions=['pdf'])],
         help_text='Copia del título profesional (PDF)',
         null=True,
@@ -99,8 +101,25 @@ class TramiteInscripcion(models.Model):
     )
     voucher = models.FileField(
         upload_to='tramites/vouchers/%Y/%m/%d/',
+        storage=select_raw_storage,
         validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])],
         help_text='Comprobante de pago (PDF/JPG/PNG)',
+        null=True,
+        blank=True
+    )
+    dni_anverso = models.FileField(
+        upload_to='tramites/dni/%Y/%m/%d/',
+        storage=select_raw_storage,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])],
+        help_text='Anverso del DNI (PDF/JPG/PNG)',
+        null=True,
+        blank=True
+    )
+    dni_reverso = models.FileField(
+        upload_to='tramites/dni/%Y/%m/%d/',
+        storage=select_raw_storage,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'jpg', 'jpeg', 'png'])],
+        help_text='Reverso del DNI (PDF/JPG/PNG)',
         null=True,
         blank=True
     )

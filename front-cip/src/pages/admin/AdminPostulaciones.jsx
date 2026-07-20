@@ -22,18 +22,24 @@ export default function AdminPostulaciones() {
   const [obsFoto, setObsFoto] = useState({ checked: false, text: '' });
   const [obsTitulo, setObsTitulo] = useState({ checked: false, text: '' });
   const [obsRecibo, setObsRecibo] = useState({ checked: false, text: '' });
+  const [obsDniAnverso, setObsDniAnverso] = useState({ checked: false, text: '' });
+  const [obsDniReverso, setObsDniReverso] = useState({ checked: false, text: '' });
   const [obsDatos, setObsDatos] = useState({ checked: false, text: '' });
+
+  const [filtroEstado, setFiltroEstado] = useState('EN_REVISION');
+  const [filtroOrigen, setFiltroOrigen] = useState('TODAS');
+  const [filtroBusqueda, setFiltroBusqueda] = useState('');
 
   useEffect(() => {
     fetchPostulaciones();
-  }, []);
+  }, [filtroEstado, filtroOrigen]);
 
   const fetchPostulaciones = async () => {
     setCargando(true);
     setErrorFetch('');
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch('/api/admin/postulaciones/', {
+      const res = await fetch(`/api/admin/postulaciones/?estado=${filtroEstado}&origen=${filtroOrigen}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -57,6 +63,8 @@ export default function AdminPostulaciones() {
     setObsFoto({ checked: false, text: '' });
     setObsTitulo({ checked: false, text: '' });
     setObsRecibo({ checked: false, text: '' });
+    setObsDniAnverso({ checked: false, text: '' });
+    setObsDniReverso({ checked: false, text: '' });
     setObsDatos({ checked: false, text: '' });
   };
 
@@ -104,6 +112,8 @@ export default function AdminPostulaciones() {
       obsFoto.checked ? `Foto: ${obsFoto.text}` : '',
       obsTitulo.checked ? `Título: ${obsTitulo.text}` : '',
       obsRecibo.checked ? `Recibo: ${obsRecibo.text}` : '',
+      obsDniAnverso.checked ? `DNI Anverso: ${obsDniAnverso.text}` : '',
+      obsDniReverso.checked ? `DNI Reverso: ${obsDniReverso.text}` : '',
       obsDatos.checked ? `Datos: ${obsDatos.text}` : ''
     ].filter(Boolean).join(' | ');
 
@@ -144,10 +154,33 @@ export default function AdminPostulaciones() {
             <h1 style={{ fontSize: '1.875rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.5rem' }}>Cola de Postulaciones</h1>
             <p style={{ color: 'var(--text-muted)' }}>Procese los expedientes en orden de llegada.</p>
           </div>
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <select
+              value={filtroEstado}
+              onChange={(e) => setFiltroEstado(e.target.value)}
+              className="form-input"
+              style={{ background: 'white', borderColor: 'var(--border-color)', color: 'var(--text-main)', fontWeight: '500', padding: '0.5rem 2rem 0.5rem 1rem' }}
+            >
+              <option value="EN_REVISION">Estado: En Revisión</option>
+              <option value="APROBADA">Estado: Aprobadas</option>
+              <option value="RECHAZADA">Estado: Rechazadas</option>
+              <option value="TODAS">Estado: Todas</option>
+            </select>
+
+            <select
+              value={filtroOrigen}
+              onChange={(e) => setFiltroOrigen(e.target.value)}
+              className="form-input"
+              style={{ background: 'white', borderColor: 'var(--border-color)', color: 'var(--text-main)', fontWeight: '500', padding: '0.5rem 2rem 0.5rem 1rem' }}
+            >
+              <option value="TODAS">Origen: Todas</option>
+              <option value="WEB">Origen: Web 🌐</option>
+              <option value="PRESENCIAL">Origen: Presencial 🏢</option>
+            </select>
+
             <div style={{ position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input type="text" className="form-input" placeholder="Buscar por DNI o ID..." style={{ paddingLeft: '2.5rem' }} />
+              <input type="text" className="form-input" placeholder="Buscar por DNI o ID..." style={{ paddingLeft: '2.5rem' }} value={filtroBusqueda} onChange={(e) => setFiltroBusqueda(e.target.value)} />
             </div>
             <button
               onClick={fetchPostulaciones}
@@ -191,7 +224,7 @@ export default function AdminPostulaciones() {
               ) : postulaciones.length === 0 ? (
                 <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay postulaciones pendientes.</td></tr>
               ) : (
-                postulaciones.map((p, index) => (
+                postulaciones.filter(p => p.dni.includes(filtroBusqueda) || p.id.toString().includes(filtroBusqueda) || p.nombres.toLowerCase().includes(filtroBusqueda.toLowerCase())).map((p, index) => (
                   <tr key={p.id} style={{ borderBottom: '1px solid var(--border-color)', background: index === 0 ? '#FEF2F2' : 'white', cursor: 'pointer', transition: 'background 0.2s' }} onClick={() => handleRevisar(p)} onMouseOver={(e) => e.currentTarget.style.background = '#EFF6FF'} onMouseOut={(e) => e.currentTarget.style.background = index === 0 ? '#FEF2F2' : 'white'}>
                     <td style={{ padding: '1rem 1.5rem', fontWeight: '600', color: 'var(--text-main)' }}>EXP-{p.id}</td>
                     <td style={{ padding: '1rem 1.5rem', color: 'var(--text-muted)' }}>
@@ -231,8 +264,8 @@ export default function AdminPostulaciones() {
       
       {/* Cabecera Detalle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-        <button className="btn btn-outline" style={{ padding: '0.5rem' }} onClick={handleBackToTable}>
-          <ArrowLeft size={20} />
+        <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }} onClick={handleBackToTable}>
+          <ArrowLeft size={20} /> Volver
         </button>
         <div>
           <h1 style={{ fontSize: '1.875rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.25rem' }}>Revisión de Expediente: {expediente.id}</h1>
@@ -297,6 +330,28 @@ export default function AdminPostulaciones() {
                 btnLabel="Ver Recibo"
                 btnIcono={<FileSpreadsheet size={14} />}
                 onVer={() => abrirArchivo(expediente.recibo_pago_url, 'Recibo de Pago — ' + expediente.nombres)}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem', marginTop: '1.5rem' }}>
+              {/* Box DNI Anverso */}
+              <DocBox
+                icono={<FileText size={32} color="var(--cip-blue)" />}
+                titulo="4. DNI Anverso"
+                url={expediente.dni_anverso_url}
+                btnLabel="Ver Anverso"
+                btnIcono={<FileText size={14} />}
+                onVer={() => abrirArchivo(expediente.dni_anverso_url, 'DNI Anverso — ' + expediente.nombres)}
+              />
+
+              {/* Box DNI Reverso */}
+              <DocBox
+                icono={<FileText size={32} color="var(--cip-blue)" />}
+                titulo="5. DNI Reverso"
+                url={expediente.dni_reverso_url}
+                btnLabel="Ver Reverso"
+                btnIcono={<FileText size={14} />}
+                onVer={() => abrirArchivo(expediente.dni_reverso_url, 'DNI Reverso — ' + expediente.nombres)}
               />
             </div>
           </div>
@@ -407,7 +462,29 @@ export default function AdminPostulaciones() {
                   )}
                 </div>
 
-                {/* ZONA 4: Datos Generales */}
+                {/* ZONA 4: DNI Anverso */}
+                <div style={{ marginBottom: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem', background: obsDniAnverso.checked ? '#EFF6FF' : 'white' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: '600', cursor: 'pointer', margin: 0 }}>
+                    <input type="checkbox" style={{ width: '20px', height: '20px' }} checked={obsDniAnverso.checked} onChange={(e) => setObsDniAnverso({...obsDniAnverso, checked: e.target.checked})} />
+                    4. DNI Anverso
+                  </label>
+                  {obsDniAnverso.checked && (
+                    <textarea className="form-input" placeholder="Especifique el error (Ej. Imagen borrosa, DNI caducado)..." style={{ marginTop: '1rem', minHeight: '80px', resize: 'vertical' }} value={obsDniAnverso.text} onChange={(e) => setObsDniAnverso({...obsDniAnverso, text: e.target.value})} />
+                  )}
+                </div>
+
+                {/* ZONA 5: DNI Reverso */}
+                <div style={{ marginBottom: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem', background: obsDniReverso.checked ? '#EFF6FF' : 'white' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: '600', cursor: 'pointer', margin: 0 }}>
+                    <input type="checkbox" style={{ width: '20px', height: '20px' }} checked={obsDniReverso.checked} onChange={(e) => setObsDniReverso({...obsDniReverso, checked: e.target.checked})} />
+                    5. DNI Reverso
+                  </label>
+                  {obsDniReverso.checked && (
+                    <textarea className="form-input" placeholder="Especifique el error (Ej. Falta constancia de votación, ilegible)..." style={{ marginTop: '1rem', minHeight: '80px', resize: 'vertical' }} value={obsDniReverso.text} onChange={(e) => setObsDniReverso({...obsDniReverso, text: e.target.value})} />
+                  )}
+                </div>
+
+                {/* ZONA 6: Datos Generales */}
                 <div style={{ marginBottom: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem', background: obsDatos.checked ? '#EFF6FF' : 'white' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: '600', cursor: 'pointer', margin: 0 }}>
                     <input type="checkbox" style={{ width: '20px', height: '20px' }} checked={obsDatos.checked} onChange={(e) => setObsDatos({...obsDatos, checked: e.target.checked})} />
@@ -425,7 +502,7 @@ export default function AdminPostulaciones() {
                   className="btn btn-primary btn-block" 
                   style={{ padding: '1rem', fontSize: '1.125rem', background: 'var(--cip-red)', borderColor: 'var(--cip-red)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                   onClick={handleConfirmarRechazo}
-                  disabled={!(obsFoto.checked || obsTitulo.checked || obsRecibo.checked || obsDatos.checked) || procesando}
+                  disabled={!(obsFoto.checked || obsTitulo.checked || obsRecibo.checked || obsDniAnverso.checked || obsDniReverso.checked || obsDatos.checked) || procesando}
                 >
                   {procesando ? <Loader2 className="spin" size={20} /> : <><XCircle size={20} /> Confirmar Rechazo y Notificar</>}
                 </button>
