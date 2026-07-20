@@ -58,7 +58,7 @@ export default function MiCarnet() {
       <div style={{ width: '100%', maxWidth: '484px' }}>
         <div style={{
           position: 'relative',
-          width: '100%', height: '297px',
+          width: '100%', height: '310px',
         }}>
 
           {/* ===== CARA DELANTERA ===== */}
@@ -92,12 +92,12 @@ export default function MiCarnet() {
 
             {/* Cuerpo del carnet */}
             <div style={{
-              position: 'absolute', top: '105px', left: '20px', right: '20px', bottom: '16px',
+              position: 'absolute', top: '120px', left: '20px', right: '20px', bottom: '16px',
               display: 'flex', gap: '1.5rem', alignItems: 'flex-start', zIndex: 1
             }}>
               {/* Foto */}
               <div style={{
-                width: '120px', height: '156px', flexShrink: 0,
+                width: '135px', height: '150px', flexShrink: 0,
                 borderRadius: '6px', overflow: 'hidden',
                 background: '#eee',
                 display: 'flex', alignItems: 'center', justifyContent: 'center'
