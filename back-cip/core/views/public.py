@@ -178,7 +178,7 @@ class PublicPostulacionView(APIView):
         if not all([dni, nombres, carrera_nombre, sede_nombre, foto, titulo, dni_anverso, dni_reverso, numero_operacion, fecha_pago, correo, celular]):
             return Response({'error': 'Faltan campos o documentos requeridos'}, status=status.HTTP_400_BAD_REQUEST)
             
-        if banco != 'CAJA' and not recibo:
+        if banco not in ['CAJA', 'MIXTO', 'YAPE_PLIN', 'EFECTIVO'] and not recibo:
             return Response({'error': 'El voucher de pago es requerido para pagos online.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validacion de formatos de archivo
