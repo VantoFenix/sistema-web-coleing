@@ -55,10 +55,10 @@ export default function MiCarnet() {
       </div>
 
       {/* Carnet — solo cara delantera */}
-      <div style={{ width: '100%', maxWidth: '484px' }}>
+      <div style={{ width: '100%', maxWidth: '540px' }}>
         <div style={{
           position: 'relative',
-          width: '100%', height: '310px',
+          width: '100%', height: '345px',
         }}>
 
           {/* ===== CARA DELANTERA ===== */}
