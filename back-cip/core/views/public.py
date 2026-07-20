@@ -238,14 +238,22 @@ class PublicPostulacionView(APIView):
             import sys
             # Add to import block at the top if necessary, but we can do it here for now
             sys.path.append(os.path.join(settings.BASE_DIR, '..')) # Just in case
-            from utils.storage import select_raw_storage
+            from utils.storage import select_raw_storage, select_media_storage
             raw_storage = select_raw_storage()
+            media_storage = select_media_storage()
             
-            raw_storage.save(foto_name, foto)
-            raw_storage.save(titulo_name, titulo)
-            if recibo: raw_storage.save(recibo_name, recibo)
-            raw_storage.save(dni_anverso_name, dni_anverso)
-            raw_storage.save(dni_reverso_name, dni_reverso)
+            # Helper function to use correct storage based on content_type
+            def save_file(name, file_obj):
+                if file_obj.content_type.startswith('image/'):
+                    media_storage.save(name, file_obj)
+                else:
+                    raw_storage.save(name, file_obj)
+            
+            save_file(foto_name, foto)
+            save_file(titulo_name, titulo)
+            if recibo: save_file(recibo_name, recibo)
+            save_file(dni_anverso_name, dni_anverso)
+            save_file(dni_reverso_name, dni_reverso)
         except Exception as e:
             import sys
             print(f"[ERROR] Fallo al guardar archivos: {e}", file=sys.stderr)
