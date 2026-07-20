@@ -237,8 +237,8 @@ export default function AdminPostulaciones() {
       
       {/* Cabecera Detalle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-        <button className="btn btn-outline" style={{ padding: '0.5rem' }} onClick={handleBackToTable}>
-          <ArrowLeft size={20} />
+        <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }} onClick={handleBackToTable}>
+          <ArrowLeft size={20} /> Volver
         </button>
         <div>
           <h1 style={{ fontSize: '1.875rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.25rem' }}>Revisión de Expediente: {expediente.id}</h1>

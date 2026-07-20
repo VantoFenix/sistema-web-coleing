@@ -12,7 +12,6 @@ import AdminHome from './pages/admin/AdminHome';
 import AdminPostulaciones from './pages/admin/AdminPostulaciones';
 import AdminPresencial from './pages/admin/AdminPresencial';
 import AdminPagoPresencial from './pages/admin/AdminPagoPresencial';
-import AdminVouchers from './pages/admin/AdminVouchers';
 import AdminDeudores from './pages/admin/AdminDeudores';
 import AdminSedes from './pages/admin/AdminSedes';
 import AdminCarreras from './pages/admin/AdminCarreras';
@@ -43,7 +42,6 @@ function App() {
           <Route path="postulaciones" element={<AdminPostulaciones />} />
           <Route path="pagos-presencial" element={<AdminPagoPresencial />} />
           <Route path="presencial" element={<AdminPresencial />} />
-          <Route path="vouchers" element={<AdminVouchers />} />
           <Route path="deudores" element={<AdminDeudores />} />
           <Route path="sedes" element={<AdminSedes />} />
           <Route path="carreras" element={<AdminCarreras />} />
