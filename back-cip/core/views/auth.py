@@ -113,7 +113,7 @@ class PasswordResetRequestView(APIView):
 Atención: Tiene 10 minutos para confirmar este enlace, de lo contrario su solicitud expirará y será eliminada del sistema.''',
                     settings.DEFAULT_FROM_EMAIL or 'admin@cip.com',
                     [correo],
-                    fail_silently=True,
+                    fail_silently=False,
                 )
             except Exception as e:
                 import sys

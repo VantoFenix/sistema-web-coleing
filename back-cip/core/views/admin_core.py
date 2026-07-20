@@ -80,7 +80,7 @@ Atentamente,
 Colegio de Ingenieros del Perú''',
                 settings.DEFAULT_FROM_EMAIL or 'admin@cip.com',
                 [user.correo],
-                fail_silently=True,
+                fail_silently=False,
             )
         except Exception as e:
             import sys
