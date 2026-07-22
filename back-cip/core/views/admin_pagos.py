@@ -46,6 +46,10 @@ class AdminRegistrarPagoPresencialView(APIView):
         metodo        = request.data.get('metodo', '').upper()  # YAPE|PLIN|EFECTIVO|TRANSFERENCIA
         nro_operacion = request.data.get('nro_operacion', '').strip() or None
         fecha_pago_str = request.data.get('fecha_pago', '')
+        
+        tipo_comprobante = request.data.get('tipo_comprobante', '03')
+        ruc_factura = request.data.get('ruc_factura')
+        razon_social_factura = request.data.get('razon_social_factura')
 
         # Validaciones básicas
         if not colegiado_id:
@@ -144,7 +148,10 @@ class AdminRegistrarPagoPresencialView(APIView):
                     canal='CAJA',
                     metodo_pago=metodo,
                     transaccion_id=boleta_numero,
-                    observaciones=f"Pago registrado en caja: {periodos_label}"
+                    observaciones=f"Pago registrado en caja: {periodos_label}",
+                    cliente_documento=ruc_factura if tipo_comprobante == '01' else None,
+                    cliente_nombre=razon_social_factura if tipo_comprobante == '01' else None,
+                    tipo_comprobante=tipo_comprobante
                 )
                 
                 pdf_url = None

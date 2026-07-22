@@ -194,6 +194,10 @@ class Comprobante(models.Model):
         related_name='comprobantes'
     )
     
+    # Datos del cliente (Para Facturas)
+    cliente_documento = models.CharField(max_length=20, null=True, blank=True)
+    cliente_nombre = models.CharField(max_length=150, null=True, blank=True)
+    
     # Información del pago
     numero_comprobante = models.CharField(max_length=20, unique=True)
     monto = models.DecimalField(max_digits=10, decimal_places=2)

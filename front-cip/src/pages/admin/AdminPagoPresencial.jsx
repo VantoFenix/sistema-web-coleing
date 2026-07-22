@@ -107,11 +107,18 @@ export default function AdminPagoPresencial() {
   const [monto1, setMonto1] = useState('');
   const [metodo2, setMetodo2] = useState('');
   const [monto2, setMonto2] = useState('');
+  const [montoRecibido, setMontoRecibido] = useState('');
+  const [montoRecibido1, setMontoRecibido1] = useState('');
+  const [montoRecibido2, setMontoRecibido2] = useState('');
   const [montoMensual, setMontoMensual] = useState(0);
 
   const [enviando, setEnviando] = useState(false);
   const [errForm, setErrForm] = useState('');
   const [resultado, setResultado] = useState(null);
+
+  const [tipoComprobante, setTipoComprobante] = useState('03'); // '03' = Boleta, '01' = Factura
+  const [rucFactura, setRucFactura] = useState('');
+  const [razonSocialFactura, setRazonSocialFactura] = useState('');
 
   const [flowInitPoint, setFlowInitPoint] = useState(null);
   const [flowToken, setFlowToken] = useState(null);
@@ -290,31 +297,40 @@ export default function AdminPagoPresencial() {
   const hayDeudaSinPagar = () => getPendientes().some(p => !periodosSeleccionados.has(p));
 
   const togglePeriodo = (periodo, estado) => {
-    const pendientes = getPendientes();
-    const allPeriodos = getPeriodos();
+    if (estado !== 'PENDIENTE') return;
+    const pendientes = getPendientes(); // Array de pendientes (ya vienen ordenados de antiguo a reciente por el backend, ej: ["2024-11", "2024-12", "2025-01"])
     setPeriodosSeleccionados(prev => {
       const s = new Set(prev);
-      if (estado === 'PENDIENTE') {
-        const todasSel = pendientes.every(p => s.has(p));
-        if (todasSel) return new Set();
-        pendientes.forEach(p => s.add(p));
-        return s;
-      }
-      if (estado === 'ADELANTO') {
-        if (s.has(periodo)) {
-          const idx = allPeriodos.findIndex(p => p.periodo === periodo);
-          allPeriodos.slice(idx).forEach(p => { if (p.estado !== 'PAGADO') s.delete(p.periodo); });
-          return s;
-        } else {
-          for (const p of allPeriodos) {
-            if (p.periodo === periodo) break;
-            if (p.estado !== 'PAGADO') s.add(p.periodo);
-          }
-          s.add(periodo);
-          return s;
+      
+      // Si el periodo ya está seleccionado y es el último de la selección continua, lo deseleccionamos.
+      // O para hacerlo más sencillo (FIFO estricto): 
+      // Si hago click en el periodo, selecciono TODOS los periodos pendientes desde el inicio hasta este periodo (incluido).
+      // Si ya estaba todo seleccionado hasta ese periodo exacto (y nada después de él), al hacer clic de nuevo, 
+      // deseleccionamos ese periodo (y cualquiera posterior, si por error hubiera).
+      
+      const idx = pendientes.indexOf(periodo);
+      if (idx === -1) return s;
+
+      // Averiguamos cuál es el último periodo seleccionado actualmente en orden de lista
+      let maxIdxSel = -1;
+      pendientes.forEach((p, i) => { if (s.has(p)) maxIdxSel = i; });
+
+      const newS = new Set();
+      
+      if (s.has(periodo) && maxIdxSel === idx) {
+        // Hizo click en el último periodo seleccionado -> lo deselecciona, manteniendo los anteriores
+        for (let i = 0; i < idx; i++) {
+          newS.add(pendientes[i]);
+        }
+      } else {
+        // Hizo click en un periodo que no estaba seleccionado, o en uno intermedio.
+        // Seleccionamos desde el inicio hasta el periodo clickeado (FIFO).
+        for (let i = 0; i <= idx; i++) {
+          newS.add(pendientes[i]);
         }
       }
-      return s;
+      
+      return newS;
     });
   };
 
@@ -335,6 +351,9 @@ export default function AdminPagoPresencial() {
       periodos: [...periodosSeleccionados].sort(),
       monto: parseFloat(monto),
       fecha_pago: new Date().toISOString().slice(0, 10),
+      tipo_comprobante: tipoComprobante,
+      ruc_factura: tipoComprobante === '01' ? rucFactura : null,
+      razon_social_factura: tipoComprobante === '01' ? razonSocialFactura : null
     };
 
     if (esMixto) {
@@ -1156,6 +1175,28 @@ export default function AdminPagoPresencial() {
                       </button>
                     ))}
                   </div>
+                  {metodo === 'EFECTIVO' && monto && parseFloat(monto) > 0 && (
+                    <div style={{ marginTop: '1rem', padding: '1rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <label className="form-label" style={{ marginBottom: 0 }}>Monto recibido por el cajero (S/)</label>
+                      <input 
+                        type="number" 
+                        className="form-input" 
+                        placeholder="Ej. 100.00" 
+                        value={montoRecibido} 
+                        onChange={(e) => setMontoRecibido(e.target.value)} 
+                        step="0.01"
+                        min={monto}
+                      />
+                      {parseFloat(montoRecibido) >= parseFloat(monto) ? (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#DCFCE7', padding: '0.75rem', borderRadius: '8px', border: '1px solid #86EFAC' }}>
+                          <span style={{ color: '#166534', fontWeight: '600', fontSize: '0.9rem' }}>✅ A pagar: S/ {parseFloat(monto).toFixed(2)}</span>
+                          <span style={{ color: '#065F46', fontWeight: '800', fontSize: '1rem' }}>Vuelto: S/ {(parseFloat(montoRecibido) - parseFloat(monto)).toFixed(2)}</span>
+                        </div>
+                      ) : (
+                        <p style={{ color: '#dc2626', fontWeight: '500', fontSize: '0.875rem', margin: 0 }}>❌ Debe ingresar al menos S/ {parseFloat(monto).toFixed(2)}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div style={{ background: '#F8FAFF', padding: '1rem', borderRadius: '8px', border: '1px solid #BFDBFE', marginBottom: '1.1rem' }}>
@@ -1174,6 +1215,15 @@ export default function AdminPagoPresencial() {
                         <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><CheckCircle2 size={14} /> Pagado</span>
                       )}
                     </div>
+                    {metodo1 === 'EFECTIVO' && monto1 && parseFloat(monto1) > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', padding: '0.5rem', background: '#F1F5F9', borderRadius: '6px' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#475569' }}>Recibido:</span>
+                        <input type="number" step="0.01" min={monto1} placeholder="S/" value={montoRecibido1} onChange={e => setMontoRecibido1(e.target.value)} style={{ width: '70px', padding: '0.3rem', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '0.75rem' }} />
+                        {parseFloat(montoRecibido1) >= parseFloat(monto1) && (
+                          <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 'bold' }}>Vuelto: S/ {(parseFloat(montoRecibido1) - parseFloat(monto1)).toFixed(2)}</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label style={{ fontSize: '0.75rem', color: '#1E40AF', fontWeight: '600', marginBottom: '0.25rem', display: 'block' }}>Parte 2</label>
@@ -1190,6 +1240,15 @@ export default function AdminPagoPresencial() {
                         <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><CheckCircle2 size={14} /> Pagado</span>
                       )}
                     </div>
+                    {metodo2 === 'EFECTIVO' && monto2 && parseFloat(monto2) > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', padding: '0.5rem', background: '#F1F5F9', borderRadius: '6px' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#475569' }}>Recibido:</span>
+                        <input type="number" step="0.01" min={monto2} placeholder="S/" value={montoRecibido2} onChange={e => setMontoRecibido2(e.target.value)} style={{ width: '70px', padding: '0.3rem', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '0.75rem' }} />
+                        {parseFloat(montoRecibido2) >= parseFloat(monto2) && (
+                          <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 'bold' }}>Vuelto: S/ {(parseFloat(montoRecibido2) - parseFloat(monto2)).toFixed(2)}</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {qrError && (
                     <div style={{ marginTop: '0.5rem', color: '#DC2626', fontSize: '0.75rem', fontWeight: '600' }}>{qrError}</div>
@@ -1244,6 +1303,38 @@ export default function AdminPagoPresencial() {
                 </div>
               )}
 
+              {/* Comprobante Factura / Boleta */}
+              {periodosSeleccionados.size > 0 && (
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '1rem', marginBottom: '1.25rem' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--cip-blue)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <Printer size={16} /> Comprobante
+                  </h4>
+                  <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
+                    <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', padding: '0.5rem', border: tipoComprobante === '03' ? '2px solid #3B82F6' : '1px solid #CBD5E1', borderRadius: '6px', background: tipoComprobante === '03' ? '#EFF6FF' : 'white' }}>
+                      <input type="radio" name="tipoComprobante" value="03" checked={tipoComprobante === '03'} onChange={() => setTipoComprobante('03')} style={{ display: 'none' }} />
+                      <span style={{ fontWeight: '600', fontSize: '0.75rem', color: tipoComprobante === '03' ? '#1D4ED8' : '#475569' }}>Boleta (DNI)</span>
+                    </label>
+                    <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', padding: '0.5rem', border: tipoComprobante === '01' ? '2px solid #3B82F6' : '1px solid #CBD5E1', borderRadius: '6px', background: tipoComprobante === '01' ? '#EFF6FF' : 'white' }}>
+                      <input type="radio" name="tipoComprobante" value="01" checked={tipoComprobante === '01'} onChange={() => setTipoComprobante('01')} style={{ display: 'none' }} />
+                      <span style={{ fontWeight: '600', fontSize: '0.75rem', color: tipoComprobante === '01' ? '#1D4ED8' : '#475569' }}>Factura (RUC)</span>
+                    </label>
+                  </div>
+                  
+                  {tipoComprobante === '01' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', marginBottom: '0.25rem', display: 'block' }}>RUC <span style={{ color: '#ef4444' }}>*</span></label>
+                        <input type="text" className="form-input" placeholder="RUC" value={rucFactura} onChange={e => setRucFactura(e.target.value)} maxLength={11} style={{ padding: '0.4rem', fontSize: '0.8rem' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', marginBottom: '0.25rem', display: 'block' }}>Razón Social <span style={{ color: '#ef4444' }}>*</span></label>
+                        <input type="text" className="form-input" placeholder="Razón Social" value={razonSocialFactura} onChange={e => setRazonSocialFactura(e.target.value)} style={{ padding: '0.4rem', fontSize: '0.8rem' }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Error */}
               {errForm && (
                 <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '0.65rem 0.85rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.82rem', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -1254,18 +1345,18 @@ export default function AdminPagoPresencial() {
 
               <button
                 onClick={() => handleRegistrar(false)}
-                disabled={enviando || periodosSeleccionados.size === 0}
+                disabled={enviando || periodosSeleccionados.size === 0 || (tipoComprobante === '01' && (!rucFactura || !razonSocialFactura)) || (!esMixto && metodo === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido)) || parseFloat(montoRecibido) < parseFloat(monto))) || (esMixto && ((metodo1 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido1)) || parseFloat(montoRecibido1) < parseFloat(monto1))) || (metodo2 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido2)) || parseFloat(montoRecibido2) < parseFloat(monto2)))))}
                 className="btn btn-block"
                 style={{
                   padding: '0.9rem', fontSize: '0.95rem',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                  background: (enviando || periodosSeleccionados.size === 0) ? '#94A3B8' : '#10B981',
+                  background: (enviando || periodosSeleccionados.size === 0 || (tipoComprobante === '01' && (!rucFactura || !razonSocialFactura)) || (!esMixto && metodo === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido)) || parseFloat(montoRecibido) < parseFloat(monto))) || (esMixto && ((metodo1 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido1)) || parseFloat(montoRecibido1) < parseFloat(monto1))) || (metodo2 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido2)) || parseFloat(montoRecibido2) < parseFloat(monto2)))))) ? '#94A3B8' : '#10B981',
                   border: 'none', borderRadius: '10px', color: 'white',
-                  fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0) ? 'not-allowed' : 'pointer',
+                  fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0 || (tipoComprobante === '01' && (!rucFactura || !razonSocialFactura)) || (!esMixto && metodo === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido)) || parseFloat(montoRecibido) < parseFloat(monto))) || (esMixto && ((metodo1 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido1)) || parseFloat(montoRecibido1) < parseFloat(monto1))) || (metodo2 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido2)) || parseFloat(montoRecibido2) < parseFloat(monto2)))))) ? 'not-allowed' : 'pointer',
                   transition: 'all 0.15s',
                 }}
-                onMouseEnter={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#059669'; }}
-                onMouseLeave={e => { if (!enviando && periodosSeleccionados.size > 0) e.currentTarget.style.background = '#10B981'; }}
+                onMouseEnter={e => { if (!enviando && periodosSeleccionados.size > 0 && !(tipoComprobante === '01' && (!rucFactura || !razonSocialFactura)) && !(!esMixto && metodo === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido)) || parseFloat(montoRecibido) < parseFloat(monto))) && !(esMixto && ((metodo1 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido1)) || parseFloat(montoRecibido1) < parseFloat(monto1))) || (metodo2 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido2)) || parseFloat(montoRecibido2) < parseFloat(monto2)))))) e.currentTarget.style.background = '#059669'; }}
+                onMouseLeave={e => { if (!enviando && periodosSeleccionados.size > 0 && !(tipoComprobante === '01' && (!rucFactura || !razonSocialFactura)) && !(!esMixto && metodo === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido)) || parseFloat(montoRecibido) < parseFloat(monto))) && !(esMixto && ((metodo1 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido1)) || parseFloat(montoRecibido1) < parseFloat(monto1))) || (metodo2 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido2)) || parseFloat(montoRecibido2) < parseFloat(monto2)))))) e.currentTarget.style.background = '#10B981'; }}
               >
                 {enviando
                   ? <><Loader2 size={18} className="spin" /> Registrando…</>
