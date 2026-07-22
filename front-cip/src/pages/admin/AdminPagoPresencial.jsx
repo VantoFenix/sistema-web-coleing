@@ -827,10 +827,10 @@ export default function AdminPagoPresencial() {
   const isBtnDisabled = enviando || 
     periodosSeleccionados.size === 0 || 
     (tipoComprobante === '01' && (!rucFactura || !razonSocialFactura)) || 
-    (!esMixto && metodo === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido)) || parseFloat(montoRecibido) < parseFloat(monto))) || 
+    (!esMixto && metodo === 'EFECTIVO' && montoRecibido && parseFloat(montoRecibido) < parseFloat(monto)) || 
     (esMixto && (
-      (metodo1 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido1)) || parseFloat(montoRecibido1) < parseFloat(monto1))) || 
-      (metodo2 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido2)) || parseFloat(montoRecibido2) < parseFloat(monto2)))
+      (metodo1 === 'EFECTIVO' && montoRecibido1 && parseFloat(montoRecibido1) < parseFloat(monto1)) || 
+      (metodo2 === 'EFECTIVO' && montoRecibido2 && parseFloat(montoRecibido2) < parseFloat(monto2))
     ));
 
   return (

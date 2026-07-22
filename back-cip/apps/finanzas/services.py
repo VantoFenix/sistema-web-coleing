@@ -53,8 +53,8 @@ def marcar_cuota_como_pagada(cuota: Cuota, transaccion_id: str = None) -> Cuota:
                 
             enviar_confirmacion_pago(
                 correo=cuota.colegiado.correo,
-                nombres=cuota.colegiado.nombre_completo,
-                nro_colegiado=cuota.colegiado.cip,
+                nombres=cuota.colegiado.nombres,
+                nro_colegiado=cuota.colegiado.nro_colegiado,
                 monto_total=float(cuota.monto),
                 periodos_pagados=[f"{cuota.anio_cobro}-{cuota.mes_cobro:02d}"],
                 nro_operacion=transaccion_id or "EFECTIVO-PRESENCIAL",
@@ -207,9 +207,9 @@ def generar_pdf_comprobante(comprobante: Comprobante) -> BytesIO:
     story.append(Paragraph("<b>INFORMACIÓN DEL COLEGIADO</b>", label_style))
     
     data_colegiado = [
-        ['ID Colegiado (CIP):', f"{comprobante.colegiado.cip}"],
-        ['Nombre Completo:', f"{comprobante.colegiado.nombre_completo}"],
-        ['Documento:', f"{comprobante.colegiado.numero_documento}"],
+        ['ID Colegiado (CIP):', f"{comprobante.colegiado.nro_colegiado}"],
+        ['Nombre Completo:', f"{comprobante.colegiado.nombres}"],
+        ['Documento:', f"{comprobante.colegiado.dni}"],
         ['Correo:', f"{comprobante.colegiado.correo}"],
     ]
     

@@ -442,7 +442,7 @@ export default function AdminPresencial() {
     } else {
       if (!metodoPago) { setErrorMsg('Seleccione el método de pago.'); return; }
       if (metodoPago === 'EFECTIVO') {
-        if (!montoEfectivo || parseFloat(montoEfectivo) < 5) {
+        if (montoEfectivo && parseFloat(montoEfectivo) < 5) {
           setErrorMsg('Debe ingresar al menos S/ 5.00.'); return;
         }
       }
