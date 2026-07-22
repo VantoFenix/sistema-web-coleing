@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Sede, Carrera, Colegiado, Cuota
+from .models import Sede, Carrera, Colegiado, Cuota, Comprobante
 
 
 @admin.register(Sede)
@@ -74,3 +74,21 @@ class CuotaAdmin(admin.ModelAdmin):
         }),
     )
     ordering = ['-anio_cobro', '-mes_cobro']
+
+@admin.register(Comprobante)
+class ComprobanteAdmin(admin.ModelAdmin):
+    list_display = ['numero_comprobante', 'colegiado', 'monto', 'fecha_hora_pago', 'estado', 'sunat_estado']
+    list_filter = ['estado', 'canal', 'metodo_pago', 'sunat_estado', 'sunat_tipo_comprobante']
+    search_fields = ['numero_comprobante', 'colegiado__nombre_completo', 'colegiado__cip']
+    readonly_fields = ['fecha_hora_pago', 'sunat_hash', 'sunat_mensaje']
+    fieldsets = (
+        ('Información Básica', {
+            'fields': ('numero_comprobante', 'colegiado', 'cuota', 'monto', 'fecha_hora_pago')
+        }),
+        ('Detalles de Pago', {
+            'fields': ('canal', 'metodo_pago', 'estado', 'fecha_descarga', 'transaccion_id', 'observaciones')
+        }),
+        ('SUNAT (Facturación Electrónica)', {
+            'fields': ('sunat_tipo_comprobante', 'sunat_serie', 'sunat_correlativo', 'sunat_estado', 'sunat_hash', 'sunat_mensaje')
+        }),
+    )

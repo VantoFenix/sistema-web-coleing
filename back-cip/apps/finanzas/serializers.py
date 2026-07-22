@@ -163,13 +163,14 @@ class ComprobanteSerializer(serializers.ModelSerializer):
     colegiado_nombre = serializers.CharField(source='colegiado.nombre_completo', read_only=True)
     colegiado_cip = serializers.CharField(source='colegiado.cip', read_only=True)
     fecha_hora_pago_formateada = serializers.SerializerMethodField()
+    factusmart_pdf = serializers.SerializerMethodField()
 
     class Meta:
         model = Comprobante
         fields = [
             'id', 'numero_comprobante', 'colegiado', 'colegiado_nombre', 'colegiado_cip',
             'monto', 'fecha_hora_pago', 'fecha_hora_pago_formateada',
-            'canal', 'metodo_pago', 'estado', 'transaccion_id', 'observaciones'
+            'canal', 'metodo_pago', 'estado', 'transaccion_id', 'observaciones', 'factusmart_pdf'
         ]
         read_only_fields = ['id', 'numero_comprobante', 'fecha_hora_pago', 'estado']
 
@@ -177,6 +178,14 @@ class ComprobanteSerializer(serializers.ModelSerializer):
         """Retorna la fecha y hora formateadas"""
         from datetime import datetime
         return obj.fecha_hora_pago.strftime('%d/%m/%Y %H:%M:%S') if obj.fecha_hora_pago else None
+        
+    def get_factusmart_pdf(self, obj):
+        if obj.sunat_hash:
+            import os
+            ruc = os.getenv("SUNAT_RUC_EMISOR", "20123456789")
+            base_url = os.getenv("FACTU_URL", "https://20123456789.s2.factusmart.pe/api/v1/issuer/documents").split('/documents')[0]
+            return f"{base_url}/documents/{obj.sunat_hash}/pdf?ruc={ruc}"
+        return None
 
 
 class ComprobanteListSerializer(serializers.ModelSerializer):
@@ -185,17 +194,26 @@ class ComprobanteListSerializer(serializers.ModelSerializer):
     colegiado_nombre = serializers.CharField(source='colegiado.nombre_completo', read_only=True)
     colegiado_cip = serializers.CharField(source='colegiado.cip', read_only=True)
     fecha_formateada = serializers.SerializerMethodField()
+    factusmart_pdf = serializers.SerializerMethodField()
 
     class Meta:
         model = Comprobante
         fields = [
             'id', 'numero_comprobante', 'colegiado_cip', 'colegiado_nombre',
-            'monto', 'fecha_formateada', 'canal', 'metodo_pago', 'estado'
+            'monto', 'fecha_formateada', 'canal', 'metodo_pago', 'estado', 'factusmart_pdf'
         ]
 
     def get_fecha_formateada(self, obj):
         """Retorna la fecha formateada"""
         return obj.fecha_hora_pago.strftime('%d/%m/%Y') if obj.fecha_hora_pago else None
+        
+    def get_factusmart_pdf(self, obj):
+        if obj.sunat_hash:
+            import os
+            ruc = os.getenv("SUNAT_RUC_EMISOR", "20123456789")
+            base_url = os.getenv("FACTU_URL", "https://20123456789.s2.factusmart.pe/api/v1/issuer/documents").split('/documents')[0]
+            return f"{base_url}/documents/{obj.sunat_hash}/pdf?ruc={ruc}"
+        return None
 
 
 class ComprobanteDetailSerializer(serializers.ModelSerializer):
@@ -204,6 +222,7 @@ class ComprobanteDetailSerializer(serializers.ModelSerializer):
     colegiado = ColegiadorSerializer(read_only=True)
     cuota = CuotaSerializer(read_only=True)
     fecha_hora_pago_formateada = serializers.SerializerMethodField()
+    factusmart_pdf = serializers.SerializerMethodField()
 
     class Meta:
         model = Comprobante
@@ -213,3 +232,11 @@ class ComprobanteDetailSerializer(serializers.ModelSerializer):
     def get_fecha_hora_pago_formateada(self, obj):
         """Retorna la fecha y hora formateadas"""
         return obj.fecha_hora_pago.strftime('%d/%m/%Y %H:%M:%S') if obj.fecha_hora_pago else None
+        
+    def get_factusmart_pdf(self, obj):
+        if obj.sunat_hash:
+            import os
+            ruc = os.getenv("SUNAT_RUC_EMISOR", "20123456789")
+            base_url = os.getenv("FACTU_URL", "https://20123456789.s2.factusmart.pe/api/v1/issuer/documents").split('/documents')[0]
+            return f"{base_url}/documents/{obj.sunat_hash}/pdf?ruc={ruc}"
+        return None

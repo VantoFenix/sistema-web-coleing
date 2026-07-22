@@ -222,6 +222,18 @@ class Comprobante(models.Model):
     # Transacción
     transaccion_id = models.CharField(max_length=100, null=True, blank=True)
     observaciones = models.TextField(null=True, blank=True)
+    
+    # SUNAT Facturación Electrónica
+    sunat_tipo_comprobante = models.CharField(
+        max_length=2,
+        choices=[('01', 'Factura'), ('03', 'Boleta')],
+        default='03'
+    )
+    sunat_serie = models.CharField(max_length=4, null=True, blank=True)
+    sunat_correlativo = models.IntegerField(null=True, blank=True)
+    sunat_estado = models.CharField(max_length=20, default='PENDIENTE')
+    sunat_hash = models.CharField(max_length=255, null=True, blank=True)
+    sunat_mensaje = models.TextField(null=True, blank=True)
 
     class Meta:
         verbose_name = "Comprobante"

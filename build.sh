@@ -19,4 +19,8 @@ cp -r ../front-cip/dist/* staticfiles/dist/
 echo ">>> Running Django collectstatic..."
 python manage.py collectstatic --no-input
 
+echo ">>> Running Django migrations..."
+python manage.py makemigrations
+python manage.py migrate
+
 echo ">>> Deployment Build Finished Successfully!"
