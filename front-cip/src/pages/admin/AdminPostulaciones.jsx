@@ -98,9 +98,13 @@ export default function AdminPostulaciones() {
       if (res.ok) {
         setPostulaciones(postulaciones.filter(p => p.id !== expediente.id));
         handleBackToTable();
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Ocurrió un error al aprobar el expediente.');
       }
     } catch (e) {
       console.error(e);
+      alert('Error de conexión con el servidor.');
     } finally {
       setProcesando(false);
     }
@@ -264,7 +268,7 @@ export default function AdminPostulaciones() {
       
       {/* Cabecera Detalle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-        <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }} onClick={handleBackToTable}>
+        <button className="btn" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1' }} onClick={handleBackToTable}>
           <ArrowLeft size={20} /> Volver
         </button>
         <div>

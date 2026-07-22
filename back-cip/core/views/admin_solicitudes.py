@@ -133,10 +133,17 @@ class AdminResolverSolicitudView(APIView):
                     metodo_pago = None
                     canal_pago = 'PORTAL'
                     if solicitud.numero_operacion:
-                        prefix = solicitud.numero_operacion.split('-')[0]
-                        if prefix in ['MIXTO', 'YAPE_PLIN', 'EFECTIVO', 'CAJA']:
-                            canal_pago = 'CAJA'
-                            metodo_pago = prefix if prefix != 'CAJA' else 'EFECTIVO'
+                        parts = solicitud.numero_operacion.split('-')
+                        if len(parts) >= 1:
+                            if parts[0] == 'CAJA':
+                                canal_pago = 'CAJA'
+                                if len(parts) >= 2:
+                                    metodo_pago = parts[1]
+                                else:
+                                    metodo_pago = 'EFECTIVO'
+                            elif parts[0] in ['MIXTO', 'YAPE_PLIN', 'EFECTIVO']:
+                                canal_pago = 'CAJA'
+                                metodo_pago = parts[0]
                     
                     # Para Web (PORTAL), usualmente es TRANSFERENCIA o YAPE, pero no tenemos el metodo exacto
                     # a menos que lo guardemos. Lo dejaremos como nulo si no es presencial.

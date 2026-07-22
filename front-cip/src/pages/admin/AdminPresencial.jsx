@@ -473,7 +473,7 @@ export default function AdminPresencial() {
       formData.append('correo', correo || `no-reply-${dni}@cip.org.pe`);
       formData.append('celular', celular);
       const metodoFinal = esMixto ? 'MIXTO' : metodoPago;
-      formData.append('numero_operacion', `${metodoFinal}-${Date.now()}`); // Use prefix to pass method to backend
+      formData.append('numero_operacion', `CAJA-${metodoFinal}-${Date.now()}`); // Use CAJA- prefix to pass method to backend and mark as presencial
       formData.append('fecha_pago', new Date().toISOString().split('T')[0]); // Today's date
       formData.append('banco', metodoFinal);
       formData.append('tipo_comprobante', tipoComprobante);
