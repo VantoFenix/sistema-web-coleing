@@ -62,9 +62,12 @@ class ReniecConsultaView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+        reniec_url_template = os.getenv('RENIEC_URL', 'https://api.decolecta.com/v1/reniec/dni?numero={dni}')
+        reniec_url = reniec_url_template.replace('{dni}', dni)
+
         try:
             req = urllib.request.Request(
-                f'https://api.decolecta.com/v1/reniec/dni?numero={dni}',
+                reniec_url,
                 headers={
                     'Authorization': f'Bearer {token}',
                     'Content-Type': 'application/json'
@@ -72,10 +75,21 @@ class ReniecConsultaView(APIView):
             )
             with urllib.request.urlopen(req, timeout=8) as resp:
                 data = _json.loads(resp.read().decode())
-                nombre_completo = data.get('full_name', '').strip()
-                if not nombre_completo:
+                
+                # Extraer nombre completo soportando múltiples proveedores (Decolecta, ApisPerú, Apiperu.dev, etc.)
+                nombre_completo = None
+                if isinstance(data, dict):
+                    nombre_completo = (
+                        data.get('full_name') or 
+                        data.get('nombre_completo') or 
+                        data.get('name') or
+                        (f"{data.get('nombres', '')} {data.get('apellidoPaterno', '')} {data.get('apellidoMaterno', '')}".strip() if data.get('apellidoPaterno') else None) or
+                        (data.get('data', {}).get('nombre_completo') if isinstance(data.get('data'), dict) else None)
+                    )
+                
+                if not nombre_completo or not str(nombre_completo).strip():
                     return Response({'error': 'DNI no encontrado en RENIEC'}, status=status.HTTP_404_NOT_FOUND)
-                return Response({'nombre_completo': nombre_completo})
+                return Response({'nombre_completo': str(nombre_completo).strip()})
 
         except urllib.error.HTTPError as e:
             body = ''
