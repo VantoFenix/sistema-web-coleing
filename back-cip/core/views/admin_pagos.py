@@ -144,11 +144,18 @@ class AdminRegistrarPagoPresencialView(APIView):
 
         monto_recibido = request.data.get('monto_recibido')
         vuelto = None
+        monto_efectivo = monto_total
+        pagos_parciales = request.data.get('pagos_parciales')
+        if pagos_parciales and isinstance(pagos_parciales, list):
+            for p in pagos_parciales:
+                if p.get('metodo') == 'EFECTIVO':
+                    monto_efectivo = float(p.get('monto', monto_total))
+
         if monto_recibido:
             try:
                 monto_rec = float(monto_recibido)
-                if monto_rec >= monto_total:
-                    vuelto = monto_rec - monto_total
+                if monto_rec >= monto_efectivo:
+                    vuelto = monto_rec - monto_efectivo
             except:
                 pass
         
@@ -207,7 +214,10 @@ class AdminRegistrarPagoPresencialView(APIView):
             'fecha_pago':         fecha_pago.strftime('%d/%m/%Y'),
             'emision':            emision,
             'pagos_parciales':    request.data.get('pagos_parciales', []),
+            'monto_recibido':     monto_recibido,
+            'vuelto':             vuelto,
             'pdf_url':            pdf_url_final,
+            'mensaje':            'Pago procesado correctamente.',
             # datos operativos
             'periodos_registrados': registrados,
             'ya_existian':          ya_existian,

@@ -110,6 +110,9 @@ export default function AdminPagoPresencial() {
   const [montoRecibido, setMontoRecibido] = useState('');
   const [montoRecibido1, setMontoRecibido1] = useState('');
   const [montoRecibido2, setMontoRecibido2] = useState('');
+  const [requiereVuelto, setRequiereVuelto] = useState(false);
+  const [requiereVuelto1, setRequiereVuelto1] = useState(false);
+  const [requiereVuelto2, setRequiereVuelto2] = useState(false);
   const [montoMensual, setMontoMensual] = useState(0);
 
   const [enviando, setEnviando] = useState(false);
@@ -380,15 +383,15 @@ export default function AdminPagoPresencial() {
         { metodo: metodo1, monto: parseFloat(monto1) },
         { metodo: metodo2, monto: parseFloat(monto2) }
       ];
-      if (metodo1 === 'EFECTIVO' && montoRecibido1) {
+      if (metodo1 === 'EFECTIVO' && requiereVuelto1 && montoRecibido1) {
         payload.monto_recibido = parseFloat(montoRecibido1);
-      } else if (metodo2 === 'EFECTIVO' && montoRecibido2) {
+      } else if (metodo2 === 'EFECTIVO' && requiereVuelto2 && montoRecibido2) {
         payload.monto_recibido = parseFloat(montoRecibido2);
       }
     } else {
       if (!metodo) { setErrForm('Seleccione el método de pago.'); return; }
       payload.metodo = metodo;
-      if (metodo === 'EFECTIVO' && montoRecibido) {
+      if (metodo === 'EFECTIVO' && requiereVuelto && montoRecibido) {
         payload.monto_recibido = parseFloat(montoRecibido);
       }
     }
@@ -564,11 +567,11 @@ export default function AdminPagoPresencial() {
       <tr class="total-final"><td>Importe total</td><td>S/ ${parseFloat(r.monto_total || 0).toFixed(2)}</td></tr>
     </table>
   </div>
-  ${montoRecibido && parseFloat(montoRecibido) > parseFloat(r.monto_total || 0) ? `
+  ${r.vuelto !== undefined && r.vuelto !== null ? `
   <div class="totales" style="border-top: none; padding-top: 0;">
     <table class="totales-table">
-      <tr><td>Efectivo Recibido</td><td>S/ ${parseFloat(montoRecibido).toFixed(2)}</td></tr>
-      <tr><td>Vuelto</td><td>S/ ${(parseFloat(montoRecibido) - parseFloat(r.monto_total || 0)).toFixed(2)}</td></tr>
+      <tr><td>Efectivo Recibido</td><td>S/ ${parseFloat(r.monto_recibido).toFixed(2)}</td></tr>
+      <tr><td>Vuelto</td><td>S/ ${parseFloat(r.vuelto).toFixed(2)}</td></tr>
     </table>
   </div>
   ` : ''}
@@ -854,10 +857,10 @@ export default function AdminPagoPresencial() {
   const isBtnDisabled = enviando || 
     periodosSeleccionados.size === 0 || 
     (tipoComprobante === '01' && (!rucFactura || !razonSocialFactura)) || 
-    (!esMixto && metodo === 'EFECTIVO' && montoRecibido && parseFloat(montoRecibido) < parseFloat(monto)) || 
+    (!esMixto && metodo === 'EFECTIVO' && requiereVuelto && (!montoRecibido || parseFloat(montoRecibido) < parseFloat(monto))) || 
     (esMixto && (
-      (metodo1 === 'EFECTIVO' && montoRecibido1 && parseFloat(montoRecibido1) < parseFloat(monto1)) || 
-      (metodo2 === 'EFECTIVO' && montoRecibido2 && parseFloat(montoRecibido2) < parseFloat(monto2))
+      (metodo1 === 'EFECTIVO' && requiereVuelto1 && (!montoRecibido1 || parseFloat(montoRecibido1) < parseFloat(monto1))) || 
+      (metodo2 === 'EFECTIVO' && requiereVuelto2 && (!montoRecibido2 || parseFloat(montoRecibido2) < parseFloat(monto2)))
     ));
 
   return (
@@ -1217,23 +1220,32 @@ export default function AdminPagoPresencial() {
                   </div>
                   {metodo === 'EFECTIVO' && monto && parseFloat(monto) > 0 && (
                     <div style={{ marginTop: '1rem', padding: '1rem', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <label className="form-label" style={{ marginBottom: 0 }}>Monto recibido por el cajero (S/)</label>
-                      <input 
-                        type="number" 
-                        className="form-input" 
-                        placeholder="Ej. 100.00" 
-                        value={montoRecibido} 
-                        onChange={(e) => setMontoRecibido(e.target.value)} 
-                        step="0.01"
-                        min={monto}
-                      />
-                      {parseFloat(montoRecibido) >= parseFloat(monto) ? (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#DCFCE7', padding: '0.75rem', borderRadius: '8px', border: '1px solid #86EFAC' }}>
-                          <span style={{ color: '#166534', fontWeight: '600', fontSize: '0.9rem' }}>✅ A pagar: S/ {parseFloat(monto).toFixed(2)}</span>
-                          <span style={{ color: '#065F46', fontWeight: '800', fontSize: '1rem' }}>Vuelto: S/ {(parseFloat(montoRecibido) - parseFloat(monto)).toFixed(2)}</span>
-                        </div>
-                      ) : (
-                        <p style={{ color: '#dc2626', fontWeight: '500', fontSize: '0.875rem', margin: 0 }}>❌ Debe ingresar al menos S/ {parseFloat(monto).toFixed(2)}</p>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: '600', color: 'var(--cip-blue)', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={requiereVuelto} onChange={e => { setRequiereVuelto(e.target.checked); if(!e.target.checked) setMontoRecibido(''); }} style={{ accentColor: 'var(--cip-blue)', width: '16px', height: '16px' }} />
+                        Calcular vuelto
+                      </label>
+                      
+                      {requiereVuelto && (
+                        <>
+                          <label className="form-label" style={{ marginBottom: 0, marginTop: '0.25rem' }}>Monto recibido por el cajero (S/)</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            placeholder="Ej. 100.00" 
+                            value={montoRecibido} 
+                            onChange={(e) => setMontoRecibido(e.target.value)} 
+                            step="0.01"
+                            min={monto}
+                          />
+                          {parseFloat(montoRecibido) >= parseFloat(monto) ? (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#DCFCE7', padding: '0.75rem', borderRadius: '8px', border: '1px solid #86EFAC' }}>
+                              <span style={{ color: '#166534', fontWeight: '600', fontSize: '0.9rem' }}>✅ A pagar: S/ {parseFloat(monto).toFixed(2)}</span>
+                              <span style={{ color: '#065F46', fontWeight: '800', fontSize: '1rem' }}>Vuelto: S/ {(parseFloat(montoRecibido) - parseFloat(monto)).toFixed(2)}</span>
+                            </div>
+                          ) : (
+                            <p style={{ color: '#dc2626', fontWeight: '500', fontSize: '0.875rem', margin: 0 }}>❌ Debe ingresar al menos S/ {parseFloat(monto).toFixed(2)}</p>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
@@ -1256,11 +1268,19 @@ export default function AdminPagoPresencial() {
                       )}
                     </div>
                     {metodo1 === 'EFECTIVO' && monto1 && parseFloat(monto1) > 0 && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', padding: '0.5rem', background: '#F1F5F9', borderRadius: '6px' }}>
-                        <span style={{ fontSize: '0.7rem', color: '#475569' }}>Recibido:</span>
-                        <input type="number" step="0.01" min={monto1} placeholder="S/" value={montoRecibido1} onChange={e => setMontoRecibido1(e.target.value)} style={{ width: '70px', padding: '0.3rem', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '0.75rem' }} />
-                        {parseFloat(montoRecibido1) >= parseFloat(monto1) && (
-                          <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 'bold' }}>Vuelto: S/ {(parseFloat(montoRecibido1) - parseFloat(monto1)).toFixed(2)}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', padding: '0.5rem', background: '#F1F5F9', borderRadius: '6px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', fontWeight: '600', color: 'var(--cip-blue)', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={requiereVuelto1} onChange={e => { setRequiereVuelto1(e.target.checked); if(!e.target.checked) setMontoRecibido1(''); }} style={{ accentColor: 'var(--cip-blue)', width: '14px', height: '14px' }} />
+                          Calcular vuelto
+                        </label>
+                        {requiereVuelto1 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '0.7rem', color: '#475569' }}>Recibido:</span>
+                            <input type="number" step="0.01" min={monto1} placeholder="S/" value={montoRecibido1} onChange={e => setMontoRecibido1(e.target.value)} style={{ width: '70px', padding: '0.3rem', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '0.75rem' }} />
+                            {parseFloat(montoRecibido1) >= parseFloat(monto1) && (
+                              <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 'bold' }}>Vuelto: S/ {(parseFloat(montoRecibido1) - parseFloat(monto1)).toFixed(2)}</span>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
@@ -1281,11 +1301,19 @@ export default function AdminPagoPresencial() {
                       )}
                     </div>
                     {metodo2 === 'EFECTIVO' && monto2 && parseFloat(monto2) > 0 && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', padding: '0.5rem', background: '#F1F5F9', borderRadius: '6px' }}>
-                        <span style={{ fontSize: '0.7rem', color: '#475569' }}>Recibido:</span>
-                        <input type="number" step="0.01" min={monto2} placeholder="S/" value={montoRecibido2} onChange={e => setMontoRecibido2(e.target.value)} style={{ width: '70px', padding: '0.3rem', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '0.75rem' }} />
-                        {parseFloat(montoRecibido2) >= parseFloat(monto2) && (
-                          <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 'bold' }}>Vuelto: S/ {(parseFloat(montoRecibido2) - parseFloat(monto2)).toFixed(2)}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', padding: '0.5rem', background: '#F1F5F9', borderRadius: '6px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', fontWeight: '600', color: 'var(--cip-blue)', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={requiereVuelto2} onChange={e => { setRequiereVuelto2(e.target.checked); if(!e.target.checked) setMontoRecibido2(''); }} style={{ accentColor: 'var(--cip-blue)', width: '14px', height: '14px' }} />
+                          Calcular vuelto
+                        </label>
+                        {requiereVuelto2 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '0.7rem', color: '#475569' }}>Recibido:</span>
+                            <input type="number" step="0.01" min={monto2} placeholder="S/" value={montoRecibido2} onChange={e => setMontoRecibido2(e.target.value)} style={{ width: '70px', padding: '0.3rem', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '0.75rem' }} />
+                            {parseFloat(montoRecibido2) >= parseFloat(monto2) && (
+                              <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 'bold' }}>Vuelto: S/ {(parseFloat(montoRecibido2) - parseFloat(monto2)).toFixed(2)}</span>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
