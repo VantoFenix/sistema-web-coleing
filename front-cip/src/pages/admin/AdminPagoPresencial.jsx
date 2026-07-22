@@ -422,9 +422,13 @@ export default function AdminPagoPresencial() {
     }
 
     try {
+      const token = localStorage.getItem('adminToken') || '';
       const res = await fetch('/api/admin/pagos/presencial/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(payload),
       });
       const data = await res.json();

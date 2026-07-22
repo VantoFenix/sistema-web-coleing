@@ -34,8 +34,11 @@ from django.core.mail import send_mail
 # pyrefly: ignore [missing-import]
 from .utils import _get_habilitado
 
+from ..authentication import CustomJWTAuthentication
+
 class AdminRegistrarPagoPresencialView(APIView):
     """Registra uno o varios pagos presenciales para un colegiado."""
+    authentication_classes = [CustomJWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
