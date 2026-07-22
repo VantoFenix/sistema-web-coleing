@@ -1,5 +1,6 @@
 from django.utils import timezone
 from .models import Cuota, Comprobante
+from .sunat import procesar_comprobante_sunat
 from io import BytesIO
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib import colors
@@ -28,6 +29,41 @@ def marcar_cuota_como_pagada(cuota: Cuota, transaccion_id: str = None) -> Cuota:
         cuota.transaccion_id = transaccion_id
     cuota.save(update_fields=['pagado', 'fecha_pago', 'transaccion_id'])
     
+    # Crear comprobante en FactuSmart para el pago en efectivo
+    comp = crear_comprobante(
+        colegiado=cuota.colegiado,
+        monto=cuota.monto,
+        canal='PRESENCIAL',
+        metodo_pago='EFECTIVO',
+        transaccion_id=transaccion_id,
+        cuota=cuota,
+        observaciones=f"Pago de cuota en efectivo: {cuota.anio_cobro}-{cuota.mes_cobro:02d}"
+    )
+    
+    # Enviar correo automáticamente al colegiado con el PDF
+    if cuota.colegiado.correo:
+        try:
+            from core.emails import enviar_confirmacion_pago
+            import os
+            pdf_url = None
+            if comp.sunat_hash:
+                ruc = os.getenv("SUNAT_RUC_EMISOR", "20123456789")
+                base_url = os.getenv("FACTU_URL", "https://20123456789.s2.factusmart.pe/api/v1/issuer/documents").split('/documents')[0]
+                pdf_url = f"{base_url}/documents/{comp.sunat_hash}/pdf?ruc={ruc}"
+                
+            enviar_confirmacion_pago(
+                correo=cuota.colegiado.correo,
+                nombres=cuota.colegiado.nombre_completo,
+                nro_colegiado=cuota.colegiado.cip,
+                monto_total=float(cuota.monto),
+                periodos_pagados=[f"{cuota.anio_cobro}-{cuota.mes_cobro:02d}"],
+                nro_operacion=transaccion_id or "EFECTIVO-PRESENCIAL",
+                pdf_url=pdf_url
+            )
+        except Exception as e:
+            import sys
+            print(f"[EMAIL ERROR EFECTIVO] {e}", file=sys.stderr)
+
     return cuota
 
 
@@ -80,6 +116,9 @@ def crear_comprobante(
         observaciones=observaciones,
         estado='GENERADO'
     )
+    
+    # Procesar electrónicamente en SUNAT
+    procesar_comprobante_sunat(comprobante)
     
     return comprobante
 

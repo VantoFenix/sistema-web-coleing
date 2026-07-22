@@ -183,7 +183,7 @@ def enviar_aviso_inhabilitacion(*, correo, nombres, nro_colegiado):
     _send_via_sendgrid(subject=asunto, plain_text_content=texto, to_email=correo, html_content=html)
 
 
-def enviar_confirmacion_pago(*, correo, nombres, nro_colegiado, monto_total, periodos_pagados, nro_operacion):
+def enviar_confirmacion_pago(*, correo, nombres, nro_colegiado, monto_total, periodos_pagados, nro_operacion, pdf_url=None):
     """Envía confirmación de pago de cuotas."""
     asunto = f"Confirmación de Pago - Colegio de Ingenieros del Perú"
     periodos_str = ', '.join(periodos_pagados)
@@ -196,9 +196,26 @@ def enviar_confirmacion_pago(*, correo, nombres, nro_colegiado, monto_total, per
         f"- Monto Total: S/ {monto_total:.2f}\n"
         f"- Periodos Pagados: {periodos_str}\n"
         f"- Nro. Operación: {nro_operacion}\n\n"
+    )
+    if pdf_url:
+        texto += f"Puede descargar su boleta/factura electrónica aquí: {pdf_url}\n\n"
+        
+    texto += (
         f"Gracias por mantenerse al día con sus obligaciones institucionales.\n\n"
         f"Colegio de Ingenieros del Perú"
     )
+
+    boton_html = ""
+    if pdf_url:
+        boton_html = f"""
+        <div style="text-align: center; margin-top: 1.5rem; margin-bottom: 1.5rem;">
+            <a href="{pdf_url}" target="_blank" style="background-color: #2563EB; color: #FFFFFF; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; font-size: 16px;">
+                Descargar Boleta/Factura Electrónica
+            </a>
+        </div>
+        """
+    else:
+        boton_html = "<p>Puede descargar o imprimir su boleta oficial desde el portal web.</p>"
 
     html = f"""
     <div style="font-family: Arial, sans-serif; color: #1F2937; max-width: 560px;">
@@ -211,7 +228,7 @@ def enviar_confirmacion_pago(*, correo, nombres, nro_colegiado, monto_total, per
          <p style="margin:0.25rem 0;"><strong>Meses Pagados:</strong> {periodos_str}</p>
          <p style="margin:0.25rem 0;"><strong>Nro. Operación:</strong> {nro_operacion}</p>
       </div>
-      <p>Puede descargar o imprimir su boleta oficial desde el portal web.</p>
+      {boton_html}
       <hr style="border:none;border-top:1px solid #E5E7EB;margin:1.5rem 0;">
       <p style="color:#6B7280;font-size:0.85rem;">Colegio de Ingenieros del Perú</p>
     </div>

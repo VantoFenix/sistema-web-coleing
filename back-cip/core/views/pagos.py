@@ -204,10 +204,10 @@ class PagoFlowConfirmarView(APIView):
         if registrados:
             try:
                 # pyrefly: ignore [missing-import]
-                from apps.finanzas.services import crear_comprobante_pago
+                from apps.finanzas.services import crear_comprobante
                 # pyrefly: ignore [missing-import]
                 from apps.finanzas.serializers import ComprobanteSerializer
-                comp = crear_comprobante_pago(
+                comp = crear_comprobante(
                     colegiado=colegiado,
                     monto=round(len(periodos) * _get_monto_mensualidad(), 2),
                     canal='PORTAL',
@@ -754,19 +754,39 @@ class ConsultarEstadoQRView(APIView):
                 
         print(f"[MP QR STATUS] Pago aprobado: {payment_id}, periodos registrados: {registrados}", file=sys.stderr)
 
-        if registrados and getattr(colegiado, 'correo', None):
+        if registrados:
             try:
-                from core.emails import enviar_confirmacion_pago
-                enviar_confirmacion_pago(
-                    correo=colegiado.correo,
-                    nombres=colegiado.nombres,
-                    nro_colegiado=colegiado.nro_colegiado,
-                    monto_total=total_pagado,
-                    periodos_pagados=registrados,
-                    nro_operacion=str(payment_id)
+                from apps.finanzas.services import crear_comprobante
+                comp = crear_comprobante(
+                    colegiado=colegiado,
+                    monto=total_pagado,
+                    canal='PORTAL',
+                    metodo_pago=metodo_str,
+                    transaccion_id=str(payment_id),
+                    observaciones=f"Pago por QR/Yape de cuotas: {', '.join(registrados)}"
                 )
+                
+                pdf_url = None
+                if comp.sunat_hash:
+                    import os
+                    ruc = os.getenv("SUNAT_RUC_EMISOR", "20123456789")
+                    base_url = os.getenv("FACTU_URL", "https://20123456789.s2.factusmart.pe/api/v1/issuer/documents").split('/documents')[0]
+                    pdf_url = f"{base_url}/documents/{comp.sunat_hash}/pdf?ruc={ruc}"
+                    
+                if getattr(colegiado, 'correo', None):
+                    from core.emails import enviar_confirmacion_pago
+                    enviar_confirmacion_pago(
+                        correo=colegiado.correo,
+                        nombres=colegiado.nombres,
+                        nro_colegiado=colegiado.nro_colegiado,
+                        monto_total=total_pagado,
+                        periodos_pagados=registrados,
+                        nro_operacion=str(payment_id),
+                        pdf_url=pdf_url
+                    )
             except Exception as e:
-                print(f"[EMAIL ERROR] {e}", file=sys.stderr)
+                import sys
+                print(f"[ERROR YAPE COMPROBANTE/EMAIL] {e}", file=sys.stderr)
 
                 
         return Response({
