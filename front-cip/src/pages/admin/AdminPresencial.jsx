@@ -364,6 +364,14 @@ export default function AdminPresencial() {
       <tr class="total-final"><td>TOTAL:</td><td>S/ 5.00</td></tr>
     </table>
   </div>
+  ${montoEfectivo && parseFloat(montoEfectivo) > 5 ? `
+  <div class="totales" style="border-top: none; padding-top: 0; margin-bottom: 10px;">
+    <table class="totales-table">
+      <tr><td>Efectivo Recibido</td><td>S/ ${parseFloat(montoEfectivo).toFixed(2)}</td></tr>
+      <tr><td>Vuelto</td><td>S/ ${(parseFloat(montoEfectivo) - 5).toFixed(2)}</td></tr>
+    </table>
+  </div>
+  ` : ''}
 
   <div class="footer">
     ¡Gracias por colegiarse en el CIP!<br/>
@@ -478,6 +486,15 @@ export default function AdminPresencial() {
         formData.append('pago_parcial_1_monto', monto1);
         formData.append('pago_parcial_2_metodo', metodo2);
         formData.append('pago_parcial_2_monto', monto2);
+        if (metodo1 === 'EFECTIVO' && montoRecibido1) {
+          formData.append('monto_recibido', parseFloat(montoRecibido1));
+        } else if (metodo2 === 'EFECTIVO' && montoRecibido2) {
+          formData.append('monto_recibido', parseFloat(montoRecibido2));
+        }
+      } else {
+        if (metodoPago === 'EFECTIVO' && montoEfectivo) {
+          formData.append('monto_recibido', parseFloat(montoEfectivo));
+        }
       }
       formData.append('foto', foto);
       formData.append('titulo', titulo);
@@ -500,10 +517,15 @@ export default function AdminPresencial() {
         const postData = await resPost.json();
         if (postData.solicitud_id) {
           // Auto-aprobar para generar factura/boleta
+          const bodyResolver = { accion: 'APROBAR' };
+          const mRecibido = formData.get('monto_recibido');
+          if (mRecibido) {
+            bodyResolver.monto_recibido = parseFloat(mRecibido);
+          }
           const resAprobar = await fetch(`/api/admin/postulaciones/${postData.solicitud_id}/resolver/`, {
             method: 'POST',
             headers: { ...headers, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ accion: 'APROBAR' })
+            body: JSON.stringify(bodyResolver)
           });
           const aprData = await resAprobar.json();
           if (aprData.pdf_url) {

@@ -139,6 +139,20 @@ class AdminRegistrarPagoPresencialView(APIView):
         from datetime import datetime as _dt
         emision = _dt.now().strftime('%d/%m/%Y, %I:%M %p')
 
+        monto_recibido = request.data.get('monto_recibido')
+        vuelto = None
+        if monto_recibido:
+            try:
+                monto_rec = float(monto_recibido)
+                if monto_rec > monto_total:
+                    vuelto = monto_rec - monto_total
+            except:
+                pass
+        
+        obs_text = f"Pago registrado en caja: {periodos_label}"
+        if vuelto is not None:
+            obs_text += f" | Recibido: S/ {monto_rec:.2f} - Vuelto: S/ {vuelto:.2f}"
+
         pdf_url_final = None
         if registrados:
             try:
@@ -149,7 +163,7 @@ class AdminRegistrarPagoPresencialView(APIView):
                     canal='CAJA',
                     metodo_pago=metodo,
                     transaccion_id=boleta_numero,
-                    observaciones=f"Pago registrado en caja: {periodos_label}",
+                    observaciones=obs_text,
                     cliente_documento=ruc_factura if tipo_comprobante == '01' else None,
                     cliente_nombre=razon_social_factura if tipo_comprobante == '01' else None,
                     tipo_comprobante=tipo_comprobante

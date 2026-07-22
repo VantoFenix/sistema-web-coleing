@@ -376,9 +376,17 @@ export default function AdminPagoPresencial() {
         { metodo: metodo1, monto: parseFloat(monto1) },
         { metodo: metodo2, monto: parseFloat(monto2) }
       ];
+      if (metodo1 === 'EFECTIVO' && montoRecibido1) {
+        payload.monto_recibido = parseFloat(montoRecibido1);
+      } else if (metodo2 === 'EFECTIVO' && montoRecibido2) {
+        payload.monto_recibido = parseFloat(montoRecibido2);
+      }
     } else {
       if (!metodo) { setErrForm('Seleccione el método de pago.'); return; }
       payload.metodo = metodo;
+      if (metodo === 'EFECTIVO' && montoRecibido) {
+        payload.monto_recibido = parseFloat(montoRecibido);
+      }
     }
 
     setEnviando(true);
@@ -545,6 +553,14 @@ export default function AdminPagoPresencial() {
       <tr class="total-final"><td>Importe total</td><td>S/ ${parseFloat(r.monto_total || 0).toFixed(2)}</td></tr>
     </table>
   </div>
+  ${montoRecibido && parseFloat(montoRecibido) > parseFloat(r.monto_total || 0) ? `
+  <div class="totales" style="border-top: none; padding-top: 0;">
+    <table class="totales-table">
+      <tr><td>Efectivo Recibido</td><td>S/ ${parseFloat(montoRecibido).toFixed(2)}</td></tr>
+      <tr><td>Vuelto</td><td>S/ ${(parseFloat(montoRecibido) - parseFloat(r.monto_total || 0)).toFixed(2)}</td></tr>
+    </table>
+  </div>
+  ` : ''}
 
   <div class="footer">Comprobante generado por el sistema de colegiacion digital.</div>
 

@@ -155,6 +155,20 @@ class AdminResolverSolicitudView(APIView):
                         fecha_pago=f_pago
                     )
 
+                    monto_recibido = request.data.get('monto_recibido')
+                    vuelto = None
+                    if monto_recibido:
+                        try:
+                            monto_rec = float(monto_recibido)
+                            if monto_rec > 5.00:
+                                vuelto = monto_rec - 5.00
+                        except:
+                            pass
+                    
+                    obs_text = f"Inscripción Inicial: {solicitud.nombres}"
+                    if vuelto is not None:
+                        obs_text += f" | Recibido: S/ {monto_rec:.2f} - Vuelto: S/ {vuelto:.2f}"
+
                     pdf_url_final = None
                     try:
                         from apps.finanzas.services import crear_comprobante
@@ -164,7 +178,7 @@ class AdminResolverSolicitudView(APIView):
                             canal=canal_pago,
                             metodo_pago=metodo_pago,
                             transaccion_id=solicitud.numero_operacion,
-                            observaciones=f"Inscripción Inicial: {solicitud.nombres}",
+                            observaciones=obs_text,
                             cliente_documento=solicitud.ruc_factura if solicitud.tipo_comprobante == '01' else None,
                             cliente_nombre=solicitud.razon_social_factura if solicitud.tipo_comprobante == '01' else None,
                             tipo_comprobante=solicitud.tipo_comprobante

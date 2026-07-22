@@ -74,6 +74,9 @@ def procesar_comprobante_sunat(comprobante):
             }
         ]
     }
+    if comprobante.observaciones:
+        payload["informacion_adicional"] = comprobante.observaciones
+
 
     headers = {
         "Content-Type": "application/json",

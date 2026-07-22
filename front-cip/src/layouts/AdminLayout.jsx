@@ -41,7 +41,7 @@ export default function AdminLayout() {
           <div style={{ background: 'white', padding: '0.5rem', borderRadius: '8px', display: 'inline-block', marginBottom: '1rem' }}>
             <img src="/webp-logo-cip.webp" alt="CIP" style={{ height: '64px', width: 'auto', display: 'block' }} />
           </div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '700' }}>Admin CIP</h2>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: '700' }}>{adminUser?.usuario || 'Admin CIP'}</h2>
           <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Rol: {adminRole}</p>
         </div>
 
