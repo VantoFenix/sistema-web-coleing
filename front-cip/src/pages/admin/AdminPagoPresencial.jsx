@@ -293,12 +293,13 @@ export default function AdminPagoPresencial() {
   };
 
   const getPeriodos = () => deuda?.periodos || [];
-  const getPendientes = () => getPeriodos().filter(p => p.estado === 'PENDIENTE').map(p => p.periodo);
-  const hayDeudaSinPagar = () => getPendientes().some(p => !periodosSeleccionados.has(p));
+  const getPendientesDeuda = () => getPeriodos().filter(p => p.estado === 'PENDIENTE').map(p => p.periodo);
+  const getPendientesTotales = () => getPeriodos().filter(p => p.estado === 'PENDIENTE' || p.estado === 'ADELANTO').map(p => p.periodo);
+  const hayDeudaSinPagar = () => getPendientesDeuda().some(p => !periodosSeleccionados.has(p));
 
   const togglePeriodo = (periodo, estado) => {
-    if (estado !== 'PENDIENTE') return;
-    const pendientes = getPendientes(); // Array de pendientes (ya vienen ordenados de antiguo a reciente por el backend, ej: ["2024-11", "2024-12", "2025-01"])
+    if (estado === 'PAGADO') return;
+    const pendientes = getPendientesTotales(); // Array de deudas y adelantados
     setPeriodosSeleccionados(prev => {
       const s = new Set(prev);
       
@@ -335,7 +336,7 @@ export default function AdminPagoPresencial() {
   };
 
   const seleccionarTodos = () => setPeriodosSeleccionados(new Set(getPeriodos().filter(p => p.estado !== 'PAGADO').map(p => p.periodo)));
-  const seleccionarSoloDeuda = () => setPeriodosSeleccionados(new Set(getPendientes()));
+  const seleccionarSoloDeuda = () => setPeriodosSeleccionados(new Set(getPendientesDeuda()));
   const deseleccionarTodos = () => setPeriodosSeleccionados(new Set());
 
   const handleRegistrar = async (flowSuccess = false) => {
