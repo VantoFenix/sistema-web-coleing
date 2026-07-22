@@ -53,8 +53,8 @@ def marcar_cuota_como_pagada(cuota: Cuota, transaccion_id: str = None) -> Cuota:
                 
             enviar_confirmacion_pago(
                 correo=cuota.colegiado.correo,
-                nombres=cuota.colegiado.nombres,
-                nro_colegiado=cuota.colegiado.nro_colegiado,
+                nombres=cuota.colegiado.nombre_completo,
+                nro_colegiado=cuota.colegiado.cip,
                 monto_total=float(cuota.monto),
                 periodos_pagados=[f"{cuota.anio_cobro}-{cuota.mes_cobro:02d}"],
                 nro_operacion=transaccion_id or "EFECTIVO-PRESENCIAL",
@@ -111,6 +111,25 @@ def crear_comprobante(
     """
     numero = generar_numero_comprobante()
     
+    # Asegurar que usamos el Colegiado de finanzas (por si viene de core.models)
+    from apps.finanzas.models import Colegiado as FinanzasColegiado, Carrera, Sede
+    if not isinstance(colegiado, FinanzasColegiado):
+        f_carrera, _ = Carrera.objects.get_or_create(nombre=colegiado.carrera.nombre if colegiado.carrera else "Ingeniería")
+        f_sede, _ = Sede.objects.get_or_create(nombre=colegiado.sede.nombre if colegiado.sede else "Sede Principal")
+        finanzas_col, _ = FinanzasColegiado.objects.get_or_create(
+            numero_documento=colegiado.dni,
+            defaults={
+                'nombre_completo': colegiado.nombres,
+                'correo': colegiado.correo or "",
+                'celular': colegiado.celular or "999999999",
+                'cip': colegiado.nro_colegiado or "00000",
+                'tipo_documento': 'DNI',
+                'carrera': f_carrera,
+                'sede': f_sede,
+            }
+        )
+        colegiado = finanzas_col
+
     comprobante = Comprobante.objects.create(
         colegiado=colegiado,
         cuota=cuota,
@@ -207,9 +226,9 @@ def generar_pdf_comprobante(comprobante: Comprobante) -> BytesIO:
     story.append(Paragraph("<b>INFORMACIÓN DEL COLEGIADO</b>", label_style))
     
     data_colegiado = [
-        ['ID Colegiado (CIP):', f"{comprobante.colegiado.nro_colegiado}"],
-        ['Nombre Completo:', f"{comprobante.colegiado.nombres}"],
-        ['Documento:', f"{comprobante.colegiado.dni}"],
+        ['ID Colegiado (CIP):', f"{comprobante.colegiado.cip}"],
+        ['Nombre Completo:', f"{comprobante.colegiado.nombre_completo}"],
+        ['Documento:', f"{comprobante.colegiado.numero_documento}"],
         ['Correo:', f"{comprobante.colegiado.correo}"],
     ]
     

@@ -27,8 +27,10 @@ def procesar_comprobante_sunat(comprobante):
         nombre_cliente = comprobante.cliente_nombre
     else:
         tipo_doc_cliente = '1'
-        doc_cliente = comprobante.colegiado.dni
-        nombre_cliente = comprobante.colegiado.nombres
+        if comprobante.colegiado.tipo_documento == 'CE': tipo_doc_cliente = '4'
+        elif comprobante.colegiado.tipo_documento == 'RUC': tipo_doc_cliente = '6'
+        doc_cliente = comprobante.colegiado.numero_documento
+        nombre_cliente = comprobante.colegiado.nombre_completo
 
     monto_total = float(comprobante.monto)
     
