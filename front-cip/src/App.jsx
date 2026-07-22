@@ -16,6 +16,7 @@ import AdminDeudores from './pages/admin/AdminDeudores';
 import AdminSedes from './pages/admin/AdminSedes';
 import AdminCarreras from './pages/admin/AdminCarreras';
 import AdminUsuarios from './pages/admin/AdminUsuarios';
+import AdminCajeros from './pages/admin/AdminCajeros';
 import AdminResetPassword from './pages/admin/AdminResetPassword';
 
 function App() {
@@ -40,6 +41,7 @@ function App() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route path="home" element={<AdminHome />} />
           <Route path="postulaciones" element={<AdminPostulaciones />} />
+          <Route path="cajeros" element={<AdminCajeros />} />
           <Route path="pagos-presencial" element={<AdminPagoPresencial />} />
           <Route path="presencial" element={<AdminPresencial />} />
           <Route path="deudores" element={<AdminDeudores />} />

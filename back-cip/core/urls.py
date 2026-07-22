@@ -10,6 +10,7 @@ router = DefaultRouter()
 router.register(r'api/master/sedes', views.SedeViewSet, basename='master-sedes')
 router.register(r'api/master/carreras', views.CarreraViewSet, basename='master-carreras')
 router.register(r'api/master/usuarios', views.AdministradorViewSet, basename='master-usuarios')
+router.register(r'api/admin/cajeros', views.CajeroSedeViewSet, basename='admin-cajeros')
 
 urlpatterns = [
     path('django-admin/', admin.site.urls),

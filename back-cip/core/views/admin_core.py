@@ -208,3 +208,92 @@ class AdminDashboardView(APIView):
             'actividad_reciente': actividad,
         })
 
+
+class IsAdminSede(IsAuthenticated):
+    def has_permission(self, request, view):
+        return super().has_permission(request, view) and getattr(request.user, 'rol', None) == 'ADMIN'
+
+class CajeroSedeViewSet(ModelViewSet):
+    permission_classes = [IsAdminSede]
+    serializer_class = AdministradorCRUDSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user or not hasattr(user, 'sede') or not user.sede:
+            return Administrador.objects.none()
+        return Administrador.objects.filter(sede=user.sede, rol='CAJERO')
+
+    def perform_create(self, serializer):
+        user_admin = self.request.user
+        user = serializer.save(rol='CAJERO', sede=user_admin.sede, cuenta_confirmada=False)
+        
+        # Enviar correo para que configuren su contraseña
+        try:
+            from .auth import _prepare_user_for_token
+            from django.contrib.auth.tokens import default_token_generator
+            from django.utils.http import urlsafe_base64_encode
+            from django.utils.encoding import force_bytes
+            from django.conf import settings
+            from sendgrid import SendGridAPIClient
+            from sendgrid.helpers.mail import Mail
+            
+            token_user = _prepare_user_for_token(user)
+            token = default_token_generator.make_token(token_user)
+            uid = urlsafe_base64_encode(force_bytes(user.id))
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173').rstrip('/')
+            link = f"{frontend_url}/reset-password/{uid}/{token}/"
+            
+            rol_display = "CAJERO (Atención Sede)"
+            
+            plain_text = f"Hola {user.nombres},\n\nSe ha creado una cuenta para ti en el Sistema CIP ({rol_display}).\nHaz clic aquí para configurarla: {link}\n\nTienes 10 minutos."
+            
+            html_text = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <h2 style="color: #2c3e50;">Colegio de Ingenieros del Perú</h2>
+                </div>
+                <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px;">
+                    <h3 style="color: #34495e; margin-top: 0;">Bienvenido al Sistema CIP</h3>
+                    <p style="color: #555; line-height: 1.5;">Hola <strong>{user.nombres}</strong>,</p>
+                    <p style="color: #555; line-height: 1.5;">Se ha creado una cuenta interna para ti en el sistema con el rol de <strong>{rol_display}</strong>.</p>
+                    <p style="color: #555; line-height: 1.5;">Tu usuario de acceso es: <strong>{user.usuario}</strong></p>
+                    <p style="color: #555; line-height: 1.5;">Por favor, haz clic en el siguiente botón para configurar tu contraseña y activar tu cuenta:</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{link}" style="background-color: #b32821; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Configurar Contraseña</a>
+                    </div>
+                </div>
+                <div style="margin-top: 20px; font-size: 12px; color: #7f8c8d; text-align: center;">
+                    <p><strong>Atención:</strong> Tienes 10 minutos para utilizar este enlace, de lo contrario tu solicitud expirará.</p>
+                </div>
+            </div>
+            """
+
+            message = Mail(
+                from_email=settings.DEFAULT_FROM_EMAIL or 'vantofortnite@gmail.com',
+                to_emails=user.correo,
+                subject='Bienvenido al Sistema CIP - Configura tu contraseña',
+                plain_text_content=plain_text,
+                html_content=html_text
+            )
+            
+            sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+            response = sg.send(message)
+            print(f"[EMAIL SUCCESS] SendGrid StatusCode: {response.status_code}")
+        except Exception as e:
+            import sys
+            print(f"[EMAIL ERROR CREATING CAJERO] {e}", file=sys.stderr)
+
+    def perform_update(self, serializer):
+        user_admin = self.request.user
+        serializer.save(rol='CAJERO', sede=user_admin.sede)
+
+    def perform_destroy(self, instance):
+        user_admin = self.request.user
+        if instance.rol == 'CAJERO' and instance.sede == user_admin.sede:
+            instance.delete()
+        else:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("No tiene permiso para eliminar este usuario.")
+
+
