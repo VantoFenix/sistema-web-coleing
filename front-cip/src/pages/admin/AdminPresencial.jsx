@@ -362,8 +362,12 @@ export default function AdminPresencial() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!nombres || !carrera || !sede || !celular || !foto || !titulo || !dniAnverso || !dniReverso) {
+    if (!nombres || !carrera || !sede || !correo || !celular || !foto || !titulo || !dniAnverso || !dniReverso) {
       setErrorMsg("Complete todos los campos requeridos y adjunte los documentos (incluyendo DNI).");
+      return;
+    }
+    if (!correo.includes('@') || !correo.includes('.')) {
+      setErrorMsg("Ingrese un correo electrónico válido.");
       return;
     }
     if (celular.length !== 9 || !celular.startsWith('9')) {
@@ -575,9 +579,15 @@ export default function AdminPresencial() {
 
   return (
     <div>
-      <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '1.875rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.5rem' }}>Inscripción Presencial (Aprobación Rápida)</h1>
-        <p className="text-muted">Use este módulo para registrar colegiados que asisten físicamente. El trámite se aprueba automáticamente al instante.</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1 style={{ fontSize: '1.875rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.5rem' }}>Inscripción Presencial (Aprobación Rápida)</h1>
+          <p className="text-muted">Use este módulo para registrar colegiados que asisten físicamente. El trámite se aprueba automáticamente al instante.</p>
+        </div>
+        <div style={{ background: '#F1F5F9', border: '1px solid #CBD5E1', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.875rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span>Fecha de registro:</span>
+          <strong style={{ color: 'var(--cip-blue)' }}>{new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+        </div>
       </div>
 
       <div className="card">
@@ -587,7 +597,7 @@ export default function AdminPresencial() {
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2.5rem' }}>
             <div className="form-group">
-              <label className="form-label">DNI</label>
+              <label className="form-label">DNI *</label>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <input type="text" className="form-input" placeholder="Ej. 70123456" value={dni}
                   onChange={(e) => { setDni(e.target.value.replace(/\D/g, '')); setDniValidado(false); setNombres(''); }}
@@ -599,7 +609,7 @@ export default function AdminPresencial() {
               </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Apellidos y Nombres</label>
+              <label className="form-label">Apellidos y Nombres *</label>
               <input type="text" className="form-input" value={nombres}
                 onChange={(e) => setNombres(e.target.value.toUpperCase())}
                 readOnly={dniValidado}
@@ -607,7 +617,7 @@ export default function AdminPresencial() {
                 style={{ background: dniValidado ? '#f1f5f9' : 'white', fontWeight: dniValidado ? '600' : '400' }} />
             </div>
             <div className="form-group">
-              <label className="form-label">Especialidad / Carrera</label>
+              <label className="form-label">Especialidad / Carrera *</label>
               <select className="form-select" value={carrera} onChange={(e) => setCarrera(e.target.value)}>
                 <option value="">Seleccione una especialidad</option>
                 {carrerasOptions.map(c => (
@@ -616,7 +626,7 @@ export default function AdminPresencial() {
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">Sede Departamental</label>
+              <label className="form-label">Sede Departamental *</label>
               <select 
                 className="form-select" 
                 value={sede} 
@@ -632,7 +642,15 @@ export default function AdminPresencial() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Teléfono / Celular</label>
+              <label className="form-label">Correo Electrónico *</label>
+              <input type="email" className="form-input" value={correo}
+                onChange={(e) => setCorreo(e.target.value)}
+                required
+                placeholder="ejemplo@correo.com" />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Teléfono / Celular *</label>
               <input type="text" className="form-input" value={celular}
                 onChange={(e) => setCelular(e.target.value.replace(/\D/g, ''))}
                 maxLength={9}
