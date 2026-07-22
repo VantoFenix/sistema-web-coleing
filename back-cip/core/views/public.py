@@ -154,6 +154,44 @@ class PublicConsultaSolicitudView(APIView):
             'motivo_rechazo': sol.motivo_rechazo
         })
 
+from rest_framework.throttling import AnonRateThrottle
+
+class CheckDniView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [AnonRateThrottle]
+
+    def get(self, request):
+        dni = request.query_params.get('dni', '').strip()
+        tipo = request.query_params.get('tipo', 'todos').strip().lower()
+
+        if not dni or len(dni) != 8 or not dni.isdigit():
+            return Response({'error': 'DNI inválido. Debe contener 8 dígitos.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1. Verificar en Administrador (Usuarios / Cajeros)
+        if tipo in ['usuario', 'todos'] and Administrador.objects.filter(usuario=dni).exists():
+            return Response({
+                'exists': True,
+                'mensaje': 'Este DNI ya se encuentra registrado.'
+            }, status=status.HTTP_200_OK)
+
+        # 2. Verificar en Colegiado
+        if tipo in ['colegiado', 'todos'] and Colegiado.objects.filter(dni=dni).exists():
+            return Response({
+                'exists': True,
+                'mensaje': 'Este DNI ya se encuentra registrado.'
+            }, status=status.HTTP_200_OK)
+
+        # 3. Verificar en Solicitud (Trámites activos)
+        if tipo in ['colegiado', 'todos'] and Solicitud.objects.filter(dni=dni, estado__in=['EN_REVISION', 'APROBADA']).exists():
+            return Response({
+                'exists': True,
+                'mensaje': 'Este DNI ya se encuentra registrado.'
+            }, status=status.HTTP_200_OK)
+
+        return Response({'exists': False}, status=status.HTTP_200_OK)
+
+
 from ..authentication import CustomJWTAuthentication
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime

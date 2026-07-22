@@ -48,11 +48,23 @@ export default function AdminCajeros() {
 
   const handleBuscarReniec = async () => {
     if (!formData.dni || formData.dni.length !== 8) {
-      alert("Ingrese un DNI válido de 8 dígitos.");
+      setErrorGuardar("Ingrese un DNI válido de 8 dígitos.");
       return;
     }
+    setErrorGuardar('');
     setBuscandoReniec(true);
     try {
+      // 1. Verificación proactiva contra la BD (tipo usuario)
+      const checkRes = await fetch(`/api/check-dni/?dni=${formData.dni}&tipo=usuario`);
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        if (checkData.exists) {
+          setErrorGuardar(checkData.mensaje || "Este DNI ya se encuentra registrado.");
+          return; // Detiene la llamada a RENIEC
+        }
+      }
+
+      // 2. Consulta normal a RENIEC
       const res = await fetch(`/api/public/reniec/?dni=${formData.dni}`);
       const data = await res.json();
       if (res.ok && data.nombre_completo) {
@@ -62,10 +74,10 @@ export default function AdminCajeros() {
           usuario: prev.dni
         }));
       } else {
-        alert(data.error || "No se encontró el DNI");
+        setErrorGuardar(data.detalle || data.error || "No se encontró el DNI");
       }
     } catch (e) {
-      alert("Error al conectar con RENIEC");
+      setErrorGuardar("Error al conectar con RENIEC");
     } finally {
       setBuscandoReniec(false);
     }

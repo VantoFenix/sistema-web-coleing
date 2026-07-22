@@ -179,6 +179,19 @@ export default function AdminPresencial() {
     setErrorMsg('');
     setIsValidando(true);
     try {
+      // 1. Verificación proactiva contra la BD local
+      const checkRes = await fetch(`/api/check-dni/?dni=${dni}&tipo=colegiado`);
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        if (checkData.exists) {
+          setErrorMsg(checkData.mensaje || "Este DNI ya se encuentra registrado.");
+          setDniValidado(false);
+          setNombres('');
+          return; // Detiene la llamada a RENIEC
+        }
+      }
+
+      // 2. Consulta normal a RENIEC (si está libre)
       const response = await fetch(`/api/public/reniec/?dni=${dni}`);
       let data = {};
       try { data = await response.json(); } catch (_) {}

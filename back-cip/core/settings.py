@@ -279,3 +279,13 @@ FLOW_ENV        = os.getenv('FLOW_ENV', 'sandbox') # sandbox o live
 
 # URL del Frontend (para enlaces de correos, etc)
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://sistema-web-coleing.onrender.com' if not DEBUG else 'http://localhost:5173')
+
+# ==============================================================================
+# REST FRAMEWORK THROTTLING (Rate Limiting Anti-Scraping)
+# ==============================================================================
+REST_FRAMEWORK = {
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '30/minute',
+        'user': '60/minute',
+    }
+}

@@ -24,7 +24,8 @@ urlpatterns = [
     # Catalogos
     path('api/catalogos/', views.get_catalogos, name='catalogos'),
     
-    # RENIEC (proxy seguro)
+    # RENIEC (proxy seguro) y validación previa de DNI
+    path('api/check-dni/', views.CheckDniView.as_view(), name='check-dni'),
     path('api/public/reniec/', views.ReniecConsultaView.as_view(), name='reniec-consulta'),
 
     # Public
