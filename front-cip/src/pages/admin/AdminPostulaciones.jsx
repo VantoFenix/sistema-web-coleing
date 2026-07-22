@@ -632,33 +632,16 @@ function VisorModal({ visor, onClose }) {
         onClick={e => e.stopPropagation()}
       >
         {esPdf ? (
-          <object
+          <iframe
             key={visor.url}
-            data={visor.url}
-            type="application/pdf"
-            style={{ width: '100%', height: '100%', display: 'block' }}
-          >
-            <iframe
-              src={visor.url}
-              title={visor.titulo}
-              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-            />
-            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', padding: '2rem', textAlign: 'center' }}>
-              <FileText size={52} style={{ marginBottom: '1rem', opacity: 0.5, color: '#60A5FA' }} />
-              <p style={{ fontWeight: '700', fontSize: '1.1rem', marginBottom: '0.5rem', color: 'white' }}>Vista previa de PDF</p>
-              <p style={{ fontSize: '0.85rem', color: '#94A3B8', marginBottom: '1.5rem', maxWidth: '450px' }}>
-                Si su navegador no previsualiza directamente el documento PDF, haga clic abajo para abrirlo.
-              </p>
-              <a
-                href={visor.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ padding: '0.75rem 1.5rem', background: '#2563EB', color: 'white', borderRadius: '8px', fontWeight: '700', textDecoration: 'none', fontSize: '0.9rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
-              >
-                <ExternalLink size={16} /> Abrir PDF en ventana nueva ↗
-              </a>
-            </div>
-          </object>
+            src={
+              visor.url.startsWith('http') && !visor.url.includes('localhost') && !visor.url.includes('127.0.0.1')
+                ? `https://docs.google.com/gview?url=${encodeURIComponent(visor.url)}&embedded=true`
+                : visor.url
+            }
+            title={visor.titulo}
+            style={{ width: '100%', height: '100%', border: 'none', background: '#FFFFFF', display: 'block' }}
+          />
         ) : imgError ? (
           /* ── Error al cargar imagen ── */
           <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', padding: '3rem' }}>
