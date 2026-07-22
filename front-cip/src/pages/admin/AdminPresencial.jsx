@@ -519,24 +519,6 @@ export default function AdminPresencial() {
       });
 
       if (resPost.ok) {
-        const postData = await resPost.json();
-        if (postData.solicitud_id) {
-          // Auto-aprobar para generar factura/boleta
-          const bodyResolver = { accion: 'APROBAR' };
-          const mRecibido = formData.get('monto_recibido');
-          if (mRecibido) {
-            bodyResolver.monto_recibido = parseFloat(mRecibido);
-          }
-          const resAprobar = await fetch(`/api/admin/postulaciones/${postData.solicitud_id}/resolver/`, {
-            method: 'POST',
-            headers: { ...headers, 'Content-Type': 'application/json' },
-            body: JSON.stringify(bodyResolver)
-          });
-          const aprData = await resAprobar.json();
-          if (aprData.pdf_url) {
-            setPdfUrl(aprData.pdf_url);
-          }
-        }
         setSuccess(true);
       } else {
         const errData = await resPost.json();
