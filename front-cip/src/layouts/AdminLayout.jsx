@@ -14,6 +14,13 @@ export default function AdminLayout() {
 
   const adminRole = localStorage.getItem('adminRole') || 'ADMIN';
   const adminSede = localStorage.getItem('adminSede') || 'Sede Global';
+  const adminUserStr = localStorage.getItem('adminUser');
+  let adminUser = null;
+  try {
+    if (adminUserStr) adminUser = JSON.parse(adminUserStr);
+  } catch (e) {
+    console.error('Error parsing adminUser');
+  }
 
   const NavItem = ({ to, icon: Icon, label }) => (
     <NavLink
