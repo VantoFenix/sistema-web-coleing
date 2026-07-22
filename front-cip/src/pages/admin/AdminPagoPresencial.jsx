@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, User, CheckCircle2, XCircle, Loader2,
   Calendar, AlertCircle, BadgeCheck, CreditCard,
-  Banknote, Smartphone, Building2, Wallet, ChevronRight,
+  Banknote, Smartphone, Building2, Wallet, ChevronRight, Printer,
 } from 'lucide-react';
 import ComprobanteModal from '../../components/UI/ComprobanteModal';
 
@@ -820,6 +820,15 @@ export default function AdminPagoPresencial() {
   const todosLosPeriodos = getPeriodos();
   const hayPeriodosNoPagados = todosLosPeriodos.some(p => p.estado !== 'PAGADO');
 
+  const isBtnDisabled = enviando || 
+    periodosSeleccionados.size === 0 || 
+    (tipoComprobante === '01' && (!rucFactura || !razonSocialFactura)) || 
+    (!esMixto && metodo === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido)) || parseFloat(montoRecibido) < parseFloat(monto))) || 
+    (esMixto && (
+      (metodo1 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido1)) || parseFloat(montoRecibido1) < parseFloat(monto1))) || 
+      (metodo2 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido2)) || parseFloat(montoRecibido2) < parseFloat(monto2)))
+    ));
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, height: '100%' }}>
 
@@ -1345,18 +1354,16 @@ export default function AdminPagoPresencial() {
 
               <button
                 onClick={() => handleRegistrar(false)}
-                disabled={enviando || periodosSeleccionados.size === 0 || (tipoComprobante === '01' && (!rucFactura || !razonSocialFactura)) || (!esMixto && metodo === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido)) || parseFloat(montoRecibido) < parseFloat(monto))) || (esMixto && ((metodo1 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido1)) || parseFloat(montoRecibido1) < parseFloat(monto1))) || (metodo2 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido2)) || parseFloat(montoRecibido2) < parseFloat(monto2)))))}
+                disabled={isBtnDisabled}
                 className="btn btn-block"
                 style={{
                   padding: '0.9rem', fontSize: '0.95rem',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                  background: (enviando || periodosSeleccionados.size === 0 || (tipoComprobante === '01' && (!rucFactura || !razonSocialFactura)) || (!esMixto && metodo === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido)) || parseFloat(montoRecibido) < parseFloat(monto))) || (esMixto && ((metodo1 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido1)) || parseFloat(montoRecibido1) < parseFloat(monto1))) || (metodo2 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido2)) || parseFloat(montoRecibido2) < parseFloat(monto2)))))) ? '#94A3B8' : '#10B981',
+                  background: isBtnDisabled ? '#94A3B8' : '#10B981',
                   border: 'none', borderRadius: '10px', color: 'white',
-                  fontWeight: '700', cursor: (enviando || periodosSeleccionados.size === 0 || (tipoComprobante === '01' && (!rucFactura || !razonSocialFactura)) || (!esMixto && metodo === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido)) || parseFloat(montoRecibido) < parseFloat(monto))) || (esMixto && ((metodo1 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido1)) || parseFloat(montoRecibido1) < parseFloat(monto1))) || (metodo2 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido2)) || parseFloat(montoRecibido2) < parseFloat(monto2)))))) ? 'not-allowed' : 'pointer',
+                  fontWeight: '700', cursor: isBtnDisabled ? 'not-allowed' : 'pointer',
                   transition: 'all 0.15s',
                 }}
-                onMouseEnter={e => { if (!enviando && periodosSeleccionados.size > 0 && !(tipoComprobante === '01' && (!rucFactura || !razonSocialFactura)) && !(!esMixto && metodo === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido)) || parseFloat(montoRecibido) < parseFloat(monto))) && !(esMixto && ((metodo1 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido1)) || parseFloat(montoRecibido1) < parseFloat(monto1))) || (metodo2 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido2)) || parseFloat(montoRecibido2) < parseFloat(monto2)))))) e.currentTarget.style.background = '#059669'; }}
-                onMouseLeave={e => { if (!enviando && periodosSeleccionados.size > 0 && !(tipoComprobante === '01' && (!rucFactura || !razonSocialFactura)) && !(!esMixto && metodo === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido)) || parseFloat(montoRecibido) < parseFloat(monto))) && !(esMixto && ((metodo1 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido1)) || parseFloat(montoRecibido1) < parseFloat(monto1))) || (metodo2 === 'EFECTIVO' && (isNaN(parseFloat(montoRecibido2)) || parseFloat(montoRecibido2) < parseFloat(monto2)))))) e.currentTarget.style.background = '#10B981'; }}
               >
                 {enviando
                   ? <><Loader2 size={18} className="spin" /> Registrando…</>
