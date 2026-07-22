@@ -2,6 +2,7 @@ from rest_framework.viewsets import ModelViewSet
 import jwt
 from datetime import datetime, timedelta
 from django.conf import settings
+from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -111,6 +112,9 @@ class AdminResolverSolicitudView(APIView):
                         row = cursor.fetchone()
                         siguiente_nro = str((row[0] or 0) + 1).zfill(5)
 
+                    fecha_colegiatura = solicitud.creado_en.date() if solicitud.creado_en else datetime.utcnow().date()
+                    fecha_creado_en = solicitud.creado_en if solicitud.creado_en else timezone.now()
+
                     colegiado = Colegiado.objects.create(
                         dni=solicitud.dni,
                         nombres=solicitud.nombres,
@@ -121,7 +125,8 @@ class AdminResolverSolicitudView(APIView):
                         solicitud=solicitud,
                         correo=solicitud.correo,
                         celular=solicitud.celular,
-                        colegiado_desde=datetime.utcnow().date()
+                        colegiado_desde=fecha_colegiatura,
+                        creado_en=fecha_creado_en
                     )
 
                     # Auto-crear registro de Pago de Incorporación

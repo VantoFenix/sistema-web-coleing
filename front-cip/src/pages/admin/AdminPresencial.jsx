@@ -10,6 +10,7 @@ export default function AdminPresencial() {
   const [sede, setSede] = useState('');
   const [correo, setCorreo] = useState('');
   const [celular, setCelular] = useState('');
+  const [fechaRegistro, setFechaRegistro] = useState(() => new Date().toISOString().split('T')[0]);
   
   const [carrerasOptions, setCarrerasOptions] = useState([]);
   const [sedesOptions, setSedesOptions] = useState([]);
@@ -451,32 +452,24 @@ export default function AdminPresencial() {
       formData.append('titulo', titulo);
       formData.append('dni_anverso', dniAnverso);
       formData.append('dni_reverso', dniReverso);
-
-      const resPost = await fetch('/api/postulaciones/', { method: 'POST', body: formData });
-      if (!resPost.ok) {
-        const errData = await resPost.json();
-        setErrorMsg(errData.error || "Error al crear la solicitud.");
-        setEnviando(false);
-        return;
+      if (fechaRegistro) {
+        formData.append('creado_en', fechaRegistro);
       }
-      const postData = await resPost.json();
-      const solicitudId = postData.solicitud_id;
 
-      // 2. Auto-aprobar inmediatamente (flujo presencial)
       const adminToken = localStorage.getItem('adminToken');
-      const resAprob = await fetch(`/api/admin/postulaciones/${solicitudId}/resolver/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify({ accion: 'APROBAR' })
+      const headers = adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {};
+
+      const resPost = await fetch('/api/postulaciones/', { 
+        method: 'POST', 
+        headers,
+        body: formData 
       });
 
-      if (resAprob.ok) {
+      if (resPost.ok) {
         setSuccess(true);
       } else {
-        setErrorMsg("La solicitud fue creada pero no se pudo aprobar automáticamente. Apruébela desde el panel de Postulaciones.");
+        const errData = await resPost.json();
+        setErrorMsg(errData.error || "Error al crear la solicitud.");
       }
     } catch (err) {
       setErrorMsg("Error de conexión con el servidor.");
@@ -490,7 +483,7 @@ export default function AdminPresencial() {
     setSuccess(false); setDni(''); setNombres(''); setCarrera(''); 
     if (!isSedeLocked) setSede('');
     setFoto(null); setFotoInfo(''); setTitulo(null); setDniAnverso(null); setDniReverso(null);
-    setCorreo(''); setCelular('');
+    setCorreo(''); setCelular(''); setFechaRegistro(new Date().toISOString().split('T')[0]);
     setDniValidado(false); setErrorMsg('');
   };
 
@@ -579,15 +572,9 @@ export default function AdminPresencial() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h1 style={{ fontSize: '1.875rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.5rem' }}>Inscripción Presencial (Aprobación Rápida)</h1>
-          <p className="text-muted">Use este módulo para registrar colegiados que asisten físicamente. El trámite se aprueba automáticamente al instante.</p>
-        </div>
-        <div style={{ background: '#F1F5F9', border: '1px solid #CBD5E1', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.875rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span>Fecha de registro:</span>
-          <strong style={{ color: 'var(--cip-blue)' }}>{new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
-        </div>
+      <div style={{ marginBottom: '2rem' }}>
+        <h1 style={{ fontSize: '1.875rem', fontWeight: '800', color: 'var(--cip-blue)', marginBottom: '0.5rem' }}>Inscripción Presencial</h1>
+        <p className="text-muted">Use este módulo para registrar solicitudes de colegiados presenciales. La solicitud quedará en revisión para la aprobación del Administrador.</p>
       </div>
 
       <div className="card">
@@ -639,6 +626,13 @@ export default function AdminPresencial() {
                   <option key={s.id} value={s.nombre}>{s.nombre}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Fecha de Registro *</label>
+              <input type="date" className="form-input" value={fechaRegistro}
+                onChange={(e) => setFechaRegistro(e.target.value)}
+                required />
             </div>
 
             <div className="form-group">

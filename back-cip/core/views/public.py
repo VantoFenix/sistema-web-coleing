@@ -154,8 +154,13 @@ class PublicConsultaSolicitudView(APIView):
             'motivo_rechazo': sol.motivo_rechazo
         })
 
+from ..authentication import CustomJWTAuthentication
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
+from datetime import datetime, date, time
+
 class PublicPostulacionView(APIView):
-    authentication_classes = []
+    authentication_classes = [CustomJWTAuthentication]
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -259,6 +264,24 @@ class PublicPostulacionView(APIView):
             print(f"[ERROR] Fallo al guardar archivos: {e}", file=sys.stderr)
             return Response({'error': f'Error al guardar los archivos: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+        creado_en_input = request.data.get('creado_en')
+        fecha_creacion_final = timezone.now()
+
+        # Candado de Seguridad: Solo usuarios autenticados con rol CAJERO, ADMIN o MASTER_ADMIN pueden enviar fecha personalizada
+        if request.user and getattr(request.user, 'is_authenticated', False) and getattr(request.user, 'rol', None) in ['CAJERO', 'ADMIN', 'MASTER_ADMIN']:
+            if creado_en_input:
+                try:
+                    parsed_date = datetime.strptime(str(creado_en_input).strip(), '%Y-%m-%d').date()
+                    naive_dt = datetime.combine(parsed_date, time.min)
+                    fecha_creacion_final = timezone.make_aware(naive_dt)
+                except ValueError:
+                    parsed_dt = parse_datetime(str(creado_en_input))
+                    if parsed_dt:
+                        if timezone.is_naive(parsed_dt):
+                            fecha_creacion_final = timezone.make_aware(parsed_dt)
+                        else:
+                            fecha_creacion_final = parsed_dt
+
         try:
             solicitud = Solicitud.objects.create(
                 dni=dni,
@@ -274,7 +297,8 @@ class PublicPostulacionView(APIView):
                 fecha_pago=fecha_pago,
                 correo=correo,
                 celular=celular,
-                estado='EN_REVISION'
+                estado='EN_REVISION',
+                creado_en=fecha_creacion_final
             )
         except Exception as e:
             import sys
