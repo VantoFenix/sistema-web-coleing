@@ -53,6 +53,7 @@ export default function AdminPresencial() {
   const [isValidando, setIsValidando] = useState(false);
   const [dniValidado, setDniValidado] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -259,6 +260,11 @@ export default function AdminPresencial() {
   };
 
   const generarComprobante = () => {
+    if (pdfUrl) {
+      window.open(pdfUrl, '_blank');
+      return;
+    }
+
     const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -302,15 +308,15 @@ export default function AdminPresencial() {
     <div class="org-detail">RUC 20138086438</div>
     <div class="org-detail">AV. AREQUIPA 4947 MIRAFLORES - LIMA</div>
     <div class="boleta-box">
-      <div class="tipo">BOLETA DE VENTA<br/>ELECTRONICA</div>
+      <div class="tipo">${tipoComprobante === '01' ? 'FACTURA' : 'BOLETA'} DE VENTA<br/>ELECTRONICA</div>
       <div class="numero">B001-${Date.now().toString().slice(-8)}</div>
     </div>
   </div>
 
   <div class="section">
     <div class="section-title">DATOS DEL ADQUIRENTE</div>
-    <div class="adquirente-row">DNI: ${dni || ''}</div>
-    <div class="adquirente-row">Nombre: ${nombres || ''}</div>
+    <div class="adquirente-row">Documento: ${tipoComprobante === '01' ? rucFactura : dni}</div>
+    <div class="adquirente-row">Cliente: ${tipoComprobante === '01' ? razonSocialFactura : nombres}</div>
   </div>
 
   <div class="meta-row">
@@ -361,9 +367,11 @@ export default function AdminPresencial() {
 
   <div class="footer">
     ¡Gracias por colegiarse en el CIP!<br/>
-    Este documento es una representacion impresa de la Boleta de Venta Electronica.
+    Este documento es una representacion impresa de la ${tipoComprobante === '01' ? 'Factura' : 'Boleta'} de Venta Electronica.
     <br/><br/>
-    <button class="no-print" onclick="window.print()" style="padding:10px 20px; font-weight:bold; cursor:pointer; background:#10B981; color:white; border:none; border-radius:5px;">IMPRIMIR BOLETA</button>
+    Para ver el comprobante oficial de SUNAT, revise su correo o solicítelo en caja.
+    <br/><br/>
+    <button class="no-print" onclick="window.print()" style="padding:10px 20px; font-weight:bold; cursor:pointer; background:#10B981; color:white; border:none; border-radius:5px;">IMPRIMIR</button>
   </div>
   
   <script>
@@ -434,8 +442,8 @@ export default function AdminPresencial() {
     } else {
       if (!metodoPago) { setErrorMsg('Seleccione el método de pago.'); return; }
       if (metodoPago === 'EFECTIVO') {
-        if (!montoEfectivo || parseFloat(montoEfectivo) !== 5) {
-          setErrorMsg('Debe ingresar el monto exacto (S/ 5.00).'); return;
+        if (!montoEfectivo || parseFloat(montoEfectivo) < 5) {
+          setErrorMsg('Debe ingresar al menos S/ 5.00.'); return;
         }
       }
       if (metodoPago === 'YAPE_PLIN' && !qrPagado) {
@@ -489,6 +497,19 @@ export default function AdminPresencial() {
       });
 
       if (resPost.ok) {
+        const postData = await resPost.json();
+        if (postData.solicitud_id) {
+          // Auto-aprobar para generar factura/boleta
+          const resAprobar = await fetch(`/api/admin/postulaciones/${postData.solicitud_id}/resolver/`, {
+            method: 'POST',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accion: 'APROBAR' })
+          });
+          const aprData = await resAprobar.json();
+          if (aprData.pdf_url) {
+            setPdfUrl(aprData.pdf_url);
+          }
+        }
         setSuccess(true);
       } else {
         const errData = await resPost.json();
@@ -534,7 +555,7 @@ export default function AdminPresencial() {
             }}
           >
             <Printer size={20} />
-            Imprimir Comprobante
+            {tipoComprobante === '01' ? 'Imprimir Factura' : 'Imprimir Boleta'}
           </button>
 
           <button

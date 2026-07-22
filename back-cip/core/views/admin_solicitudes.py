@@ -155,6 +155,7 @@ class AdminResolverSolicitudView(APIView):
                         fecha_pago=f_pago
                     )
 
+                    pdf_url_final = None
                     try:
                         from apps.finanzas.services import crear_comprobante
                         comp = crear_comprobante(
@@ -175,6 +176,7 @@ class AdminResolverSolicitudView(APIView):
                             ruc = os.getenv("SUNAT_RUC_EMISOR", "20123456789")
                             base_url = os.getenv("FACTU_URL", "https://20123456789.s2.factusmart.pe/api/v1/issuer/documents").split('/documents')[0]
                             pdf_url = f"{base_url}/documents/{comp.sunat_hash}/pdf?ruc={ruc}"
+                            pdf_url_final = pdf_url
                             
                         if colegiado.correo:
                             from core.emails import enviar_confirmacion_pago
@@ -207,7 +209,7 @@ class AdminResolverSolicitudView(APIView):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
 
-            return Response({'success': True, 'estado': 'APROBADA'})
+            return Response({'success': True, 'estado': 'APROBADA', 'pdf_url': pdf_url_final})
 
         return Response({'error': 'Acción inválida'}, status=status.HTTP_400_BAD_REQUEST)
 
