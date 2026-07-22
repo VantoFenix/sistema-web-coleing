@@ -260,6 +260,7 @@ export default function AdminPagoPresencial() {
     setFlowModoMixto(false);
     setQrPagadoMixto(false);
     setResultado(null);
+    setDeuda(null);
     setCargandoDeuda(true);
     try {
       const res = await fetch(`/api/admin/colegiados/${col.id}/deuda/`, {
@@ -338,8 +339,10 @@ export default function AdminPagoPresencial() {
   const seleccionarTodos = () => setPeriodosSeleccionados(new Set(getPeriodos().filter(p => p.estado !== 'PAGADO').map(p => p.periodo)));
   const seleccionarSoloDeuda = () => setPeriodosSeleccionados(new Set(getPendientesDeuda()));
   const deseleccionarTodos = () => setPeriodosSeleccionados(new Set());
+  const enviandoRef = useRef(false);
 
   const handleRegistrar = async (flowSuccess = false) => {
+    if (enviandoRef.current) return;
     setErrForm('');
     if (periodosSeleccionados.size === 0) { setErrForm('Seleccione al menos un periodo.'); return; }
     
@@ -391,6 +394,7 @@ export default function AdminPagoPresencial() {
     }
 
     setEnviando(true);
+    enviandoRef.current = true;
 
     if (!esMixto && metodo === 'YAPE_PLIN' && !flowSuccess) {
       try {
@@ -418,6 +422,7 @@ export default function AdminPagoPresencial() {
         setErrForm('Error de conexión con Flow.');
       } finally {
         setEnviando(false);
+        enviandoRef.current = false;
       }
       return;
     }
@@ -446,6 +451,7 @@ export default function AdminPagoPresencial() {
       setErrForm('Error de conexión con el servidor.');
     } finally {
       setEnviando(false);
+      enviandoRef.current = false;
     }
   };
 

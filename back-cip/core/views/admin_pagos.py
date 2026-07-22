@@ -147,7 +147,7 @@ class AdminRegistrarPagoPresencialView(APIView):
         if monto_recibido:
             try:
                 monto_rec = float(monto_recibido)
-                if monto_rec > monto_total:
+                if monto_rec >= monto_total:
                     vuelto = monto_rec - monto_total
             except:
                 pass
