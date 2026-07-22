@@ -21,6 +21,7 @@ from django.conf import settings
 # pyrefly: ignore [missing-import]
 from ..models import Administrador, Colegiado, Solicitud, Carrera, Sede, Pago, PagoVoucherPendiente, Configuracion
 from rest_framework.parsers import MultiPartParser, FormParser
+# pyrefly: ignore [missing-import]
 from ..authentication import CustomJWTAuthentication
 # pyrefly: ignore [missing-import]
 from ..serializers import AdministradorSerializer, AdministradorCRUDSerializer, ColegiadoSerializer, SolicitudSerializer, CarreraSerializer, SedeSerializer
@@ -178,38 +179,40 @@ class AdminResolverSolicitudView(APIView):
 
                     pdf_url_final = None
                     try:
-                        from apps.finanzas.services import crear_comprobante
-                        comp = crear_comprobante(
-                            colegiado=colegiado,
-                            monto=5.00,
-                            canal=canal_pago,
-                            metodo_pago=metodo_pago,
-                            transaccion_id=solicitud.numero_operacion,
-                            observaciones=obs_text,
-                            cliente_documento=solicitud.ruc_factura if solicitud.tipo_comprobante == '01' else None,
-                            cliente_nombre=solicitud.razon_social_factura if solicitud.tipo_comprobante == '01' else None,
-                            tipo_comprobante=solicitud.tipo_comprobante
-                        )
-                        
-                        pdf_url = None
-                        if comp.sunat_hash:
-                            import os
-                            ruc = os.getenv("SUNAT_RUC_EMISOR", "20123456789")
-                            base_url = os.getenv("FACTU_URL", "https://20123456789.s2.factusmart.pe/api/v1/issuer/documents").split('/documents')[0]
-                            pdf_url = f"{base_url}/documents/{comp.sunat_hash}/pdf?ruc={ruc}"
-                            pdf_url_final = pdf_url
-                            
-                        if colegiado.correo:
-                            from core.emails import enviar_confirmacion_pago
-                            enviar_confirmacion_pago(
-                                correo=colegiado.correo,
-                                nombres=colegiado.nombres,
-                                nro_colegiado=colegiado.nro_colegiado,
-                                monto_total=5.00,
-                                periodos_pagados=['Inscripción'],
-                                nro_operacion=solicitud.numero_operacion or "INSCRIPCION",
-                                pdf_url=pdf_url
+                        with transaction.atomic():
+                            # pyrefly: ignore [missing-import]
+                            from apps.finanzas.services import crear_comprobante
+                            comp = crear_comprobante(
+                                colegiado=colegiado,
+                                monto=5.00,
+                                canal=canal_pago,
+                                metodo_pago=metodo_pago,
+                                transaccion_id=solicitud.numero_operacion,
+                                observaciones=obs_text,
+                                cliente_documento=solicitud.ruc_factura if solicitud.tipo_comprobante == '01' else None,
+                                cliente_nombre=solicitud.razon_social_factura if solicitud.tipo_comprobante == '01' else None,
+                                tipo_comprobante=solicitud.tipo_comprobante
                             )
+                            
+                            pdf_url = None
+                            if comp.sunat_hash:
+                                import os
+                                ruc = os.getenv("SUNAT_RUC_EMISOR", "20123456789")
+                                base_url = os.getenv("FACTU_URL", "https://20123456789.s2.factusmart.pe/api/v1/issuer/documents").split('/documents')[0]
+                                pdf_url = f"{base_url}/documents/{comp.sunat_hash}/pdf?ruc={ruc}"
+                                pdf_url_final = pdf_url
+                                
+                            if colegiado.correo:
+                                from core.emails import enviar_confirmacion_pago
+                                enviar_confirmacion_pago(
+                                    correo=colegiado.correo,
+                                    nombres=colegiado.nombres,
+                                    nro_colegiado=colegiado.nro_colegiado,
+                                    monto_total=5.00,
+                                    periodos_pagados=['Inscripción'],
+                                    nro_operacion=solicitud.numero_operacion or "INSCRIPCION",
+                                    pdf_url=pdf_url
+                                )
                     except Exception as e:
                         import sys
                         print(f"[ERROR COMPROBANTE/EMAIL INSCRIPCION] {e}", file=sys.stderr)

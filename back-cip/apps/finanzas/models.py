@@ -120,7 +120,7 @@ class Colegiado(models.Model):
     class Meta:
         verbose_name = "Colegiado"
         verbose_name_plural = "Colegiados"
-        unique_together = (('cip', 'sede'),)
+        unique_together = (('cip', 'carrera', 'sede'),)
         ordering = ['-fecha_colegiatura', 'nombre_completo']
 
     def __str__(self):
