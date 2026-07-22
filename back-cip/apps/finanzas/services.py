@@ -86,7 +86,10 @@ def crear_comprobante(
     metodo_pago='EFECTIVO',
     transaccion_id=None,
     cuota=None,
-    observaciones=None
+    observaciones=None,
+    cliente_documento=None,
+    cliente_nombre=None,
+    tipo_comprobante='03'
 ) -> Comprobante:
     """
     Crea un nuevo comprobante de pago.
@@ -99,6 +102,9 @@ def crear_comprobante(
         transaccion_id: ID de la transacción (opcional)
         cuota: Instancia de Cuota asociada (opcional)
         observaciones: Observaciones adicionales
+        cliente_documento: RUC (opcional para facturas)
+        cliente_nombre: Razón Social (opcional para facturas)
+        tipo_comprobante: '01' Factura, '03' Boleta
     
     Returns:
         Comprobante creado
@@ -114,6 +120,9 @@ def crear_comprobante(
         metodo_pago=metodo_pago,
         transaccion_id=transaccion_id,
         observaciones=observaciones,
+        cliente_documento=cliente_documento,
+        cliente_nombre=cliente_nombre,
+        sunat_tipo_comprobante=tipo_comprobante,
         estado='GENERADO'
     )
     

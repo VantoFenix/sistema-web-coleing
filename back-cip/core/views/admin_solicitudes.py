@@ -144,7 +144,7 @@ class AdminResolverSolicitudView(APIView):
                     # Para web, si no hay fecha_pago, usamos la fecha de hoy
                     f_pago = solicitud.fecha_pago if solicitud.fecha_pago else datetime.utcnow().date()
 
-                    Pago.objects.create(
+                    pago_inc = Pago.objects.create(
                         colegiado=colegiado,
                         tipo='INCORPORACION',
                         periodo=f_pago.replace(day=1), # Usamos el mes de la inscripción
@@ -154,6 +154,43 @@ class AdminResolverSolicitudView(APIView):
                         nro_operacion=solicitud.numero_operacion,
                         fecha_pago=f_pago
                     )
+
+                    try:
+                        from apps.finanzas.services import crear_comprobante
+                        comp = crear_comprobante(
+                            colegiado=colegiado,
+                            monto=5.00,
+                            canal=canal_pago,
+                            metodo_pago=metodo_pago,
+                            transaccion_id=solicitud.numero_operacion,
+                            observaciones=f"Inscripción Inicial: {solicitud.nombres}",
+                            cliente_documento=solicitud.ruc_factura if solicitud.tipo_comprobante == '01' else None,
+                            cliente_nombre=solicitud.razon_social_factura if solicitud.tipo_comprobante == '01' else None,
+                            tipo_comprobante=solicitud.tipo_comprobante
+                        )
+                        
+                        pdf_url = None
+                        if comp.sunat_hash:
+                            import os
+                            ruc = os.getenv("SUNAT_RUC_EMISOR", "20123456789")
+                            base_url = os.getenv("FACTU_URL", "https://20123456789.s2.factusmart.pe/api/v1/issuer/documents").split('/documents')[0]
+                            pdf_url = f"{base_url}/documents/{comp.sunat_hash}/pdf?ruc={ruc}"
+                            
+                        if colegiado.correo:
+                            from core.emails import enviar_confirmacion_pago
+                            enviar_confirmacion_pago(
+                                correo=colegiado.correo,
+                                nombres=colegiado.nombres,
+                                nro_colegiado=colegiado.nro_colegiado,
+                                monto_total=5.00,
+                                periodos_pagados=['Inscripción'],
+                                nro_operacion=solicitud.numero_operacion or "INSCRIPCION",
+                                pdf_url=pdf_url
+                            )
+                    except Exception as e:
+                        import sys
+                        print(f"[ERROR COMPROBANTE/EMAIL INSCRIPCION] {e}", file=sys.stderr)
+
 
             except IntegrityError as e:
                 msg = str(e)

@@ -211,6 +211,9 @@ class PublicPostulacionView(APIView):
         banco = request.data.get('banco')
         correo = request.data.get('correo')
         celular = request.data.get('celular')
+        tipo_comprobante = request.data.get('tipo_comprobante', '03')
+        ruc_factura = request.data.get('ruc_factura')
+        razon_social_factura = request.data.get('razon_social_factura')
 
         foto = request.FILES.get('foto')
         titulo = request.FILES.get('titulo')
@@ -335,6 +338,9 @@ class PublicPostulacionView(APIView):
                 fecha_pago=fecha_pago,
                 correo=correo,
                 celular=celular,
+                tipo_comprobante=tipo_comprobante,
+                ruc_factura=ruc_factura,
+                razon_social_factura=razon_social_factura,
                 estado='EN_REVISION',
                 creado_en=fecha_creacion_final
             )

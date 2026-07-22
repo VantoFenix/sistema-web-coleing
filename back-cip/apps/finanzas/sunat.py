@@ -17,11 +17,20 @@ def procesar_comprobante_sunat(comprobante):
         comprobante.save(update_fields=['sunat_estado', 'sunat_mensaje'])
         return comprobante
 
-    es_factura = comprobante.colegiado.tipo_documento == 'RUC'
+    es_factura = comprobante.sunat_tipo_comprobante == '01'
     tipo_comprobante = '01' if es_factura else '03'
     
-    tipo_doc_cliente = '6' if es_factura else '1'
-    if comprobante.colegiado.tipo_documento == 'CE': tipo_doc_cliente = '4'
+    # Datos del cliente
+    if es_factura and comprobante.cliente_documento:
+        tipo_doc_cliente = '6'
+        doc_cliente = comprobante.cliente_documento
+        nombre_cliente = comprobante.cliente_nombre
+    else:
+        tipo_doc_cliente = '1'
+        if comprobante.colegiado.tipo_documento == 'CE': tipo_doc_cliente = '4'
+        elif comprobante.colegiado.tipo_documento == 'RUC': tipo_doc_cliente = '6'
+        doc_cliente = comprobante.colegiado.numero_documento
+        nombre_cliente = comprobante.colegiado.nombre_completo
 
     monto_total = float(comprobante.monto)
     
@@ -36,8 +45,8 @@ def procesar_comprobante_sunat(comprobante):
         "codigo_tipo_moneda": "PEN",
         "datos_del_cliente_o_receptor": {
             "codigo_tipo_documento_identidad": tipo_doc_cliente,
-            "numero_documento": comprobante.colegiado.numero_documento,
-            "apellidos_y_nombres_o_razon_social": comprobante.colegiado.nombre_completo
+            "numero_documento": doc_cliente,
+            "apellidos_y_nombres_o_razon_social": nombre_cliente
         },
         "totales": {
             "total_operaciones_inafectas": monto_total,

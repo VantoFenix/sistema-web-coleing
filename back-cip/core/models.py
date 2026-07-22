@@ -62,6 +62,9 @@ class Solicitud(models.Model):
     motivo_rechazo  = models.TextField(null=True, blank=True)
     numero_operacion= models.CharField(max_length=50, null=True, blank=True)
     fecha_pago      = models.DateField(null=True, blank=True)
+    tipo_comprobante= models.CharField(max_length=2, default='03') # 01=Factura, 03=Boleta
+    ruc_factura     = models.CharField(max_length=11, null=True, blank=True)
+    razon_social_factura = models.CharField(max_length=150, null=True, blank=True)
     correo          = models.EmailField(null=True, blank=True)
     celular         = models.CharField(max_length=15, null=True, blank=True)
     creado_en       = models.DateTimeField(default=timezone.now)
