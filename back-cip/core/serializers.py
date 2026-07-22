@@ -77,10 +77,53 @@ class AdministradorCRUDSerializer(serializers.ModelSerializer):
                 validated_data.pop('password')
         return super().update(instance, validated_data)
 
+from utils.storage import select_media_storage, select_raw_storage
+from django.conf import settings
+
+def _format_media_url(url_val):
+    if not url_val:
+        return url_val
+    if url_val.startswith('http://') or url_val.startswith('https://'):
+        return url_val
+    
+    # Si es una ruta relativa que empieza por /media/
+    if url_val.startswith('/media/'):
+        clean_path = url_val.replace('/media/', '', 1)
+        if getattr(settings, 'CLOUDINARY_STORAGE', None):
+            try:
+                if clean_path.lower().endswith('.pdf'):
+                    return select_raw_storage().url(clean_path)
+                else:
+                    return select_media_storage().url(clean_path)
+            except Exception:
+                pass
+    return url_val
+
 class SolicitudSerializer(serializers.ModelSerializer):
     carrera = CarreraSerializer(read_only=True)
     sede = SedeSerializer(read_only=True)
+    foto_url = serializers.SerializerMethodField()
+    titulo_pdf_url = serializers.SerializerMethodField()
+    recibo_pago_url = serializers.SerializerMethodField()
+    dni_anverso_url = serializers.SerializerMethodField()
+    dni_reverso_url = serializers.SerializerMethodField()
     
     class Meta:
         model = Solicitud
         fields = '__all__'
+
+    def get_foto_url(self, obj):
+        return _format_media_url(obj.foto_url)
+
+    def get_titulo_pdf_url(self, obj):
+        return _format_media_url(obj.titulo_pdf_url)
+
+    def get_recibo_pago_url(self, obj):
+        return _format_media_url(obj.recibo_pago_url)
+
+    def get_dni_anverso_url(self, obj):
+        return _format_media_url(obj.dni_anverso_url)
+
+    def get_dni_reverso_url(self, obj):
+        return _format_media_url(obj.dni_reverso_url)
+

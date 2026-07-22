@@ -78,8 +78,10 @@ class PortalFotoView(APIView):
         try:
             ext = foto.name.split('.')[-1].lower()
             foto_name = f"fotos/{uuid.uuid4().hex}.{ext}"
-            saved_path = default_storage.save(foto_name, foto)
-            foto_url = f"/media/{saved_path}"
+            from utils.storage import select_media_storage
+            st = select_media_storage()
+            saved_path = st.save(foto_name, foto)
+            foto_url = st.url(saved_path)
 
             col.foto_url = foto_url
             col.save(update_fields=['foto_url'])

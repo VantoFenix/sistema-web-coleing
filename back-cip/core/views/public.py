@@ -282,24 +282,26 @@ class PublicPostulacionView(APIView):
 
         try:
             import sys
-            # Add to import block at the top if necessary, but we can do it here for now
-            sys.path.append(os.path.join(settings.BASE_DIR, '..')) # Just in case
+            sys.path.append(os.path.join(settings.BASE_DIR, '..'))
             from utils.storage import select_raw_storage, select_media_storage
             raw_storage = select_raw_storage()
             media_storage = select_media_storage()
             
-            # Helper function to use correct storage based on content_type
-            def save_file(name, file_obj):
+            def save_file_and_get_url(name, file_obj):
+                if not file_obj:
+                    return None
                 if file_obj.content_type.startswith('image/'):
-                    media_storage.save(name, file_obj)
+                    saved = media_storage.save(name, file_obj)
+                    return media_storage.url(saved)
                 else:
-                    raw_storage.save(name, file_obj)
+                    saved = raw_storage.save(name, file_obj)
+                    return raw_storage.url(saved)
             
-            save_file(foto_name, foto)
-            save_file(titulo_name, titulo)
-            if recibo: save_file(recibo_name, recibo)
-            save_file(dni_anverso_name, dni_anverso)
-            save_file(dni_reverso_name, dni_reverso)
+            foto_url_val = save_file_and_get_url(foto_name, foto)
+            titulo_url_val = save_file_and_get_url(titulo_name, titulo)
+            recibo_url_val = save_file_and_get_url(recibo_name, recibo) if recibo else None
+            dni_anverso_url_val = save_file_and_get_url(dni_anverso_name, dni_anverso)
+            dni_reverso_url_val = save_file_and_get_url(dni_reverso_name, dni_reverso)
         except Exception as e:
             import sys
             print(f"[ERROR] Fallo al guardar archivos: {e}", file=sys.stderr)
@@ -329,11 +331,11 @@ class PublicPostulacionView(APIView):
                 nombres=nombres,
                 carrera=carrera,
                 sede=sede,
-                foto_url=f"/media/{foto_name}",
-                titulo_pdf_url=f"/media/{titulo_name}",
-                recibo_pago_url=f"/media/{recibo_name}" if recibo else None,
-                dni_anverso_url=f"/media/{dni_anverso_name}",
-                dni_reverso_url=f"/media/{dni_reverso_name}",
+                foto_url=foto_url_val,
+                titulo_pdf_url=titulo_url_val,
+                recibo_pago_url=recibo_url_val,
+                dni_anverso_url=dni_anverso_url_val,
+                dni_reverso_url=dni_reverso_url_val,
                 numero_operacion=numero_operacion,
                 fecha_pago=fecha_pago,
                 correo=correo,
@@ -397,26 +399,31 @@ class PublicActualizarPostulacionView(APIView):
         base_path = 'postulaciones/'
 
         try:
+            from utils.storage import select_raw_storage, select_media_storage
+            media_storage = select_media_storage()
+            raw_storage = select_raw_storage()
+
             if foto:
                 if not foto.content_type.startswith('image/'):
                     return Response({'error': 'La foto debe ser imagen válida.'}, status=status.HTTP_400_BAD_REQUEST)
                 fn = f"{base_path}{uuid.uuid4()}_{foto.name}"
-                default_storage.save(fn, foto)
-                solicitud.foto_url = f"/media/{fn}"
+                saved = media_storage.save(fn, foto)
+                solicitud.foto_url = media_storage.url(saved)
 
             if titulo:
                 if titulo.content_type != 'application/pdf':
                     return Response({'error': 'El Título debe ser PDF.'}, status=status.HTTP_400_BAD_REQUEST)
                 tn = f"{base_path}{uuid.uuid4()}_{titulo.name}"
-                default_storage.save(tn, titulo)
-                solicitud.titulo_pdf_url = f"/media/{tn}"
+                saved = raw_storage.save(tn, titulo)
+                solicitud.titulo_pdf_url = raw_storage.url(saved)
 
             if recibo:
                 if not (recibo.content_type.startswith('image/') or recibo.content_type == 'application/pdf'):
                     return Response({'error': 'El Recibo debe ser PDF o imagen.'}, status=status.HTTP_400_BAD_REQUEST)
                 rn = f"{base_path}{uuid.uuid4()}_{recibo.name}"
-                default_storage.save(rn, recibo)
-                solicitud.recibo_pago_url = f"/media/{rn}"
+                st = media_storage if recibo.content_type.startswith('image/') else raw_storage
+                saved = st.save(rn, recibo)
+                solicitud.recibo_pago_url = st.url(saved)
         except Exception as e:
             return Response({'error': f'Error guardando archivos: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

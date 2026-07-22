@@ -144,9 +144,10 @@ export default function AdminPostulaciones() {
 
   const abrirArchivo = (url, titulo) => {
     if (!url) return;
-    const ext = url.split('?')[0].split('.').pop().toLowerCase();
-    const tipo = ext === 'pdf' ? 'pdf' : 'imagen';
-    setVisorArchivo({ url, tipo, titulo });
+    const cleanUrl = url.trim();
+    const isPdf = cleanUrl.toLowerCase().includes('.pdf') || cleanUrl.toLowerCase().includes('/raw/upload/');
+    const tipo = isPdf ? 'pdf' : 'imagen';
+    setVisorArchivo({ url: cleanUrl, tipo, titulo });
   };
 
   // VISTA TABLA
@@ -602,7 +603,7 @@ function VisorModal({ visor, onClose }) {
             <ExternalLink size={13} /> Nueva pestaña
           </a>
           <a
-            href={visor.url} download
+            href={visor.url} download target="_blank" rel="noopener noreferrer"
             style={{ background: 'rgba(255,255,255,0.15)', color: 'white', borderRadius: '6px', padding: '0.35rem 0.65rem', fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none' }}
           >
             <Download size={13} /> Descargar
