@@ -397,20 +397,25 @@ export default function AdminPresencial() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!nombres || !carrera || !sede || !correo || !celular || !foto || !titulo || !dniAnverso || !dniReverso) {
-      setErrorMsg("Complete todos los campos requeridos y adjunte los documentos (incluyendo DNI).");
-      return;
+    const faltantes = [];
+    if (!dni || dni.length !== 8) faltantes.push("DNI válido (8 dígitos)");
+    if (!nombres) faltantes.push("Nombres completos");
+    if (!carrera) faltantes.push("Carrera profesional");
+    if (!sede) faltantes.push("Sede");
+    if (!correo || !correo.includes('@') || !correo.includes('.')) faltantes.push("Correo electrónico válido");
+    if (!celular || celular.length !== 9 || !celular.startsWith('9')) faltantes.push("Celular válido (9 dígitos)");
+    if (!foto) faltantes.push("Foto tamaño carnet");
+    if (!titulo) faltantes.push("Título profesional (PDF)");
+    if (!dniAnverso) faltantes.push("DNI Anverso");
+    if (!dniReverso) faltantes.push("DNI Reverso");
+
+    if (tipoComprobante === '01') {
+      if (!rucFactura || rucFactura.length !== 11) faltantes.push("RUC de Factura (11 dígitos)");
+      if (!razonSocialFactura || !razonSocialFactura.trim()) faltantes.push("Razón Social");
     }
-    if (!correo.includes('@') || !correo.includes('.')) {
-      setErrorMsg("Ingrese un correo electrónico válido.");
-      return;
-    }
-    if (celular.length !== 9 || !celular.startsWith('9')) {
-      setErrorMsg("El celular debe tener 9 dígitos y empezar con 9 (número de Perú).");
-      return;
-    }
-    if (dni.length !== 8) {
-      setErrorMsg("El DNI debe tener 8 dígitos.");
+
+    if (faltantes.length > 0) {
+      setErrorMsg(`Por favor complete o corrija los siguientes campos: ${faltantes.join(' · ')}.`);
       return;
     }
 

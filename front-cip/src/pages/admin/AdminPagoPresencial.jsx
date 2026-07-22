@@ -291,7 +291,13 @@ export default function AdminPagoPresencial() {
       }
 
       setPeriodosSeleccionados(new Set(toSelect));
-      setMaxVisibleYear(hoy.getFullYear());
+      const periodosNoPagados = periodos.filter(p => p.estado !== 'PAGADO');
+      if (periodosNoPagados.length > 0) {
+        const minYear = Math.min(...periodosNoPagados.map(p => parseInt(p.periodo.split('-')[0])));
+        setMaxVisibleYear(Math.max(hoy.getFullYear(), minYear));
+      } else {
+        setMaxVisibleYear(hoy.getFullYear());
+      }
     } catch {
       setDeuda({ periodos: [], periodos_pendientes: [], total_deuda: 0 });
     } finally {
@@ -630,6 +636,13 @@ export default function AdminPagoPresencial() {
         setDeuda(d);
         const pp = d.periodos || d.periodos_pendientes || [];
         setPeriodosSeleccionados(new Set(pp.filter(p => (p.estado ?? 'PENDIENTE') === 'PENDIENTE').map(p => p.periodo)));
+        const periodosNoPagados = pp.filter(p => p.estado !== 'PAGADO');
+        if (periodosNoPagados.length > 0) {
+          const minYear = Math.min(...periodosNoPagados.map(p => parseInt(p.periodo.split('-')[0])));
+          setMaxVisibleYear(Math.max(hoy.getFullYear(), minYear));
+        } else {
+          setMaxVisibleYear(hoy.getFullYear());
+        }
       })
       .catch(() => {})
       .finally(() => setCargandoDeuda(false));
@@ -707,10 +720,14 @@ export default function AdminPagoPresencial() {
           )}
 
           {/* Estado habilitación */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1rem', background: resultado.habilitado_nuevo ? '#D1FAE5' : '#FEF3C7', borderRadius: '8px', marginBottom: '1.5rem' }}>
-            {resultado.habilitado_nuevo ? <BadgeCheck size={20} color="#059669" /> : <AlertCircle size={20} color="#D97706" />}
-            <span style={{ fontSize: '0.875rem', fontWeight: '600', color: resultado.habilitado_nuevo ? '#065F46' : '#92400E' }}>
-              {resultado.habilitado_nuevo ? 'El colegiado ahora está HABILITADO' : 'El colegiado aún tiene meses pendientes (sigue inhabilitado)'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1rem', background: (colegiado?.habilitado || resultado.habilitado_nuevo) ? '#D1FAE5' : '#FEF3C7', borderRadius: '8px', marginBottom: '1.5rem' }}>
+            {(colegiado?.habilitado || resultado.habilitado_nuevo) ? <BadgeCheck size={20} color="#059669" /> : <AlertCircle size={20} color="#D97706" />}
+            <span style={{ fontSize: '0.875rem', fontWeight: '600', color: (colegiado?.habilitado || resultado.habilitado_nuevo) ? '#065F46' : '#92400E' }}>
+              {colegiado?.habilitado
+                ? 'El colegiado se mantiene HABILITADO'
+                : resultado.habilitado_nuevo
+                  ? '¡El colegiado ahora está HABILITADO!'
+                  : 'El colegiado aún tiene meses pendientes de deuda (sigue inhabilitado)'}
             </span>
           </div>
 
@@ -731,7 +748,7 @@ export default function AdminPagoPresencial() {
                 fontWeight: '800', fontSize: '1rem', cursor: 'pointer'
               }}
             >
-              📥 Imprimir {tipoComprobante === '01' ? 'Factura' : 'Boleta'} (PDF)
+              📥 Imprimir {(resultado?.tipo_comprobante === '01' || tipoComprobante === '01') ? 'Factura' : 'Boleta'} (PDF)
             </button>
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button onClick={handleNuevoPago} className="btn btn-primary" style={{ flex: 1 }}>
@@ -1423,11 +1440,17 @@ export default function AdminPagoPresencial() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                       <div>
                         <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', marginBottom: '0.25rem', display: 'block' }}>RUC <span style={{ color: '#ef4444' }}>*</span></label>
-                        <input type="text" className="form-input" placeholder="RUC" value={rucFactura} onChange={e => setRucFactura(e.target.value)} maxLength={11} style={{ padding: '0.4rem', fontSize: '0.8rem' }} />
+                        <input type="text" className="form-input" placeholder="Ej. 20123456789" value={rucFactura} onChange={e => setRucFactura(e.target.value.replace(/\D/g, ''))} maxLength={11} style={{ padding: '0.4rem', fontSize: '0.8rem', borderColor: rucFactura && rucFactura.length !== 11 ? '#EF4444' : undefined }} />
+                        {rucFactura && rucFactura.length !== 11 && (
+                          <span style={{ fontSize: '0.7rem', color: '#DC2626', marginTop: '0.2rem', display: 'block' }}>⚠️ El RUC debe tener 11 dígitos ({rucFactura.length}/11)</span>
+                        )}
                       </div>
                       <div>
                         <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', marginBottom: '0.25rem', display: 'block' }}>Razón Social <span style={{ color: '#ef4444' }}>*</span></label>
-                        <input type="text" className="form-input" placeholder="Razón Social" value={razonSocialFactura} onChange={e => setRazonSocialFactura(e.target.value)} style={{ padding: '0.4rem', fontSize: '0.8rem' }} />
+                        <input type="text" className="form-input" placeholder="Nombre de la empresa" value={razonSocialFactura} onChange={e => setRazonSocialFactura(e.target.value)} style={{ padding: '0.4rem', fontSize: '0.8rem', borderColor: !razonSocialFactura && rucFactura ? '#EF4444' : undefined }} />
+                        {!razonSocialFactura && rucFactura && (
+                          <span style={{ fontSize: '0.7rem', color: '#DC2626', marginTop: '0.2rem', display: 'block' }}>⚠️ Ingrese la Razón Social</span>
+                        )}
                       </div>
                     </div>
                   )}
