@@ -139,7 +139,8 @@ class AdminRegistrarPagoPresencialView(APIView):
         from datetime import datetime as _dt
         emision = _dt.now().strftime('%d/%m/%Y, %I:%M %p')
 
-        if colegiado.correo and registrados:
+        pdf_url_final = None
+        if registrados:
             try:
                 from apps.finanzas.services import crear_comprobante
                 comp = crear_comprobante(
@@ -160,17 +161,19 @@ class AdminRegistrarPagoPresencialView(APIView):
                     ruc = os.getenv("SUNAT_RUC_EMISOR", "20123456789")
                     base_url = os.getenv("FACTU_URL", "https://20123456789.s2.factusmart.pe/api/v1/issuer/documents").split('/documents')[0]
                     pdf_url = f"{base_url}/documents/{comp.sunat_hash}/pdf?ruc={ruc}"
+                    pdf_url_final = pdf_url
                     
-                from core.emails import enviar_confirmacion_pago
-                enviar_confirmacion_pago(
-                    correo=colegiado.correo,
-                    nombres=colegiado.nombres,
-                    nro_colegiado=colegiado.nro_colegiado,
-                    monto_total=round(monto_total, 2),
-                    periodos_pagados=registrados,
-                    nro_operacion=boleta_numero,
-                    pdf_url=pdf_url
-                )
+                if colegiado.correo:
+                    from core.emails import enviar_confirmacion_pago
+                    enviar_confirmacion_pago(
+                        correo=colegiado.correo,
+                        nombres=colegiado.nombres,
+                        nro_colegiado=colegiado.nro_colegiado,
+                        monto_total=round(monto_total, 2),
+                        periodos_pagados=registrados,
+                        nro_operacion=boleta_numero,
+                        pdf_url=pdf_url
+                    )
             except Exception as e:
                 import sys
                 print(f"[ERROR COMPROBANTE/EMAIL] {e}", file=sys.stderr)
@@ -187,6 +190,7 @@ class AdminRegistrarPagoPresencialView(APIView):
             'fecha_pago':         fecha_pago.strftime('%d/%m/%Y'),
             'emision':            emision,
             'pagos_parciales':    request.data.get('pagos_parciales', []),
+            'pdf_url':            pdf_url_final,
             # datos operativos
             'periodos_registrados': registrados,
             'ya_existian':          ya_existian,

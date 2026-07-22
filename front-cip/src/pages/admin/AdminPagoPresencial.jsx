@@ -438,6 +438,10 @@ export default function AdminPagoPresencial() {
 
   const generarComprobante = () => {
     const r = resultado;
+    if (r?.pdf_url) {
+      window.open(r.pdf_url, '_blank');
+      return;
+    }
     const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -666,7 +670,7 @@ export default function AdminPagoPresencial() {
                 fontWeight: '800', fontSize: '1rem', cursor: 'pointer'
               }}
             >
-              📥 Imprimir en PDF
+              📥 Imprimir {tipoComprobante === '01' ? 'Factura' : 'Boleta'} (PDF)
             </button>
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button onClick={handleNuevoPago} className="btn btn-primary" style={{ flex: 1 }}>
