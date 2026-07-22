@@ -128,8 +128,9 @@ class AdminRegistrarPagoPresencialView(APIView):
                 'errores': errores,
             }, status=status.HTTP_200_OK)
 
-        # Número de boleta basado en el ID del primer pago creado
-        boleta_numero = f'B001-{str(pagos_creados[0].id).zfill(8)}'
+        # Número de comprobante basado en el ID del primer pago creado
+        prefijo = 'F001' if tipo_comprobante == '01' else 'B001'
+        boleta_numero = f'{prefijo}-{str(pagos_creados[0].id).zfill(8)}'
 
         # Etiqueta de periodos para el comprobante
         MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -205,19 +206,22 @@ class AdminRegistrarPagoPresencialView(APIView):
         return Response({
             'success': True,
             # datos comprobante
-            'boleta_numero':      boleta_numero,
-            'colegiado_nombres':  colegiado.nombres,
-            'colegiado_dni':      colegiado.dni,
-            'periodos_label':     periodos_label,
-            'monto_total':        round(monto_total, 2),
-            'metodo':             metodo,
-            'fecha_pago':         fecha_pago.strftime('%d/%m/%Y'),
-            'emision':            emision,
-            'pagos_parciales':    request.data.get('pagos_parciales', []),
-            'monto_recibido':     monto_recibido,
-            'vuelto':             vuelto,
-            'pdf_url':            pdf_url_final,
-            'mensaje':            'Pago procesado correctamente.',
+            'boleta_numero':        boleta_numero,
+            'tipo_comprobante':     tipo_comprobante,
+            'ruc_factura':          ruc_factura if tipo_comprobante == '01' else None,
+            'razon_social_factura': razon_social_factura if tipo_comprobante == '01' else None,
+            'colegiado_nombres':    colegiado.nombres,
+            'colegiado_dni':        colegiado.dni,
+            'periodos_label':       periodos_label,
+            'monto_total':          round(monto_total, 2),
+            'metodo':               metodo,
+            'fecha_pago':           fecha_pago.strftime('%d/%m/%Y'),
+            'emision':              emision,
+            'pagos_parciales':      request.data.get('pagos_parciales', []),
+            'monto_recibido':       monto_recibido,
+            'vuelto':               vuelto,
+            'pdf_url':              pdf_url_final,
+            'mensaje':              'Pago procesado correctamente.',
             # datos operativos
             'periodos_registrados': registrados,
             'ya_existian':          ya_existian,

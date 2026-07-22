@@ -257,6 +257,9 @@ export default function AdminPagoPresencial() {
     setEsMixto(false);
     setMetodo1(''); setMonto1(''); setMetodo2(''); setMonto2('');
     setMonto('');
+    setTipoComprobante('03');
+    setRucFactura('');
+    setRazonSocialFactura('');
     setErrForm('');
     setFlowInitPoint(null);
     setFlowToken(null);
@@ -442,6 +445,7 @@ export default function AdminPagoPresencial() {
       });
       const data = await res.json();
       if (data.success) {
+        sessionStorage.removeItem('admin_pago_periodos');
         setResultado({ ok: true, ...data });
       } else if (data.ya_pagados) {
         // Periodos ya registrados — refrescar calendario para sincronizar
@@ -464,11 +468,15 @@ export default function AdminPagoPresencial() {
       window.open(r.pdf_url, '_blank');
       return;
     }
+    const esFactura = (r?.tipo_comprobante === '01' || tipoComprobante === '01');
+    const tituloComprobante = esFactura ? 'FACTURA DE VENTA<br/>ELECTRONICA' : 'BOLETA DE VENTA<br/>ELECTRONICA';
+    const numeroComprobante = r?.boleta_numero || (esFactura ? 'F001-00000000' : 'B001-00000000');
+
     const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8"/>
-  <title>Comprobante ${r.boleta_numero || ''}</title>
+  <title>Comprobante ${numeroComprobante}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; background: #fff; width: 80mm; margin: 0 auto; padding: 5mm; }
@@ -507,15 +515,21 @@ export default function AdminPagoPresencial() {
     <div class="org-detail">RUC 20138086438</div>
     <div class="org-detail">AV. AREQUIPA 4947 MIRAFLORES - LIMA</div>
     <div class="boleta-box">
-      <div class="tipo">BOLETA DE VENTA<br/>ELECTRONICA</div>
-      <div class="numero">${r.boleta_numero || 'B001-00000000'}</div>
+      <div class="tipo">${tituloComprobante}</div>
+      <div class="numero">${numeroComprobante}</div>
     </div>
   </div>
 
   <div class="section">
     <div class="section-title">DATOS DEL ADQUIRENTE</div>
+    ${esFactura ? `
+    <div class="adquirente-row">RUC: ${r.ruc_factura || rucFactura || ''}</div>
+    <div class="adquirente-row">Razón Social: ${r.razon_social_factura || razonSocialFactura || ''}</div>
+    <div class="adquirente-row">Colegiado: ${r.colegiado_nombres || r.colegiado || ''} (DNI ${r.colegiado_dni || ''})</div>
+    ` : `
     <div class="adquirente-row">DNI: ${r.colegiado_dni || ''}</div>
     <div class="adquirente-row">Nombre: ${r.colegiado_nombres || r.colegiado || ''}</div>
+    `}
   </div>
 
   <div class="meta-row">
@@ -606,13 +620,18 @@ export default function AdminPagoPresencial() {
   const recargarDeuda = () => {
     setCargandoDeuda(true);
     setResultado(null);
-    fetch(`/api/admin/colegiados/${colegiado.id}/deuda/`)
+    sessionStorage.removeItem('admin_pago_periodos');
+    const token = localStorage.getItem('adminToken') || '';
+    fetch(`/api/admin/colegiados/${colegiado.id}/deuda/`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
       .then(r => r.json())
       .then(d => {
         setDeuda(d);
         const pp = d.periodos || d.periodos_pendientes || [];
         setPeriodosSeleccionados(new Set(pp.filter(p => (p.estado ?? 'PENDIENTE') === 'PENDIENTE').map(p => p.periodo)));
       })
+      .catch(() => {})
       .finally(() => setCargandoDeuda(false));
   };
 
@@ -647,12 +666,24 @@ export default function AdminPagoPresencial() {
           {/* Resumen comprobante */}
           <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '1rem 1.25rem', marginBottom: '1.25rem', fontSize: '0.85rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Boleta N°</span>
+              <span style={{ color: 'var(--text-muted)' }}>{(resultado.tipo_comprobante === '01' || tipoComprobante === '01') ? 'Factura N°' : 'Boleta N°'}</span>
               <strong style={{ fontFamily: 'monospace', color: 'var(--cip-blue)' }}>{resultado.boleta_numero || '—'}</strong>
             </div>
+            {(resultado.tipo_comprobante === '01' || tipoComprobante === '01') && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>RUC Factura</span>
+                  <strong>{resultado.ruc_factura || rucFactura || '—'}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Razón Social</span>
+                  <strong style={{ textAlign: 'right', maxWidth: '60%' }}>{resultado.razon_social_factura || razonSocialFactura || '—'}</strong>
+                </div>
+              </>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>DNI</span>
-              <strong>{resultado.colegiado_dni || '—'}</strong>
+              <span style={{ color: 'var(--text-muted)' }}>Colegiado</span>
+              <strong>{resultado.colegiado_nombres || resultado.colegiado || '—'} (DNI {resultado.colegiado_dni || '—'})</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
               <span style={{ color: 'var(--text-muted)' }}>Periodos</span>
