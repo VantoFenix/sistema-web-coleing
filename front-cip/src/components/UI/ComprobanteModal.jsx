@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Download, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Download, Loader2, CheckCircle2, AlertCircle, Mail, Send } from 'lucide-react';
 
 /**
  * ComprobanteModal - Modal para mostrar y descargar comprobante de pago
@@ -13,6 +13,12 @@ import { X, Download, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 export default function ComprobanteModal({ comprobante, colegiado, onClose, onDescargar }) {
   const [descargando, setDescargando] = useState(false);
   const [errorDescarga, setErrorDescarga] = useState(null);
+
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [targetEmail, setTargetEmail] = useState(colegiado?.correo || '');
+  const [enviandoEmail, setEnviandoEmail] = useState(false);
+  const [emailEnviado, setEmailEnviado] = useState(false);
+  const [errorEmail, setErrorEmail] = useState(null);
 
   if (!comprobante || !colegiado) {
     return null;
@@ -52,6 +58,34 @@ export default function ComprobanteModal({ comprobante, colegiado, onClose, onDe
       setErrorDescarga('Error al descargar el PDF. Por favor, intente nuevamente.');
     } finally {
       setDescargando(false);
+    }
+  };
+
+  const handleEnviarEmail = async () => {
+    if (!targetEmail || !targetEmail.includes('@')) {
+      setErrorEmail('Por favor ingrese un correo electrónico válido.');
+      return;
+    }
+    setEnviandoEmail(true);
+    setErrorEmail(null);
+
+    try {
+      const response = await fetch(`/api/finanzas/comprobantes/${comprobante.id}/enviar_email/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: targetEmail })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al enviar comprobante por correo');
+      }
+      setEmailEnviado(true);
+      setShowEmailForm(false);
+    } catch (err) {
+      console.error('Error enviando email:', err);
+      setErrorEmail(err.message || 'Error al enviar el correo');
+    } finally {
+      setEnviandoEmail(false);
     }
   };
 
@@ -237,8 +271,8 @@ export default function ComprobanteModal({ comprobante, colegiado, onClose, onDe
               </div>
             </div>
 
-            {/* Error de descarga */}
-            {errorDescarga && (
+            {/* Error de descarga / email */}
+            {(errorDescarga || errorEmail) && (
               <div
                 style={{
                   background: '#FEE2E2',
@@ -253,69 +287,152 @@ export default function ComprobanteModal({ comprobante, colegiado, onClose, onDe
               >
                 <AlertCircle size={20} color="#DC2626" style={{ flexShrink: 0, marginTop: '0.1rem' }} />
                 <p style={{ color: '#DC2626', fontSize: '0.9rem', margin: 0 }}>
-                  {errorDescarga}
+                  {errorDescarga || errorEmail}
                 </p>
               </div>
             )}
 
-            {/* Botones */}
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button
-                onClick={handleDescargar}
-                disabled={descargando}
+            {/* Banner de Correo Enviado Exitosamente */}
+            {emailEnviado && (
+              <div
                 style={{
-                  flex: 1,
-                  background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
-                  color: 'white',
-                  border: 'none',
+                  background: '#ECFDF5',
+                  border: '1px solid #A7F3D0',
                   borderRadius: '8px',
-                  padding: '0.875rem',
-                  fontSize: '1rem',
-                  fontWeight: '600',
-                  cursor: descargando ? 'not-allowed' : 'pointer',
+                  padding: '0.75rem 1rem',
+                  marginBottom: '1rem',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  opacity: descargando ? 0.7 : 1,
-                  transition: 'all 0.2s',
+                  gap: '0.75rem',
                 }}
-                onMouseEnter={e => !descargando && (e.currentTarget.style.transform = 'translateY(-2px)')}
-                onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
               >
-                {descargando ? (
-                  <>
-                    <Loader2 size={18} className="spin" />
-                    Descargando...
-                  </>
-                ) : (
-                  <>
-                    <Download size={18} />
-                    Descargar PDF
-                  </>
-                )}
-              </button>
+                <CheckCircle2 size={20} color="#059669" style={{ flexShrink: 0 }} />
+                <p style={{ color: '#065F46', fontSize: '0.9rem', margin: 0, fontWeight: '600' }}>
+                  ✓ Comprobante enviado exitosamente a {targetEmail}
+                </p>
+              </div>
+            )}
+
+            {/* Formulario de Enviar por Correo */}
+            {showEmailForm && (
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '1rem', marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+                  Correo electrónico de destino:
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="email"
+                    value={targetEmail}
+                    onChange={e => setTargetEmail(e.target.value)}
+                    placeholder="ejemplo@correo.com"
+                    style={{ flex: 1, padding: '0.6rem', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '0.9rem', outline: 'none' }}
+                  />
+                  <button
+                    onClick={handleEnviarEmail}
+                    disabled={enviandoEmail}
+                    style={{
+                      background: 'var(--cip-blue)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '0 1rem',
+                      fontWeight: '700',
+                      cursor: enviandoEmail ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem'
+                    }}
+                  >
+                    {enviandoEmail ? <Loader2 size={16} className="spin" /> : <><Send size={16} /> Enviar</>}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Botones principales */}
+            <div style={{ display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  onClick={handleDescargar}
+                  disabled={descargando}
+                  style={{
+                    flex: 1,
+                    background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '0.875rem',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    cursor: descargando ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    opacity: descargando ? 0.7 : 1,
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={e => !descargando && (e.currentTarget.style.transform = 'translateY(-2px)')}
+                  onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
+                >
+                  {descargando ? (
+                    <>
+                      <Loader2 size={18} className="spin" />
+                      Descargando...
+                    </>
+                  ) : (
+                    <>
+                      <Download size={18} />
+                      Descargar PDF
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => { setShowEmailForm(!showEmailForm); setEmailEnviado(false); setErrorEmail(null); }}
+                  style={{
+                    flex: 1,
+                    background: '#F1F5F9',
+                    color: 'var(--cip-blue)',
+                    border: '1.5px solid #CBD5E1',
+                    borderRadius: '8px',
+                    padding: '0.875rem',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#E2E8F0')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '#F1F5F9')}
+                >
+                  <Mail size={18} />
+                  Enviar a correo
+                </button>
+              </div>
+
               <button
                 onClick={onClose}
                 style={{
-                  flex: 1,
+                  width: '100%',
                   background: '#F3F4F6',
-                  color: 'var(--cip-blue)',
-                  border: '1.5px solid #E5E7EB',
+                  color: '#475569',
+                  border: '1px solid #E5E7EB',
                   borderRadius: '8px',
-                  padding: '0.875rem',
-                  fontSize: '1rem',
+                  padding: '0.75rem',
+                  fontSize: '0.95rem',
                   fontWeight: '600',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
                 }}
                 onMouseEnter={e => {
                   e.currentTarget.style.background = '#E5E7EB';
-                  e.currentTarget.style.borderColor = 'var(--cip-blue)';
                 }}
                 onMouseLeave={e => {
                   e.currentTarget.style.background = '#F3F4F6';
-                  e.currentTarget.style.borderColor = '#E5E7EB';
                 }}
               >
                 Cerrar

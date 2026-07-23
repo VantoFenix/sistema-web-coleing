@@ -4,27 +4,67 @@ En desarrollo (sin EMAIL_HOST en .env) los correos se imprimen en la consola
 del servidor gracias al backend `console` configurado en settings.py.
 En producción se envían por SMTP.
 """
+import base64
 from django.conf import settings
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition
+from django.core.mail import EmailMultiAlternatives
 
-def _send_via_sendgrid(subject, html_content, to_email, plain_text_content=None):
+def _send_via_sendgrid(subject, html_content, to_email, plain_text_content=None, pdf_bytes=None, pdf_filename="comprobante.pdf"):
     from django.conf import settings
-    message = Mail(
-        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'vantofortnite@gmail.com'),
-        to_emails=to_email,
-        subject=subject,
-        plain_text_content=plain_text_content or 'Por favor, habilite HTML para ver este correo.',
-        html_content=html_content
-    )
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'vantofortnite@gmail.com')
+    api_key = getattr(settings, 'SENDGRID_API_KEY', None)
+
+    # 1. Intentar envío con SendGrid
+    if api_key:
+        try:
+            message = Mail(
+                from_email=from_email,
+                to_emails=to_email,
+                subject=subject,
+                plain_text_content=plain_text_content or 'Por favor, habilite HTML para ver este correo.',
+                html_content=html_content
+            )
+
+            if pdf_bytes:
+                encoded = base64.b64encode(pdf_bytes).decode()
+                attachment = Attachment(
+                    FileContent(encoded),
+                    FileName(pdf_filename),
+                    FileType("application/pdf"),
+                    Disposition("attachment")
+                )
+                message.attachment = attachment
+
+            sg = SendGridAPIClient(api_key)
+            response = sg.send(message)
+            print(f"[EMAIL SUCCESS SendGrid] StatusCode: {response.status_code} sent to {to_email}")
+            return True
+        except Exception as e:
+            import sys
+            print(f'[SENDGRID ERROR] {e}', file=sys.stderr)
+            if hasattr(e, 'body'):
+                print(f'[SENDGRID ERROR BODY] {e.body}', file=sys.stderr)
+
+    # 2. Fallback a Django Core Mail (SMTP / Console) si SendGrid no está disponible o falló
     try:
-        sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
-        sg.send(message)
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=plain_text_content or 'Por favor, habilite HTML para ver este correo.',
+            from_email=from_email,
+            to=[to_email]
+        )
+        if html_content:
+            msg.attach_alternative(html_content, "text/html")
+        if pdf_bytes:
+            msg.attach(pdf_filename, pdf_bytes, 'application/pdf')
+        msg.send(fail_silently=False)
+        print(f"[EMAIL SUCCESS Django Mail] Sent to {to_email}")
+        return True
     except Exception as e:
         import sys
-        print(f'[EMAIL ERROR] {e}', file=sys.stderr)
-        if hasattr(e, 'body'):
-            print(f'[EMAIL ERROR BODY] {e.body}', file=sys.stderr)
+        print(f'[DJANGO MAIL ERROR] {e}', file=sys.stderr)
+        return False
 
 
 def enviar_recordatorio_deuda(*, correo, nombres, nro_colegiado,
@@ -183,10 +223,14 @@ def enviar_aviso_inhabilitacion(*, correo, nombres, nro_colegiado):
     _send_via_sendgrid(subject=asunto, plain_text_content=texto, to_email=correo, html_content=html)
 
 
-def enviar_confirmacion_pago(*, correo, nombres, nro_colegiado, monto_total, periodos_pagados, nro_operacion, pdf_url=None):
-    """Envía confirmación de pago de cuotas."""
+def enviar_confirmacion_pago(*, correo, nombres, nro_colegiado, monto_total, periodos_pagados, nro_operacion, pdf_url=None, pdf_bytes=None, pdf_filename="comprobante.pdf"):
+    """Envía confirmación de pago de cuotas con PDF adjunto y/o enlace de descarga."""
     asunto = f"Confirmación de Pago - Colegio de Ingenieros del Perú"
-    periodos_str = ', '.join(periodos_pagados)
+    
+    if isinstance(periodos_pagados, list):
+        periodos_str = ', '.join(str(p) for p in periodos_pagados)
+    else:
+        periodos_str = str(periodos_pagados or '')
     
     texto = (
         f"Estimado(a) {nombres},\n\n"
@@ -199,6 +243,8 @@ def enviar_confirmacion_pago(*, correo, nombres, nro_colegiado, monto_total, per
     )
     if pdf_url:
         texto += f"Puede descargar su boleta/factura electrónica aquí: {pdf_url}\n\n"
+    else:
+        texto += "Se adjunta su comprobante de pago en formato PDF a este correo.\n\n"
         
     texto += (
         f"Gracias por mantenerse al día con sus obligaciones institucionales.\n\n"
@@ -215,23 +261,31 @@ def enviar_confirmacion_pago(*, correo, nombres, nro_colegiado, monto_total, per
         </div>
         """
     else:
-        boton_html = "<p>Puede descargar o imprimir su boleta oficial desde el portal web.</p>"
+        boton_html = "<p style='color: #4B5563;'>Su comprobante de pago electrónico en formato PDF ha sido adjuntado a este correo.</p>"
 
     html = f"""
-    <div style="font-family: Arial, sans-serif; color: #1F2937; max-width: 560px;">
+    <div style="font-family: Arial, sans-serif; color: #1F2937; max-width: 560px; border: 1px solid #E5E7EB; border-radius: 8px; padding: 2rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
       <h2 style="color: #059669; margin-bottom: 0.5rem;">Confirmación de Pago Exitoso</h2>
       <p>Estimado(a) <strong>{nombres}</strong>,</p>
       <p>Hemos registrado exitosamente su pago por concepto de cuotas institucionales.</p>
-      <div style="background:#F3F4F6;border-left:4px solid #10B981;padding:1rem;border-radius:4px;">
+      <div style="background:#F3F4F6;border-left:4px solid #10B981;padding:1rem;border-radius:4px;margin: 1rem 0;">
          <p style="margin:0.25rem 0;"><strong>Colegiado CIP:</strong> {nro_colegiado}</p>
          <p style="margin:0.25rem 0;"><strong>Monto Total:</strong> S/ {monto_total:.2f}</p>
-         <p style="margin:0.25rem 0;"><strong>Meses Pagados:</strong> {periodos_str}</p>
+         <p style="margin:0.25rem 0;"><strong>Meses/Concepto Pagados:</strong> {periodos_str}</p>
          <p style="margin:0.25rem 0;"><strong>Nro. Operación:</strong> {nro_operacion}</p>
       </div>
       {boton_html}
       <hr style="border:none;border-top:1px solid #E5E7EB;margin:1.5rem 0;">
-      <p style="color:#6B7280;font-size:0.85rem;">Colegio de Ingenieros del Perú</p>
+      <p style="color:#6B7280;font-size:0.85rem;text-align:center;">Colegio de Ingenieros del Perú</p>
     </div>
     """
 
-    _send_via_sendgrid(subject=asunto, plain_text_content=texto, to_email=correo, html_content=html)
+    return _send_via_sendgrid(
+        subject=asunto,
+        plain_text_content=texto,
+        to_email=correo,
+        html_content=html,
+        pdf_bytes=pdf_bytes,
+        pdf_filename=pdf_filename
+    )
+

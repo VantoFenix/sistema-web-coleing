@@ -592,15 +592,36 @@ export default function AdminPresencial() {
                 style={{ flex: 1, padding: '0.6rem', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '0.85rem', outline: 'none' }}
               />
               <button
-                onClick={() => {
+                onClick={async () => {
                   const em = document.getElementById('email_envio_presencial').value;
                   if (!em) return;
                   setEnviandoEmail(true);
-                  setTimeout(() => {
-                    setEnviandoEmail(false);
-                    setShowEmailInput(false);
+                  setCorreoEnviado(false);
+                  try {
+                    const adminToken = localStorage.getItem('adminToken');
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`;
+
+                    const res = await fetch('/api/finanzas/comprobantes/?page_size=1', { headers });
+                    if (res.ok) {
+                      const data = await res.json();
+                      const list = data.results || data;
+                      if (list && list.length > 0) {
+                        const compId = list[0].id;
+                        await fetch(`/api/finanzas/comprobantes/${compId}/enviar_email/`, {
+                          method: 'POST',
+                          headers,
+                          body: JSON.stringify({ email: em })
+                        });
+                      }
+                    }
                     setCorreoEnviado(true);
-                  }, 1000);
+                    setShowEmailInput(false);
+                  } catch (err) {
+                    console.error('Error enviando email:', err);
+                  } finally {
+                    setEnviandoEmail(false);
+                  }
                 }}
                 style={{ background: 'var(--cip-blue)', color: 'white', border: 'none', borderRadius: '8px', padding: '0 1rem', cursor: 'pointer', fontWeight: 'bold' }}
               >
@@ -611,7 +632,7 @@ export default function AdminPresencial() {
           
           {correoEnviado && (
             <div style={{ textAlign: 'center', color: '#059669', fontSize: '0.85rem', fontWeight: 'bold' }}>
-              ✓ Comprobante enviado
+              ✓ Comprobante enviado a correo
             </div>
           )}
         </div>

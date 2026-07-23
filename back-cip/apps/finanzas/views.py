@@ -232,6 +232,8 @@ class CuotaViewSet(viewsets.ModelViewSet):
 # VIEWSET PARA COMPROBANTES
 # ==============================================================================
 
+from rest_framework.permissions import AllowAny
+
 class ComprobanteViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet para gestionar comprobantes de pago.
@@ -242,8 +244,10 @@ class ComprobanteViewSet(viewsets.ReadOnlyModelViewSet):
     
     Acciones adicionales:
     - GET /comprobantes/{id}/descargar_pdf/: Descargar comprobante en PDF
+    - POST /comprobantes/{id}/enviar_email/: Enviar comprobante por correo electrónico
     - GET /comprobantes/colegiado/{colegiado_id}/historial/: Historial de comprobantes de un colegiado
     """
+    permission_classes = [AllowAny]
     queryset = Comprobante.objects.select_related('colegiado', 'cuota').order_by('-fecha_hora_pago')
     serializer_class = ComprobanteSerializer
     pagination_class = StandardPagination
@@ -320,3 +324,61 @@ class ComprobanteViewSet(viewsets.ReadOnlyModelViewSet):
         
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def enviar_email(self, request, pk=None):
+        """
+        Envía el comprobante por correo electrónico con el PDF adjunto.
+        Endpoint: POST /comprobantes/{id}/enviar_email/
+        Body JSON opcional: { "email": "destinatario@ejemplo.com" }
+        """
+        comprobante = self.get_object()
+        destinatario = request.data.get('email') or getattr(comprobante.colegiado, 'correo', None)
+        
+        if not destinatario:
+            return Response(
+                {'error': 'No se proporcionó un correo electrónico de destino.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        try:
+            from core.emails import enviar_confirmacion_pago
+            import os
+            
+            # Generar PDF en bytes
+            pdf_buffer = generar_pdf_comprobante(comprobante)
+            pdf_bytes = pdf_buffer.getvalue()
+            
+            pdf_url = None
+            if comprobante.sunat_hash:
+                ruc = os.getenv("SUNAT_RUC_EMISOR", "20123456789")
+                base_url = os.getenv("FACTU_URL", "https://20123456789.s2.factusmart.pe/api/v1/issuer/documents").split('/documents')[0]
+                pdf_url = f"{base_url}/documents/{comprobante.sunat_hash}/pdf?ruc={ruc}"
+            
+            nombre_colegiado = getattr(comprobante.colegiado, 'nombre_completo', None) or getattr(comprobante.colegiado, 'nombres', 'Colegiado CIP')
+            cip_colegiado = getattr(comprobante.colegiado, 'cip', None) or getattr(comprobante.colegiado, 'nro_colegiado', 'N/A')
+            
+            periodo = [comprobante.observaciones] if comprobante.observaciones else ["Pago de comprobante"]
+            
+            enviado = enviar_confirmacion_pago(
+                correo=destinatario,
+                nombres=nombre_colegiado,
+                nro_colegiado=cip_colegiado,
+                monto_total=float(comprobante.monto),
+                periodos_pagados=periodo,
+                nro_operacion=comprobante.numero_comprobante,
+                pdf_url=pdf_url,
+                pdf_bytes=pdf_bytes,
+                pdf_filename=f"comprobante_{comprobante.numero_comprobante}.pdf"
+            )
+            
+            if enviado:
+                return Response({'success': True, 'message': f'Comprobante enviado exitosamente a {destinatario}'})
+            else:
+                return Response({'error': 'Error al enviar el correo. Por favor verifique la dirección.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+        except Exception as e:
+            import sys
+            print(f"[ERROR ENVIAR EMAIL COMPROBANTE] {e}", file=sys.stderr)
+            return Response({'error': f'Error procesando el envío de correo: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

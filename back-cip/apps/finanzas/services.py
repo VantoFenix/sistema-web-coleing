@@ -45,6 +45,12 @@ def marcar_cuota_como_pagada(cuota: Cuota, transaccion_id: str = None) -> Cuota:
         try:
             from core.emails import enviar_confirmacion_pago
             import os
+            pdf_bytes = None
+            try:
+                pdf_bytes = generar_pdf_comprobante(comp).getvalue()
+            except Exception as pe:
+                print(f"[PDF GEN ERROR] {pe}")
+            
             pdf_url = None
             if comp.sunat_hash:
                 ruc = os.getenv("SUNAT_RUC_EMISOR", "20123456789")
@@ -58,7 +64,9 @@ def marcar_cuota_como_pagada(cuota: Cuota, transaccion_id: str = None) -> Cuota:
                 monto_total=float(cuota.monto),
                 periodos_pagados=[f"{cuota.anio_cobro}-{cuota.mes_cobro:02d}"],
                 nro_operacion=transaccion_id or "EFECTIVO-PRESENCIAL",
-                pdf_url=pdf_url
+                pdf_url=pdf_url,
+                pdf_bytes=pdf_bytes,
+                pdf_filename=f"comprobante_{comp.numero_comprobante}.pdf"
             )
         except Exception as e:
             import sys

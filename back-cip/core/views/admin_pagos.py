@@ -188,16 +188,26 @@ class AdminRegistrarPagoPresencialView(APIView):
                     pdf_url = f"{base_url}/documents/{comp.sunat_hash}/pdf?ruc={ruc}"
                     pdf_url_final = pdf_url
                     
-                if colegiado.correo:
+                pdf_bytes = None
+                try:
+                    from apps.finanzas.services import generar_pdf_comprobante
+                    pdf_bytes = generar_pdf_comprobante(comp).getvalue()
+                except Exception as pe:
+                    print(f"[PDF GEN ERROR ADMIN] {pe}")
+
+                target_email = request.data.get('correo') or request.data.get('email') or getattr(colegiado, 'correo', None)
+                if target_email:
                     from core.emails import enviar_confirmacion_pago
                     enviar_confirmacion_pago(
-                        correo=colegiado.correo,
+                        correo=target_email,
                         nombres=colegiado.nombres,
                         nro_colegiado=colegiado.nro_colegiado,
                         monto_total=round(monto_total, 2),
                         periodos_pagados=registrados,
                         nro_operacion=boleta_numero,
-                        pdf_url=pdf_url
+                        pdf_url=pdf_url,
+                        pdf_bytes=pdf_bytes,
+                        pdf_filename=f"comprobante_{comp.numero_comprobante}.pdf"
                     )
             except Exception as e:
                 import sys
