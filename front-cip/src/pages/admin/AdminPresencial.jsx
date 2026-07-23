@@ -54,6 +54,7 @@ export default function AdminPresencial() {
   const [dniValidado, setDniValidado] = useState(false);
   const [success, setSuccess] = useState(false);
   const [pdfUrl, setPdfUrl] = useState(null);
+  const [comprobanteId, setComprobanteId] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -519,7 +520,32 @@ export default function AdminPresencial() {
       });
 
       if (resPost.ok) {
-        setSuccess(true);
+        const data = await resPost.json();
+        const solicitudId = data.solicitud_id;
+
+        if (solicitudId && adminToken) {
+           const resAprobar = await fetch(`/api/admin/postulaciones/${solicitudId}/resolver/`, {
+              method: 'POST',
+              headers: {
+                 'Authorization': `Bearer ${adminToken}`,
+                 'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ accion: 'APROBAR', comentarios: 'Aprobación automática en caja presencial' })
+           });
+           
+           if (resAprobar.ok) {
+               const dataAprobar = await resAprobar.json();
+               if (dataAprobar.comprobante_id) {
+                   setComprobanteId(dataAprobar.comprobante_id);
+               }
+               setSuccess(true);
+           } else {
+               const errDataAprobar = await resAprobar.json();
+               setErrorMsg(errDataAprobar.error || "Solicitud creada pero falló al aprobar automáticamente.");
+           }
+        } else {
+           setSuccess(true);
+        }
       } else {
         const errData = await resPost.json();
         setErrorMsg(errData.error || "Error al crear la solicitud.");
@@ -602,17 +628,25 @@ export default function AdminPresencial() {
                     const headers = { 'Content-Type': 'application/json' };
                     if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`;
 
-                    const res = await fetch('/api/finanzas/comprobantes/?page_size=1', { headers });
-                    if (res.ok) {
-                      const data = await res.json();
-                      const list = data.results || data;
-                      if (list && list.length > 0) {
-                        const compId = list[0].id;
-                        await fetch(`/api/finanzas/comprobantes/${compId}/enviar_email/`, {
-                          method: 'POST',
-                          headers,
-                          body: JSON.stringify({ email: em })
-                        });
+                    if (comprobanteId) {
+                      await fetch(`/api/finanzas/comprobantes/${comprobanteId}/enviar_email/`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({ email: em })
+                      });
+                    } else {
+                      const res = await fetch('/api/finanzas/comprobantes/?page_size=1', { headers });
+                      if (res.ok) {
+                        const data = await res.json();
+                        const list = data.results || data;
+                        if (list && list.length > 0) {
+                          const compId = list[0].id;
+                          await fetch(`/api/finanzas/comprobantes/${compId}/enviar_email/`, {
+                            method: 'POST',
+                            headers,
+                            body: JSON.stringify({ email: em })
+                          });
+                        }
                       }
                     }
                     setCorreoEnviado(true);

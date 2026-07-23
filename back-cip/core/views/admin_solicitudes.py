@@ -233,7 +233,8 @@ class AdminResolverSolicitudView(APIView):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
 
-            return Response({'success': True, 'estado': 'APROBADA', 'pdf_url': pdf_url_final})
+            return Response({'success': True, 'estado': 'APROBADA', 'pdf_url': pdf_url_final, 'comprobante_id': comp.id if 'comp' in locals() else None})
+
 
         return Response({'error': 'Acción inválida'}, status=status.HTTP_400_BAD_REQUEST)
 
