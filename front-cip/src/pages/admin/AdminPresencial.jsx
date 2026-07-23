@@ -705,6 +705,7 @@ export default function AdminPresencial() {
             <div className="form-group">
               <label className="form-label">Fecha de Registro *</label>
               <input type="date" className="form-input" value={fechaRegistro}
+                max={new Date().toISOString().split('T')[0]}
                 onChange={(e) => setFechaRegistro(e.target.value)}
                 required />
             </div>
